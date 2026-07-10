@@ -3,6 +3,7 @@ import Link from "next/link";
 import { CalendarCheckIcon, CalendarIcon, LinkIcon } from "lucide-react";
 
 import { disconnectCalendarAction } from "@/app/(app)/settings/actions";
+import { ApiKeysCard } from "@/app/(app)/settings/api-keys-card";
 import { AvailabilityForm } from "@/app/(app)/settings/availability-form";
 import { MeetingList } from "@/app/(app)/settings/meeting-list";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -18,6 +19,7 @@ import {
 import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/rbac";
+import { listApiKeys } from "@/services/api-keys";
 import { listUpcomingMeetings } from "@/services/scheduling";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -38,7 +40,7 @@ export default async function SettingsPage({
   const user = await requireUser();
   const { calendar: calendarMsg } = await searchParams;
 
-  const [profile, meetings] = await Promise.all([
+  const [profile, meetings, apiKeys] = await Promise.all([
     db.user.findUnique({
       where: { id: user.id },
       select: {
@@ -48,6 +50,7 @@ export default async function SettingsPage({
       },
     }),
     listUpcomingMeetings(user),
+    listApiKeys(user),
   ]);
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -57,7 +60,7 @@ export default async function SettingsPage({
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
         <p className="text-muted-foreground text-sm">
-          Calendar connection, availability and your public booking page
+          Calendar connection, availability, your public booking page, and API access
         </p>
       </div>
 
@@ -158,6 +161,17 @@ export default async function SettingsPage({
           />
         </CardContent>
       </Card>
+
+      <ApiKeysCard
+        appUrl={appUrl}
+        keys={apiKeys.map((k) => ({
+          id: k.id,
+          name: k.name,
+          prefix: k.prefix,
+          createdAt: formatDateTime(k.createdAt, "d MMM yyyy"),
+          lastUsedAt: k.lastUsedAt ? formatDateTime(k.lastUsedAt) : null,
+        }))}
+      />
     </div>
   );
 }

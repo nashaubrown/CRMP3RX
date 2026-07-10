@@ -122,6 +122,8 @@ npx prisma studio     # browse the database
 | Scheduling | `/settings`, public `/book/[slug]`, Schedule button on merchant/contact pages | Google Calendar connect, availability editor, Meet links, email+SMS confirmations; user-scheduled meetings mirror onto the record's timeline |
 | Tasks | `/tasks` + dashboard | Overdue highlighting, complete/reopen |
 | Ask Perx (AI) | `/assistant` + topbar sparkle | Read-only, RBAC-scoped tools, streaming, audit-logged |
+| REST API | `/api/v1/*` | API-key auth (created in Settings), same RBAC as the web app |
+| MCP for Claude | `/api/mcp` | Connect claude.ai / Claude Code / Claude Desktop to the CRM |
 
 ## Testing
 
@@ -133,6 +135,57 @@ Unit tests cover lead scoring, slot generation (timezone math), merge vars, phon
 normalization, audit diffs and rate limiting. Integration tests run the real
 services against Postgres: the sharing/permission matrix and the public booking
 flow (double-booking rejection included).
+
+## REST API & connecting Claude (MCP)
+
+Create an API key in **Settings → API keys & Claude integration** (shown once —
+only a SHA-256 hash is stored). A key authenticates as its owner, so every
+request is scoped by the same RBAC and sharing rules as the web app, and all
+write calls are audit-logged.
+
+### REST API (`/api/v1`)
+
+Send the key as `Authorization: Bearer perx_…` (or `x-api-key`):
+
+```bash
+curl -H "Authorization: Bearer perx_…" "$APP_URL/api/v1/me"
+```
+
+| Endpoint | Methods | Notes |
+|---|---|---|
+| `/api/v1/me` | GET | Who the key belongs to (connectivity check) |
+| `/api/v1/merchants` | GET, POST | `?q= &status= &scope=all\|mine\|shared &sort= &dir= &page=` |
+| `/api/v1/merchants/:id` | GET | Full record: contacts, deals, your access flags |
+| `/api/v1/contacts` | GET | `?q= &merchantId= &scope= &page=` |
+| `/api/v1/contacts/:id` | GET | |
+| `/api/v1/deals` | GET | `?scope=all\|mine &stage=` — board + per-stage summaries |
+| `/api/v1/leads` | GET | `?q= &status= &scope=all\|mine\|unassigned &page=` |
+| `/api/v1/activities` | POST | Log a note/call/task/meeting (needs merchant edit rights) |
+| `/api/v1/meetings` | POST | Schedule a meeting (host = key owner, Google-synced) |
+
+Errors are `{ "error": "…" }` with 400/401/404 status codes. Dates in request
+bodies (`dueAt`, `startAtLocal`) use `YYYY-MM-DDTHH:mm` in Maldives time;
+response timestamps are UTC ISO.
+
+### MCP server (`/api/mcp`)
+
+A remote [MCP](https://modelcontextprotocol.io) server (Streamable HTTP,
+stateless) that gives Claude tools over the CRM: `search_records`,
+`get_merchant`, `get_contact`, `list_deals`, `pipeline_summary`,
+`list_activities_due`, `recent_communications`, `stale_merchants`, plus two
+writes — `log_activity` and `schedule_meeting` (both require edit rights on
+the record, like the web app).
+
+- **Claude Code**:
+  `claude mcp add --transport http perx-crm $APP_URL/api/mcp --header "Authorization: Bearer perx_…"`
+- **claude.ai / Claude Desktop** (Settings → Connectors → Add custom
+  connector): use `$APP_URL/api/mcp?key=perx_…` if the client can't set
+  headers. Anything with the key in the URL can act as you — treat that URL
+  as a secret, and note the deployment must be reachable from the internet
+  for claude.ai to connect.
+
+The internal "Ask Perx" assistant is unchanged (and stays read-only); the MCP
+surface shares its read tools.
 
 ## Webhooks in production
 

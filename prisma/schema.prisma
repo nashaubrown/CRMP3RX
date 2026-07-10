@@ -49,6 +49,25 @@ model User {
   auditLogs      AuditLog[]
   conversations  Conversation[]
   merchantShares MerchantShare[]
+  apiKeys        ApiKey[]
+}
+
+// Personal access tokens for the REST API and the MCP endpoint. Only a
+// SHA-256 hash is stored; the full token is shown once at creation. A key
+// authenticates as its owner, so all RBAC scoping applies unchanged.
+model ApiKey {
+  id         String    @id @default(cuid())
+  name       String
+  // First characters of the token (e.g. "perx_3f9a") for display only
+  prefix     String
+  hashedKey  String    @unique
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
 }
 
 // Auth.js adapter models

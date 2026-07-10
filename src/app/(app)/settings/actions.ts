@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { db } from "@/lib/db";
 import { requireUserOrThrow } from "@/lib/rbac";
+import { createApiKey, revokeApiKey } from "@/services/api-keys";
 import { cancelMeeting, saveAvailability } from "@/services/scheduling";
 
 const availabilitySchema = z.object({
@@ -51,6 +52,35 @@ export async function disconnectCalendarAction() {
   const ctx = await requireUserOrThrow();
   await db.googleCalendarAccount.deleteMany({ where: { userId: ctx.id } });
   revalidatePath("/settings");
+}
+
+export async function createApiKeyAction(
+  name: string
+): Promise<{ error: string | null; token?: string }> {
+  const ctx = await requireUserOrThrow();
+  const trimmed = name.trim();
+  if (!trimmed || trimmed.length > 60) return { error: "Give the key a short name" };
+
+  try {
+    const { token } = await createApiKey(ctx, trimmed);
+    revalidatePath("/settings");
+    // Returned once to the key's owner over the authenticated action channel;
+    // only its hash is stored.
+    return { error: null, token };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Something went wrong" };
+  }
+}
+
+export async function revokeApiKeyAction(id: string): Promise<{ error: string | null }> {
+  const ctx = await requireUserOrThrow();
+  try {
+    await revokeApiKey(ctx, id);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Something went wrong" };
+  }
+  revalidatePath("/settings");
+  return { error: null };
 }
 
 export async function cancelMeetingAction(meetingId: string): Promise<{ error: string | null }> {

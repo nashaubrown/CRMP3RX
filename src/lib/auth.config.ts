@@ -21,7 +21,10 @@ export const authConfig = {
         pathname.startsWith("/capture") ||
         pathname.startsWith("/api/auth") ||
         pathname.startsWith("/api/webhooks") ||
-        pathname.startsWith("/api/booking");
+        pathname.startsWith("/api/booking") ||
+        // API-key authenticated surfaces (REST + MCP) do their own auth
+        pathname.startsWith("/api/v1") ||
+        pathname === "/api/mcp";
       if (isPublic) return true;
       return !!auth?.user;
     },
