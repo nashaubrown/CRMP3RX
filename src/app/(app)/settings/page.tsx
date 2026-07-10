@@ -3,6 +3,7 @@ import Link from "next/link";
 import { CalendarCheckIcon, CalendarIcon, LinkIcon } from "lucide-react";
 
 import { disconnectCalendarAction } from "@/app/(app)/settings/actions";
+import { AiProviderCard } from "@/app/(app)/settings/ai-provider-card";
 import { ApiKeysCard } from "@/app/(app)/settings/api-keys-card";
 import { AvailabilityForm } from "@/app/(app)/settings/availability-form";
 import { MeetingList } from "@/app/(app)/settings/meeting-list";
@@ -19,6 +20,7 @@ import {
 import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/rbac";
+import { AI_PROVIDER_OPTIONS, getAiSettings } from "@/services/ai-settings";
 import { listApiKeys } from "@/services/api-keys";
 import { listUpcomingMeetings } from "@/services/scheduling";
 
@@ -40,7 +42,7 @@ export default async function SettingsPage({
   const user = await requireUser();
   const { calendar: calendarMsg } = await searchParams;
 
-  const [profile, meetings, apiKeys] = await Promise.all([
+  const [profile, meetings, apiKeys, aiSettings] = await Promise.all([
     db.user.findUnique({
       where: { id: user.id },
       select: {
@@ -51,6 +53,7 @@ export default async function SettingsPage({
     }),
     listUpcomingMeetings(user),
     listApiKeys(user),
+    getAiSettings(user),
   ]);
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -161,6 +164,22 @@ export default async function SettingsPage({
           />
         </CardContent>
       </Card>
+
+      {aiSettings.isAdmin ? (
+        <AiProviderCard
+          options={AI_PROVIDER_OPTIONS.map((o) => ({
+            value: o.value,
+            name: o.name,
+            defaultModel: o.defaultModel,
+            keyOptional: o.keyOptional,
+            custom: o.custom,
+          }))}
+          active={aiSettings.activeProviderLabel}
+          source={aiSettings.activeSource}
+          configured={aiSettings.configured}
+          saved={aiSettings.saved}
+        />
+      ) : null}
 
       <ApiKeysCard
         appUrl={appUrl}

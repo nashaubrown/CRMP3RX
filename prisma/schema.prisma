@@ -73,6 +73,21 @@ model ApiKey {
   @@index([userId])
 }
 
+// Org-wide AI provider configuration for Ask Perx and the Generative canvas,
+// set by an admin in Settings. Overrides the .env defaults. Singleton row
+// (fixed id). The API key is stored AES-256-GCM encrypted (see lib/crypto),
+// never returned to the client.
+model AiSetting {
+  id          String   @id @default("singleton")
+  provider    String
+  model       String?
+  baseUrl     String?
+  apiKeyEnc   String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 // Auth.js adapter models
 model Account {
   id                String  @id @default(cuid())

@@ -20,9 +20,10 @@ export default async function CanvasPage({
   const user = await requireUser();
   const { v } = await searchParams;
 
-  const [history, opened] = await Promise.all([
+  const [history, opened, configured] = await Promise.all([
     listCanvasViews(user),
     v ? getCanvasView(user, v) : Promise.resolve(null),
+    aiConfigured(),
   ]);
 
   return (
@@ -37,7 +38,7 @@ export default async function CanvasPage({
         </div>
       </div>
 
-      {!aiConfigured() ? (
+      {!configured ? (
         <Alert variant="destructive">
           <AlertDescription>
             Generative UI isn&apos;t configured — set <code>ANTHROPIC_API_KEY</code> (or a free

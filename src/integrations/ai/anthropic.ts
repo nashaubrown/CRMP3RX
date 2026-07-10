@@ -31,9 +31,11 @@ function toAnthropicMessages(messages: AiMessage[]): Anthropic.MessageParam[] {
 export class AnthropicProvider implements AiProvider {
   readonly label: string;
   private model: string;
+  private apiKey?: string;
 
-  constructor(model: string) {
+  constructor(model: string, apiKey?: string) {
     this.model = model;
+    this.apiKey = apiKey;
     this.label = `Anthropic (${model})`;
   }
 
@@ -42,7 +44,7 @@ export class AnthropicProvider implements AiProvider {
     messages: AiMessage[];
     tools: AiToolDef[];
   }): AsyncGenerator<AiStreamEvent> {
-    const client = new Anthropic();
+    const client = new Anthropic(this.apiKey ? { apiKey: this.apiKey } : undefined);
     const stream = client.messages.stream({
       model: this.model,
       max_tokens: 8192,

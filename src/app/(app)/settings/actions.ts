@@ -6,6 +6,12 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireUserOrThrow } from "@/lib/rbac";
 import { createApiKey, revokeApiKey } from "@/services/api-keys";
+import {
+  clearAiSettings,
+  saveAiSettings,
+  saveAiSettingsSchema,
+  testAiConnection,
+} from "@/services/ai-settings";
 import { cancelMeeting, saveAvailability } from "@/services/scheduling";
 
 const availabilitySchema = z.object({
@@ -81,6 +87,37 @@ export async function revokeApiKeyAction(id: string): Promise<{ error: string | 
   }
   revalidatePath("/settings");
   return { error: null };
+}
+
+export async function saveAiSettingsAction(
+  input: unknown
+): Promise<{ error: string | null }> {
+  const ctx = await requireUserOrThrow();
+  const parsed = saveAiSettingsSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  try {
+    await saveAiSettings(ctx, parsed.data);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Something went wrong" };
+  }
+  revalidatePath("/settings");
+  return { error: null };
+}
+
+export async function clearAiSettingsAction(): Promise<{ error: string | null }> {
+  const ctx = await requireUserOrThrow();
+  try {
+    await clearAiSettings(ctx);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Something went wrong" };
+  }
+  revalidatePath("/settings");
+  return { error: null };
+}
+
+export async function testAiConnectionAction(): Promise<{ ok: boolean; message: string }> {
+  const ctx = await requireUserOrThrow();
+  return testAiConnection(ctx);
 }
 
 export async function cancelMeetingAction(meetingId: string): Promise<{ error: string | null }> {

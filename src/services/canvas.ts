@@ -82,9 +82,9 @@ export async function* generateCanvasView(
   ctx: SessionUser,
   prompt: string
 ): AsyncGenerator<CanvasEvent> {
-  const provider = getAiProvider();
+  const provider = await getAiProvider();
   if (!provider) {
-    yield { type: "error", message: `Generative UI isn't configured yet. ${aiConfigHint()}` };
+    yield { type: "error", message: `Generative UI isn't configured yet. ${await aiConfigHint()}` };
     return;
   }
 

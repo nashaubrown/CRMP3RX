@@ -27,6 +27,7 @@ export default async function AssistantPage({
 
   const conversations = await listConversations(user);
   const selected = selectedId ? await getConversationMessages(user, selectedId) : null;
+  const configured = await assistantConfigured();
 
   const initialMessages: ChatMessageView[] =
     selected?.messages.map((m) => ({
@@ -52,7 +53,7 @@ export default async function AssistantPage({
         </Button>
       </div>
 
-      {!assistantConfigured() ? (
+      {!configured ? (
         <Alert variant="destructive">
           <AlertTriangleIcon />
           <AlertDescription>

@@ -124,6 +124,7 @@ npx prisma studio     # browse the database
 | Tasks | `/tasks` + dashboard | Overdue highlighting, complete/reopen |
 | Ask Perx (AI) | `/assistant` + topbar sparkle | Read-only, RBAC-scoped tools, streaming, audit-logged; provider-pluggable (Anthropic default; Groq/Gemini/OpenRouter/Mistral/Ollama via `AI_PROVIDER` — free hosted tiers may train on your prompts, see `.env.example`) |
 | Generative UI | `/canvas` + topbar toggle | Prompt-driven canvas: the AI composes a live view (stat tiles, charts, tables, record cards, action buttons) from CRM data via a validated view spec. Per-user Classic/Generative toggle; inline write actions (log activity, complete task) re-check RBAC server-side |
+| AI provider config | Settings → AI provider (admin) | Paste your Anthropic/Groq/Gemini/… key in the UI — encrypted at rest, overrides `.env`, with a live "Test connection". No key is ever sent back to the browser |
 | REST API | `/api/v1/*` | API-key auth (created in Settings), same RBAC as the web app |
 | MCP for Claude | `/api/mcp` | Connect claude.ai / Claude Code / Claude Desktop to the CRM |
 | CSV export/import | Buttons on list pages | Export honors active filters; import validates per row, skips duplicates, needs the same edit rights as the forms |

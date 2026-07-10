@@ -1,32 +1,43 @@
 import { AnthropicProvider } from "@/integrations/ai/anthropic";
 import { OpenAiCompatibleProvider } from "@/integrations/ai/openai-compatible";
 import type { AiProvider } from "@/integrations/ai/types";
+import { db } from "@/lib/db";
+import { decryptSecret } from "@/lib/crypto";
 
 export type { AiMessage, AiProvider, AiStreamEvent, AiToolCall, AiToolDef } from "@/integrations/ai/types";
 
-// Provider selection for Ask Perx, mirroring the email/SMS provider pattern.
+// Provider selection for Ask Perx and the Generative canvas.
+//
+// Resolution order:
+//   1. Settings (DB, set by an admin in the UI) — authoritative if present.
+//   2. Environment variables (.env) — the fallback / default.
 //
 //   AI_PROVIDER = ANTHROPIC | GROQ | GEMINI | OPENROUTER | MISTRAL | OLLAMA
 //               | OPENAI | CUSTOM
 //
 // Every non-Anthropic option speaks the OpenAI-compatible API. Presets fill
-// in the base URL, a sensible default model and which env var holds the key;
-// AI_MODEL / AI_BASE_URL / AI_API_KEY override any preset. When AI_PROVIDER
-// is unset, Anthropic is used if ANTHROPIC_API_KEY is set.
+// in the base URL, a default model and which env var holds the key.
 //
-// Privacy note (documented in .env.example): free tiers of hosted providers
-// may use your prompts — i.e. CRM data — for training. Anthropic API and
+// Privacy note (in .env.example / the Settings card): free tiers of hosted
+// providers may use your prompts — i.e. CRM data — for training. Anthropic and
 // self-hosted Ollama do not.
 
-type Preset = {
+export type Preset = {
   name: string;
   baseUrl: string;
   defaultModel: string;
   keyEnv?: string; // provider-specific key env var (AI_API_KEY always wins)
   keyOptional?: boolean;
+  custom?: boolean; // requires a base URL to be supplied
 };
 
-const PRESETS: Record<string, Preset> = {
+export const PRESETS: Record<string, Preset> = {
+  ANTHROPIC: {
+    name: "Anthropic",
+    baseUrl: "",
+    defaultModel: "claude-opus-4-8",
+    keyEnv: "ANTHROPIC_API_KEY",
+  },
   GROQ: {
     name: "Groq",
     baseUrl: "https://api.groq.com/openai/v1",
@@ -65,45 +76,97 @@ const PRESETS: Record<string, Preset> = {
   },
   CUSTOM: {
     name: "Custom",
-    baseUrl: "", // must come from AI_BASE_URL
+    baseUrl: "",
     defaultModel: "",
     keyOptional: true,
+    custom: true,
   },
 };
 
-function resolveKey(preset: Preset): string | undefined {
-  return process.env.AI_API_KEY || (preset.keyEnv ? process.env[preset.keyEnv] : undefined);
-}
+// A fully-resolved provider configuration and where it came from.
+export type ResolvedAiConfig = {
+  provider: string; // key into PRESETS
+  apiKey?: string;
+  model?: string;
+  baseUrl?: string;
+  source: "settings" | "env";
+};
 
-// Returns the configured provider, or null with no valid configuration.
-export function getAiProvider(): AiProvider | null {
-  const choice = (process.env.AI_PROVIDER ?? "").trim().toUpperCase();
-
-  if (choice === "" || choice === "ANTHROPIC") {
-    if (!process.env.ANTHROPIC_API_KEY) return null;
-    return new AnthropicProvider(process.env.ANTHROPIC_MODEL || "claude-opus-4-8");
-  }
-
+function envConfig(): ResolvedAiConfig | null {
+  const choice = (process.env.AI_PROVIDER ?? "").trim().toUpperCase() || "ANTHROPIC";
   const preset = PRESETS[choice];
   if (!preset) return null;
-
-  const baseUrl = process.env.AI_BASE_URL || preset.baseUrl;
-  const model = process.env.AI_MODEL || preset.defaultModel;
-  const apiKey = resolveKey(preset);
-  if (!baseUrl || !model) return null;
-  if (!apiKey && !preset.keyOptional) return null;
-
-  return new OpenAiCompatibleProvider({ baseUrl, apiKey, model, providerName: preset.name });
+  const apiKey =
+    process.env.AI_API_KEY || (preset.keyEnv ? process.env[preset.keyEnv] : undefined);
+  return {
+    provider: choice,
+    apiKey,
+    model: process.env.AI_MODEL || process.env.ANTHROPIC_MODEL || undefined,
+    baseUrl: process.env.AI_BASE_URL || undefined,
+    source: "env",
+  };
 }
 
-export function aiConfigured(): boolean {
-  return getAiProvider() !== null;
-}
-
-export function aiConfigHint(): string {
-  const choice = (process.env.AI_PROVIDER ?? "").trim().toUpperCase();
-  if (choice && choice !== "ANTHROPIC" && PRESETS[choice] && !resolveKey(PRESETS[choice])) {
-    return `AI_PROVIDER is ${choice} but no API key was found — set ${PRESETS[choice].keyEnv ?? "AI_API_KEY"} in .env and restart.`;
+async function settingsConfig(): Promise<ResolvedAiConfig | null> {
+  try {
+    const row = await db.aiSetting.findUnique({ where: { id: "singleton" } });
+    if (!row || !PRESETS[row.provider]) return null;
+    return {
+      provider: row.provider,
+      apiKey: row.apiKeyEnc ? (decryptSecret(row.apiKeyEnc) ?? undefined) : undefined,
+      model: row.model ?? undefined,
+      baseUrl: row.baseUrl ?? undefined,
+      source: "settings",
+    };
+  } catch {
+    // e.g. table not migrated yet — fall back to env
+    return null;
   }
-  return "Set ANTHROPIC_API_KEY in .env — or use a free provider by setting AI_PROVIDER (GROQ, GEMINI, OPENROUTER, MISTRAL, OLLAMA) with its API key. See .env.example.";
+}
+
+// Resolves the active configuration: Settings first, then env.
+export async function resolveAiConfig(): Promise<ResolvedAiConfig | null> {
+  return (await settingsConfig()) ?? envConfig();
+}
+
+// Builds a provider from a resolved config, or null if it's incomplete.
+export function buildProvider(config: ResolvedAiConfig | null): AiProvider | null {
+  if (!config) return null;
+  const preset = PRESETS[config.provider];
+  if (!preset) return null;
+
+  if (config.provider === "ANTHROPIC") {
+    // The SDK reads ANTHROPIC_API_KEY from env; a Settings key overrides it.
+    if (!config.apiKey && !process.env.ANTHROPIC_API_KEY) return null;
+    return new AnthropicProvider(config.model || preset.defaultModel, config.apiKey);
+  }
+
+  const baseUrl = config.baseUrl || preset.baseUrl;
+  const model = config.model || preset.defaultModel;
+  if (!baseUrl || !model) return null;
+  if (!config.apiKey && !preset.keyOptional) return null;
+
+  return new OpenAiCompatibleProvider({
+    baseUrl,
+    apiKey: config.apiKey,
+    model,
+    providerName: preset.name,
+  });
+}
+
+export async function getAiProvider(): Promise<AiProvider | null> {
+  return buildProvider(await resolveAiConfig());
+}
+
+export async function aiConfigured(): Promise<boolean> {
+  return (await getAiProvider()) !== null;
+}
+
+export async function aiConfigHint(): Promise<string> {
+  const config = await resolveAiConfig();
+  if (config && !buildProvider(config)) {
+    const where = config.source === "settings" ? "Settings" : ".env";
+    return `The ${PRESETS[config.provider]?.name ?? config.provider} provider is selected in ${where} but its API key is missing — add it in Settings → AI provider.`;
+  }
+  return "An admin can set it up in Settings → AI provider (Anthropic, or a free provider like Groq/Gemini/Ollama), or via ANTHROPIC_API_KEY / AI_PROVIDER in .env.";
 }

@@ -11,7 +11,7 @@ import {
 const MAX_TOOL_ITERATIONS = 8;
 const HISTORY_LIMIT = 20;
 
-export function assistantConfigured(): boolean {
+export function assistantConfigured(): Promise<boolean> {
   return aiConfigured();
 }
 
@@ -50,9 +50,9 @@ export async function* runAssistantTurn(
   conversationId: string | null,
   userMessage: string
 ): AsyncGenerator<AssistantEvent> {
-  const provider = getAiProvider();
+  const provider = await getAiProvider();
   if (!provider) {
-    yield { type: "error", message: `Ask Perx isn't configured yet. ${aiConfigHint()}` };
+    yield { type: "error", message: `Ask Perx isn't configured yet. ${await aiConfigHint()}` };
     return;
   }
 
