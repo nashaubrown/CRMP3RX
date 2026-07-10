@@ -2,8 +2,8 @@ import type { DealStage, Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import { parseMvLocal } from "@/lib/datetime";
-import type { SessionUser } from "@/lib/rbac";
-import { isAdmin } from "@/lib/rbac";
+import type { SessionUser } from "@/lib/authz";
+import { isAdmin } from "@/lib/authz";
 import type { DealInput } from "@/lib/validators/deal";
 import { audit, shallowDiff } from "@/services/audit";
 

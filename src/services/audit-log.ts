@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { describeEvent, type HistoryEvent } from "@/lib/audit-events";
-import type { SessionUser } from "@/lib/rbac";
+import type { SessionUser } from "@/lib/authz";
 import { getMerchantAccess } from "@/services/merchant-access";
 
 const HISTORY_LIMIT = 100;

@@ -1,15 +1,11 @@
 import { redirect } from "next/navigation";
-import type { Role } from "@prisma/client";
 
 import { auth } from "@/lib/auth";
+import type { SessionUser } from "@/lib/authz";
 
-// Every service function takes this ctx and scopes its queries with it.
-export type SessionUser = {
-  id: string;
-  role: Role;
-  name?: string | null;
-  email?: string | null;
-};
+// Session-reading helpers (framework-coupled). Pure authorization logic
+// lives in @/lib/authz so services and tests don't pull in next-auth.
+export { isAdmin, ownerScope, type SessionUser } from "@/lib/authz";
 
 export async function getSessionUser(): Promise<SessionUser | null> {
   const session = await auth();
@@ -36,18 +32,8 @@ export async function requireUserOrThrow(): Promise<SessionUser> {
   return user;
 }
 
-export function isAdmin(user: SessionUser): boolean {
-  return user.role === "ADMIN";
-}
-
 export async function requireAdmin(): Promise<SessionUser> {
   const user = await requireUser();
-  if (!isAdmin(user)) redirect("/dashboard");
+  if (user.role !== "ADMIN") redirect("/dashboard");
   return user;
-}
-
-// Prisma where-fragment for owner scoping: admins see everything,
-// sales reps only their own records.
-export function ownerScope(user: SessionUser): { ownerId?: string } {
-  return isAdmin(user) ? {} : { ownerId: user.id };
 }

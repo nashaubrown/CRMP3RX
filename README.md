@@ -110,13 +110,53 @@ pnpm db:seed          # re-seed (wipes app data first)
 npx prisma studio     # browse the database
 ```
 
+## Feature map
+
+| Area | Where | Notes |
+|---|---|---|
+| Merchants & contacts | `/merchants`, `/contacts` | Search/filter/sort/pagination, Perx fields, activity timelines, owner-visible change history |
+| Sharing | Share button on a merchant | Hybrid model: org-wide view; per-teammate View/Edit shares |
+| Leads | `/leads` + public `/capture` | Rule-based scoring, claim, convert-to-merchant |
+| Deals | `/deals` | Drag-drop kanban, won/lost reasons, MVR/USD metrics |
+| Email & SMS | Buttons on merchant/contact pages | Templates with merge vars (`/templates`), STOP opt-out, delivery webhooks, hourly send limits |
+| Scheduling | `/settings` + public `/book/[slug]` | Google Calendar connect, availability editor, Meet links, email+SMS confirmations |
+| Tasks | `/tasks` + dashboard | Overdue highlighting, complete/reopen |
+| Ask Perx (AI) | `/assistant` + topbar sparkle | Read-only, RBAC-scoped tools, streaming, audit-logged |
+
+## Testing
+
+```bash
+pnpm test          # unit + integration (integration needs the docker Postgres running)
+```
+
+Unit tests cover lead scoring, slot generation (timezone math), merge vars, phone
+normalization, audit diffs and rate limiting. Integration tests run the real
+services against Postgres: the sharing/permission matrix and the public booking
+flow (double-booking rejection included).
+
+## Webhooks in production
+
+`/api/webhooks/resend` (svix-signed when `RESEND_WEBHOOK_SECRET` is set) and
+`/api/webhooks/twilio` (signature-checked, handles inbound STOP/START) need a
+public URL — use ngrok in development if you want live delivery events.
+
+## Vercel readiness
+
+The app deploys to Vercel unchanged: `postinstall` regenerates the Prisma
+client, all secrets come from env vars, and the datasource URL lives in
+`prisma.config.ts`. Point `DATABASE_URL` at a hosted Postgres (Supabase works —
+use the pooled connection string), set `NEXT_PUBLIC_APP_URL` to the deployment
+URL, and add the Google OAuth redirect URI. One caveat: the in-memory rate
+limiter is per-instance — swap `src/lib/rate-limit.ts` for a Redis/Upstash
+implementation if you scale beyond one region/instance.
+
 ## Build phases
 
 - [x] **Phase 0** — foundation: scaffold, Postgres + Prisma schema/seed, Auth.js + RBAC, app shell (sidebar/topbar, mobile nav, dark mode)
 - [x] **Phase 1** — core CRM: merchants & contacts CRUD (search/filter/sort/pagination), ownership + RBAC scoping, activity timelines, audit logging
 - [x] **Phase 2** — sales pipeline: rule-scored leads + public capture form (`/capture`), claim/convert flow, deals kanban with drag-drop + won/lost reasons, per-stage metrics split by MVR/USD
-- [ ] **Phase 3** — communications: email (Resend), SMS (adapter), templates, webhooks, opt-out
-- [ ] **Phase 4** — scheduling: Google Calendar sync + public booking page
-- [ ] **Phase 5** — dashboard & tasks
-- [ ] **Phase 6** — AI assistant ("Ask Perx")
-- [ ] **Phase 7** — hardening: tests, validation, docs
+- [x] **Phase 3** — communications: email (Resend), SMS (Twilio behind `SmsProvider` + local-gateway stub), templates with merge vars, delivery webhooks, STOP opt-out, rate limits
+- [x] **Phase 4** — scheduling: Google Calendar connect + free/busy, availability editor, public booking page with confirmations
+- [x] **Phase 5** — dashboard (pipeline, due today, recent comms, team feed) & tasks
+- [x] **Phase 6** — AI assistant ("Ask Perx"): read-only RBAC-scoped tools, streaming chat, conversation history
+- [x] **Phase 7** — hardening: vitest unit + integration tests, error boundaries, docs, Vercel-readiness

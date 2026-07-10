@@ -1,7 +1,7 @@
 import type { SharePermission } from "@prisma/client";
 
 import { db } from "@/lib/db";
-import type { SessionUser } from "@/lib/rbac";
+import type { SessionUser } from "@/lib/authz";
 import { assertMerchantManage } from "@/services/merchant-access";
 import { audit } from "@/services/audit";
 

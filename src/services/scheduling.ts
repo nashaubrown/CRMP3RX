@@ -5,7 +5,7 @@ import { getCalendarProvider } from "@/integrations/calendar/google";
 import type { BusyInterval } from "@/integrations/calendar/types";
 import { APP_TIMEZONE, formatDateTime, parseMvLocal } from "@/lib/datetime";
 import { db } from "@/lib/db";
-import type { SessionUser } from "@/lib/rbac";
+import type { SessionUser } from "@/lib/authz";
 import { audit } from "@/services/audit";
 import { sendSystemEmail, sendSystemSms } from "@/services/messaging";
 

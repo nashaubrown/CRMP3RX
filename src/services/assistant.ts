@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 
 import { db } from "@/lib/db";
-import type { SessionUser } from "@/lib/rbac";
+import type { SessionUser } from "@/lib/authz";
 import {
   assistantToolDefinitions,
   executeAssistantTool,

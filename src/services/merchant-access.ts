@@ -1,8 +1,8 @@
 import type { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
-import type { SessionUser } from "@/lib/rbac";
-import { isAdmin } from "@/lib/rbac";
+import type { SessionUser } from "@/lib/authz";
+import { isAdmin } from "@/lib/authz";
 
 // Hybrid sharing model:
 //  - VIEW: every authenticated user can see every merchant (and its contacts,

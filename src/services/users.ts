@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
-import type { SessionUser } from "@/lib/rbac";
-import { isAdmin } from "@/lib/rbac";
+import type { SessionUser } from "@/lib/authz";
+import { isAdmin } from "@/lib/authz";
 
 // Teammate directory (internal tool: any signed-in user can see names).
 // Used by the share dialog.

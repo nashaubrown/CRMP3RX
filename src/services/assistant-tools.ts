@@ -3,8 +3,8 @@ import { subDays } from "date-fns";
 
 import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
-import type { SessionUser } from "@/lib/rbac";
-import { isAdmin } from "@/lib/rbac";
+import type { SessionUser } from "@/lib/authz";
+import { isAdmin } from "@/lib/authz";
 import { audit } from "@/services/audit";
 import { getDealsBoard } from "@/services/deals";
 import { listCommunicationsForEntity } from "@/services/messaging";

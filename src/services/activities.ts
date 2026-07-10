@@ -2,8 +2,8 @@ import type { EntityType } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import { parseMvLocal } from "@/lib/datetime";
-import type { SessionUser } from "@/lib/rbac";
-import { isAdmin } from "@/lib/rbac";
+import type { SessionUser } from "@/lib/authz";
+import { isAdmin } from "@/lib/authz";
 import type { ActivityInput } from "@/lib/validators/activity";
 import { getMerchantAccess } from "@/services/merchant-access";
 import { audit } from "@/services/audit";

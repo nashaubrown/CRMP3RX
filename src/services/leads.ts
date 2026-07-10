@@ -1,8 +1,8 @@
 import type { LeadStatus, Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
-import type { SessionUser } from "@/lib/rbac";
-import { isAdmin } from "@/lib/rbac";
+import type { SessionUser } from "@/lib/authz";
+import { isAdmin } from "@/lib/authz";
 import type { LeadCaptureInput, LeadInput, LeadListParams } from "@/lib/validators/lead";
 import { audit } from "@/services/audit";
 import { computeLeadScore } from "@/services/lead-scoring";

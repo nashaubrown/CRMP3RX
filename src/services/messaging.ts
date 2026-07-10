@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { getEmailFrom, getEmailProvider } from "@/integrations/email";
 import { getSmsProvider } from "@/integrations/sms";
 import { rateLimit } from "@/lib/rate-limit";
-import type { SessionUser } from "@/lib/rbac";
+import type { SessionUser } from "@/lib/authz";
 import { resolveMerchantId } from "@/services/activities";
 import { getMerchantAccess } from "@/services/merchant-access";
 import { audit } from "@/services/audit";

@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
-import type { SessionUser } from "@/lib/rbac";
+import type { SessionUser } from "@/lib/authz";
 import type { ContactInput, ContactListParams } from "@/lib/validators/contact";
 import {
   assertMerchantEdit,

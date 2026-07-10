@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import type { SessionUser } from "@/lib/rbac";
+import type { SessionUser } from "@/lib/authz";
 import type { TemplateInput } from "@/lib/validators/template";
 import { audit } from "@/services/audit";
 
