@@ -23,8 +23,11 @@ import { formatMoney } from "@/lib/format";
 import { formatPhone } from "@/lib/phone";
 import { isAdmin, requireUser } from "@/lib/rbac";
 import { listActivitiesForEntity } from "@/services/activities";
+import { listMerchantHistory } from "@/services/audit-log";
 import { getMerchant } from "@/services/merchants";
 import { listTeamMembers } from "@/services/users";
+import { HistoryCard } from "@/components/history/history-card";
+import { serializeEvents } from "@/components/history/serialize";
 
 export const metadata: Metadata = { title: "Merchant" };
 
@@ -39,9 +42,10 @@ export default async function MerchantDetailPage({
   const merchant = await getMerchant(user, id);
   if (!merchant) notFound();
 
-  const [activities, team] = await Promise.all([
+  const [activities, team, history] = await Promise.all([
     listActivitiesForEntity(user, "MERCHANT", id),
     merchant.access.canManageShares ? listTeamMembers() : Promise.resolve([]),
+    merchant.access.canViewHistory ? listMerchantHistory(user, id) : Promise.resolve([]),
   ]);
 
   return (
@@ -234,6 +238,12 @@ export default async function MerchantDetailPage({
               )}
             </CardContent>
           </Card>
+          {merchant.access.canViewHistory ? (
+            <HistoryCard
+              events={serializeEvents(history)}
+              description="Every change on this account — fields, contacts, sharing and activity log. Visible to the owner and admins only."
+            />
+          ) : null}
         </div>
 
         <div>

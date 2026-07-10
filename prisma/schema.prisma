@@ -489,12 +489,17 @@ model AuditLog {
   action     String
   entityType String
   entityId   String
+  // Merchant this event rolls up to (plain column, no FK: history must
+  // survive the merchant's deletion). Set for merchant/contact/share/deal
+  // and activity events.
+  merchantId String?
   diff       Json?
   createdAt  DateTime @default(now())
 
   @@index([entityType, entityId])
   @@index([actorId])
   @@index([createdAt])
+  @@index([merchantId, createdAt])
 }
 
 enum ChatRole {

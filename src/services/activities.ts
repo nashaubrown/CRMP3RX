@@ -12,7 +12,7 @@ import { audit } from "@/services/audit";
 // everyone). Contributing requires edit rights on the underlying merchant;
 // completing/deleting an activity requires being its creator (or admin).
 
-async function resolveMerchantId(
+export async function resolveMerchantId(
   entityType: EntityType,
   entityId: string
 ): Promise<string | null> {
@@ -55,8 +55,10 @@ export async function listActivitiesForEntity(
 }
 
 export async function createActivity(ctx: SessionUser, input: ActivityInput) {
-  const allowed = await canContribute(ctx, input.entityType, input.entityId);
-  if (!allowed) throw new Error("You don't have edit access to this record");
+  const merchantId = await resolveMerchantId(input.entityType, input.entityId);
+  if (!merchantId) throw new Error("Record not found");
+  const access = await getMerchantAccess(ctx, merchantId);
+  if (!access?.canEdit) throw new Error("You don't have edit access to this record");
 
   const activity = await db.activity.create({
     data: {
@@ -75,6 +77,7 @@ export async function createActivity(ctx: SessionUser, input: ActivityInput) {
     action: "activity.create",
     entityType: input.entityType,
     entityId: input.entityId,
+    merchantId,
     diff: { activityId: activity.id, type: input.type, subject: input.subject },
   });
 
@@ -95,7 +98,8 @@ export async function toggleActivityComplete(ctx: SessionUser, id: string) {
     action: completedAt ? "activity.complete" : "activity.reopen",
     entityType: existing.entityType,
     entityId: existing.entityId,
-    diff: { activityId: id },
+    merchantId: await resolveMerchantId(existing.entityType, existing.entityId),
+    diff: { activityId: id, subject: existing.subject },
   });
 
   return updated;
@@ -114,6 +118,7 @@ export async function deleteActivity(ctx: SessionUser, id: string) {
     action: "activity.delete",
     entityType: existing.entityType,
     entityId: existing.entityId,
+    merchantId: await resolveMerchantId(existing.entityType, existing.entityId),
     diff: { activityId: id, subject: existing.subject },
   });
 }

@@ -254,6 +254,35 @@ async function main() {
     data: { merchantId: merchants[6].id, userId: rep2.id, permission: "VIEW" }, // Velana Duty Free
   });
 
+  // Audit trail for seeded records so History isn't empty on first run.
+  await db.auditLog.createMany({
+    data: [
+      ...merchants.map((m) => ({
+        actorId: m.ownerId,
+        action: "merchant.create",
+        entityType: "MERCHANT",
+        entityId: m.id,
+        merchantId: m.id,
+      })),
+      {
+        actorId: rep1.id,
+        action: "merchant.share",
+        entityType: "MERCHANT",
+        entityId: merchants[2].id,
+        merchantId: merchants[2].id,
+        diff: { userId: rep2.id, userName: rep2.name, permission: "EDIT" },
+      },
+      {
+        actorId: rep1.id,
+        action: "merchant.share",
+        entityType: "MERCHANT",
+        entityId: merchants[6].id,
+        merchantId: merchants[6].id,
+        diff: { userId: rep2.id, userName: rep2.name, permission: "VIEW" },
+      },
+    ],
+  });
+
   // Message templates.
   await db.messageTemplate.createMany({
     data: [

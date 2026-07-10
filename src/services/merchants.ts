@@ -157,6 +157,7 @@ export async function createMerchant(ctx: SessionUser, input: MerchantInput) {
     action: "merchant.create",
     entityType: "MERCHANT",
     entityId: merchant.id,
+    merchantId: merchant.id,
     diff: pickAudited(merchant as unknown as Record<string, unknown>),
   });
 
@@ -196,6 +197,7 @@ export async function updateMerchant(ctx: SessionUser, id: string, input: Mercha
     action: "merchant.update",
     entityType: "MERCHANT",
     entityId: id,
+    merchantId: id,
     diff: shallowDiff(
       pickAudited(existing as unknown as Record<string, unknown>),
       pickAudited(updated as unknown as Record<string, unknown>)
@@ -220,6 +222,7 @@ export async function deleteMerchant(ctx: SessionUser, id: string) {
     action: "merchant.delete",
     entityType: "MERCHANT",
     entityId: id,
+    merchantId: id,
     diff: { name: existing.name },
   });
 }

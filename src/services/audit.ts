@@ -5,6 +5,8 @@ type AuditInput = {
   action: string; // e.g. "merchant.create", "contact.delete", "assistant.tool_call"
   entityType: string;
   entityId: string;
+  // Merchant the event rolls up to (owner history feed)
+  merchantId?: string | null;
   diff?: unknown;
 };
 
@@ -26,13 +28,21 @@ export function shallowDiff(
   return diff;
 }
 
-export async function audit({ actorId, action, entityType, entityId, diff }: AuditInput) {
+export async function audit({
+  actorId,
+  action,
+  entityType,
+  entityId,
+  merchantId,
+  diff,
+}: AuditInput) {
   await db.auditLog.create({
     data: {
       actorId,
       action,
       entityType,
       entityId,
+      merchantId: merchantId ?? null,
       diff: diff === undefined ? undefined : JSON.parse(JSON.stringify(diff)),
     },
   });

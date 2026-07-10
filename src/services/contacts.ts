@@ -135,6 +135,7 @@ export async function createContact(ctx: SessionUser, input: ContactInput) {
     action: "contact.create",
     entityType: "CONTACT",
     entityId: contact.id,
+    merchantId: contact.merchantId,
     diff: pickAudited(contact as unknown as Record<string, unknown>),
   });
 
@@ -168,10 +169,14 @@ export async function updateContact(ctx: SessionUser, id: string, input: Contact
     action: "contact.update",
     entityType: "CONTACT",
     entityId: id,
-    diff: shallowDiff(
-      pickAudited(existing as unknown as Record<string, unknown>),
-      pickAudited(updated as unknown as Record<string, unknown>)
-    ),
+    merchantId: updated.merchantId,
+    diff: {
+      contactName: `${existing.firstName} ${existing.lastName}`,
+      changes: shallowDiff(
+        pickAudited(existing as unknown as Record<string, unknown>),
+        pickAudited(updated as unknown as Record<string, unknown>)
+      ),
+    },
   });
 
   return updated;
@@ -190,6 +195,7 @@ export async function deleteContact(ctx: SessionUser, id: string) {
     action: "contact.delete",
     entityType: "CONTACT",
     entityId: id,
+    merchantId: existing.merchantId,
     diff: { firstName: existing.firstName, lastName: existing.lastName },
   });
 }

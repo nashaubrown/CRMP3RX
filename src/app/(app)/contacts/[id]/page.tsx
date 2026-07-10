@@ -14,7 +14,10 @@ import { formatMoney } from "@/lib/format";
 import { formatPhone } from "@/lib/phone";
 import { isAdmin, requireUser } from "@/lib/rbac";
 import { listActivitiesForEntity } from "@/services/activities";
+import { listContactHistory } from "@/services/audit-log";
 import { getContact } from "@/services/contacts";
+import { HistoryCard } from "@/components/history/history-card";
+import { serializeEvents } from "@/components/history/serialize";
 
 export const metadata: Metadata = { title: "Contact" };
 
@@ -29,7 +32,12 @@ export default async function ContactDetailPage({
   const contact = await getContact(user, id);
   if (!contact) notFound();
 
-  const activities = await listActivitiesForEntity(user, "CONTACT", id);
+  const [activities, history] = await Promise.all([
+    listActivitiesForEntity(user, "CONTACT", id),
+    contact.access.canViewHistory
+      ? listContactHistory(user, id, contact.merchantId)
+      : Promise.resolve([]),
+  ]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -119,6 +127,13 @@ export default async function ContactDetailPage({
               )}
             </CardContent>
           </Card>
+
+          {contact.access.canViewHistory ? (
+            <HistoryCard
+              events={serializeEvents(history)}
+              description="Every change to this contact. Visible to the merchant's owner and admins only."
+            />
+          ) : null}
         </div>
 
         <div>

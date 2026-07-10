@@ -1,6 +1,10 @@
+import Link from "next/link";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { ownerScope, requireUser } from "@/lib/rbac";
+import { listChangesToMyMerchants } from "@/services/audit-log";
 import { merchantMineWhere } from "@/services/merchant-access";
 
 export default async function DashboardPage() {
@@ -9,11 +13,12 @@ export default async function DashboardPage() {
   // "My merchants" = owned + shared with me (hybrid sharing model).
   const mine = user.role === "ADMIN" ? {} : merchantMineWhere(user);
 
-  const [merchantCount, contactCount, openDealCount, leadCount] = await Promise.all([
+  const [merchantCount, contactCount, openDealCount, leadCount, feed] = await Promise.all([
     db.merchant.count({ where: mine }),
     db.contact.count({ where: { merchant: mine } }),
     db.deal.count({ where: { ...scope, stage: { notIn: ["WON", "LOST"] } } }),
     db.lead.count({ where: { ...scope, status: { in: ["NEW", "CONTACTED"] } } }),
+    listChangesToMyMerchants(user),
   ]);
 
   const stats = [
@@ -50,7 +55,41 @@ export default async function DashboardPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Pipeline dashboard</CardTitle>
+          <CardTitle className="text-base">Changes by others to your merchants</CardTitle>
+          <CardDescription>
+            Edits, contact changes, sharing and activity logged by teammates on accounts you own
+            {user.role === "ADMIN" ? " (admins: across all accounts)" : ""}.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {feed.length === 0 ? (
+            <p className="text-muted-foreground text-sm">
+              Nothing yet — when a teammate changes one of your records, it shows up here.
+            </p>
+          ) : (
+            <ol className="flex flex-col gap-3">
+              {feed.map((event) => (
+                <li key={event.id} className="flex flex-col gap-0.5 text-sm">
+                  <span>
+                    <span className="font-medium">{event.actorName}</span> {event.title}
+                    {" · "}
+                    <Link href={`/merchants/${event.merchantId}`} className="hover:underline">
+                      <span className="font-medium">{event.merchantName}</span>
+                    </Link>
+                  </span>
+                  <span className="text-muted-foreground text-xs">
+                    {formatDateTime(event.createdAt)}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Pipeline dashboard</CardTitle>
           <CardDescription>
             Pipeline value, deals by stage, activities due today and recent communications land in
             Phase 5.

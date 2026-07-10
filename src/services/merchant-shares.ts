@@ -20,7 +20,10 @@ export async function setMerchantShare(
   if (!merchant) throw new Error("Merchant not found");
   if (merchant.ownerId === userId) throw new Error("The owner already has full access");
 
-  const user = await db.user.findUnique({ where: { id: userId }, select: { id: true } });
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { id: true, name: true },
+  });
   if (!user) throw new Error("User not found");
 
   await db.merchantShare.upsert({
@@ -34,13 +37,17 @@ export async function setMerchantShare(
     action: "merchant.share",
     entityType: "MERCHANT",
     entityId: merchantId,
-    diff: { userId, permission },
+    merchantId,
+    // userName denormalized on purpose: history should read well even if
+    // the user is later deleted.
+    diff: { userId, userName: user.name, permission },
   });
 }
 
 export async function removeMerchantShare(ctx: SessionUser, merchantId: string, userId: string) {
   await assertMerchantManage(ctx, merchantId);
 
+  const user = await db.user.findUnique({ where: { id: userId }, select: { name: true } });
   await db.merchantShare.deleteMany({ where: { merchantId, userId } });
 
   await audit({
@@ -48,6 +55,7 @@ export async function removeMerchantShare(ctx: SessionUser, merchantId: string, 
     action: "merchant.unshare",
     entityType: "MERCHANT",
     entityId: merchantId,
-    diff: { userId },
+    merchantId,
+    diff: { userId, userName: user?.name ?? "unknown user" },
   });
 }

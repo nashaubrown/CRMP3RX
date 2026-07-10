@@ -25,6 +25,8 @@ export type MerchantAccess = {
   canEdit: boolean;
   canDelete: boolean;
   canManageShares: boolean;
+  // Change history is owner/admin-only — more sensitive than the record.
+  canViewHistory: boolean;
 };
 
 export async function getMerchantAccess(
@@ -48,6 +50,7 @@ export async function getMerchantAccess(
     canEdit: admin || owner || editShare,
     canDelete: admin || owner,
     canManageShares: admin || owner,
+    canViewHistory: admin || owner,
   };
 }
 
