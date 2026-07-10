@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { LogOutIcon, MenuIcon } from "lucide-react";
 
+import { AssistantSheet } from "@/components/assistant/assistant-sheet";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -62,6 +63,7 @@ export function Topbar({ user, onSignOut }: TopbarProps) {
 
       <div className="flex-1" />
 
+      <AssistantSheet />
       <ThemeToggle />
 
       <DropdownMenu>
