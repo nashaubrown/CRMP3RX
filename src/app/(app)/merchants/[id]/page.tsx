@@ -24,8 +24,12 @@ import { formatPhone } from "@/lib/phone";
 import { isAdmin, requireUser } from "@/lib/rbac";
 import { listActivitiesForEntity } from "@/services/activities";
 import { listMerchantHistory } from "@/services/audit-log";
+import { buildMergeVars, listCommunicationsForEntity } from "@/services/messaging";
 import { getMerchant } from "@/services/merchants";
+import { listTemplates } from "@/services/templates";
 import { listTeamMembers } from "@/services/users";
+import { ComposeButtons } from "@/components/compose/compose-buttons";
+import { CommunicationsCard } from "@/components/compose/communications-card";
 import { HistoryCard } from "@/components/history/history-card";
 import { serializeEvents } from "@/components/history/serialize";
 
@@ -42,11 +46,27 @@ export default async function MerchantDetailPage({
   const merchant = await getMerchant(user, id);
   if (!merchant) notFound();
 
-  const [activities, team, history] = await Promise.all([
+  const [activities, team, history, comms, templates, mergeVars] = await Promise.all([
     listActivitiesForEntity(user, "MERCHANT", id),
     merchant.access.canManageShares ? listTeamMembers() : Promise.resolve([]),
     merchant.access.canViewHistory ? listMerchantHistory(user, id) : Promise.resolve([]),
+    listCommunicationsForEntity(user, "MERCHANT", id),
+    merchant.access.canEdit ? listTemplates() : Promise.resolve([]),
+    merchant.access.canEdit ? buildMergeVars(user, "MERCHANT", id) : Promise.resolve({}),
   ]);
+
+  const emailRecipients = [
+    ...(merchant.email ? [{ label: `${merchant.name} <${merchant.email}>`, value: merchant.email }] : []),
+    ...merchant.contacts
+      .filter((c) => c.email)
+      .map((c) => ({ label: `${c.firstName} ${c.lastName} <${c.email}>`, value: c.email! })),
+  ];
+  const phoneRecipients = [
+    ...(merchant.phone ? [{ label: `${merchant.name} (${merchant.phone})`, value: merchant.phone }] : []),
+    ...merchant.contacts
+      .filter((c) => c.phone)
+      .map((c) => ({ label: `${c.firstName} ${c.lastName} (${c.phone})`, value: c.phone! })),
+  ];
 
   return (
     <div className="flex flex-col gap-4">
@@ -61,6 +81,17 @@ export default async function MerchantDetailPage({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {merchant.access.canEdit ? (
+            <ComposeButtons
+              entityType="MERCHANT"
+              entityId={merchant.id}
+              revalidatePath={`/merchants/${merchant.id}`}
+              emails={emailRecipients}
+              phones={phoneRecipients}
+              templates={templates}
+              mergeVars={mergeVars}
+            />
+          ) : null}
           {merchant.access.canManageShares ? (
             <ShareDialog
               merchantId={merchant.id}
@@ -246,6 +277,8 @@ export default async function MerchantDetailPage({
               )}
             </CardContent>
           </Card>
+          <CommunicationsCard items={comms} />
+
           {merchant.access.canViewHistory ? (
             <HistoryCard
               events={serializeEvents(history)}

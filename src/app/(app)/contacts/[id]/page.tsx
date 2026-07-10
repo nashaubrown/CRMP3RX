@@ -16,6 +16,10 @@ import { isAdmin, requireUser } from "@/lib/rbac";
 import { listActivitiesForEntity } from "@/services/activities";
 import { listContactHistory } from "@/services/audit-log";
 import { getContact } from "@/services/contacts";
+import { buildMergeVars, listCommunicationsForEntity } from "@/services/messaging";
+import { listTemplates } from "@/services/templates";
+import { ComposeButtons } from "@/components/compose/compose-buttons";
+import { CommunicationsCard } from "@/components/compose/communications-card";
 import { HistoryCard } from "@/components/history/history-card";
 import { serializeEvents } from "@/components/history/serialize";
 
@@ -32,11 +36,14 @@ export default async function ContactDetailPage({
   const contact = await getContact(user, id);
   if (!contact) notFound();
 
-  const [activities, history] = await Promise.all([
+  const [activities, history, comms, templates, mergeVars] = await Promise.all([
     listActivitiesForEntity(user, "CONTACT", id),
     contact.access.canViewHistory
       ? listContactHistory(user, id, contact.merchantId)
       : Promise.resolve([]),
+    listCommunicationsForEntity(user, "CONTACT", id),
+    contact.access.canEdit ? listTemplates() : Promise.resolve([]),
+    contact.access.canEdit ? buildMergeVars(user, "CONTACT", id) : Promise.resolve({}),
   ]);
 
   return (
@@ -57,7 +64,24 @@ export default async function ContactDetailPage({
           </p>
         </div>
         {contact.access.canEdit ? (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <ComposeButtons
+              entityType="CONTACT"
+              entityId={contact.id}
+              revalidatePath={`/contacts/${contact.id}`}
+              emails={
+                contact.email
+                  ? [{ label: `${contact.firstName} ${contact.lastName} <${contact.email}>`, value: contact.email }]
+                  : []
+              }
+              phones={
+                contact.phone
+                  ? [{ label: `${contact.firstName} ${contact.lastName} (${contact.phone})`, value: contact.phone }]
+                  : []
+              }
+              templates={templates}
+              mergeVars={mergeVars}
+            />
             <Button variant="outline" size="sm" asChild>
               <Link href={`/contacts/${contact.id}/edit`}>
                 <PencilIcon /> Edit
@@ -127,6 +151,8 @@ export default async function ContactDetailPage({
               )}
             </CardContent>
           </Card>
+
+          <CommunicationsCard items={comms} />
 
           {contact.access.canViewHistory ? (
             <HistoryCard
