@@ -4,6 +4,7 @@ import {
   OpenAiCompatibleProvider,
   accumulateToolCallDelta,
   finalizeToolCalls,
+  summarizeHttpError,
   toOpenAiMessages,
   toOpenAiTools,
   type ToolCallAccumulator,
@@ -72,6 +73,37 @@ describe("tool-call fragment accumulation", () => {
     ]);
     const calls = finalizeToolCalls(acc);
     expect(calls).toEqual([{ id: "a", name: "x", input: {} }]);
+  });
+});
+
+describe("summarizeHttpError", () => {
+  it("collapses an HTML 404 page into a clean, actionable message", () => {
+    const html =
+      '<!DOCTYPE html><html lang="en" class="__variable_f367f3"><head><meta charSet="utf-8"/>…</head></html>';
+    const msg = summarizeHttpError("OpenRouter (llama:free)", 404, "Not Found", html);
+    expect(msg).not.toContain("<!DOCTYPE");
+    expect(msg).not.toContain("__variable");
+    expect(msg).toContain("OpenRouter (llama:free) error (404");
+    expect(msg).toMatch(/model may not exist|openrouter\.ai\/settings\/privacy/);
+  });
+
+  it("extracts the message from a JSON error body", () => {
+    const body = JSON.stringify({ error: { message: "Invalid API key provided" } });
+    const msg = summarizeHttpError("Groq (x)", 401, "Unauthorized", body);
+    expect(msg).toContain("Invalid API key provided");
+    expect(msg).toContain("Check the API key");
+  });
+
+  it("handles a bare-string error body and rate limits", () => {
+    const msg = summarizeHttpError("X", 429, "Too Many Requests", "slow down");
+    expect(msg).toContain("slow down");
+    expect(msg).toContain("Rate limited");
+  });
+
+  it("never surfaces raw HTML even without a known hint", () => {
+    const msg = summarizeHttpError("X", 418, "", "<html><body>teapot</body></html>");
+    expect(msg).not.toContain("<html>");
+    expect(msg).toBe("X error (418)");
   });
 });
 

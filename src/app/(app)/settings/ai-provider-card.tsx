@@ -196,6 +196,17 @@ export function AiProviderCard({
           </Alert>
         ) : null}
 
+        {provider === "OPENROUTER" && (model === "" || model.includes(":free")) ? (
+          <Alert>
+            <AlertDescription className="text-xs">
+              OpenRouter&apos;s <code>:free</code> models return a 404 (&ldquo;no endpoints
+              found&rdquo;) until you enable free-model access at{" "}
+              <span className="font-medium">openrouter.ai/settings/privacy</span>. If it fails,
+              enable that, pick a different model, or use a paid model / another provider.
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
         <div className="flex flex-wrap gap-2">
           <Button size="sm" onClick={save} disabled={pending}>
             {pending ? <Loader2Icon className="animate-spin" /> : null} Save

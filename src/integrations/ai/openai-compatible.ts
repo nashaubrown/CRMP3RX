@@ -86,6 +86,52 @@ export function finalizeToolCalls(acc: ToolCallAccumulator) {
     .filter((c) => c.name);
 }
 
+// Turns an error response into one short, actionable line. Providers return
+// wildly different bodies — a JSON {error:{message}}, a bare string, or (for
+// OpenRouter/Vercel-hosted APIs) a full HTML 404 page — so never surface the
+// raw body; extract the useful part and add a hint for the status code.
+export function summarizeHttpError(
+  label: string,
+  status: number,
+  statusText: string,
+  body: string
+): string {
+  let detail = "";
+  const trimmed = body.trim();
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    try {
+      const json = JSON.parse(trimmed) as { error?: { message?: string } | string; message?: string };
+      const msg =
+        typeof json.error === "string" ? json.error : json.error?.message || json.message;
+      if (msg) detail = String(msg).slice(0, 200);
+    } catch {
+      /* fall through */
+    }
+  } else if (trimmed && !trimmed.startsWith("<")) {
+    // Plain-text body (not HTML)
+    detail = trimmed.slice(0, 200);
+  }
+
+  const hint =
+    status === 401 || status === 403
+      ? "Check the API key (and that it has access)."
+      : status === 404
+        ? "The model may not exist or isn't available to your account — verify the model ID. On OpenRouter, free (:free) models also require enabling free-model access at openrouter.ai/settings/privacy."
+        : status === 429
+          ? "Rate limited — wait a moment and retry (free tiers have low limits)."
+          : status >= 500
+            ? "The provider had a server error — try again shortly."
+            : "";
+
+  return [
+    `${label} error (${status}${statusText ? ` ${statusText}` : ""})`,
+    detail && `: ${detail}`,
+    hint && ` — ${hint}`,
+  ]
+    .filter(Boolean)
+    .join("");
+}
+
 export class OpenAiCompatibleProvider implements AiProvider {
   readonly label: string;
 
@@ -116,9 +162,7 @@ export class OpenAiCompatibleProvider implements AiProvider {
 
     if (!res.ok || !res.body) {
       const body = await res.text().catch(() => "");
-      throw new Error(
-        `${this.label} error (${res.status}): ${body.slice(0, 300) || res.statusText}`
-      );
+      throw new Error(summarizeHttpError(this.label, res.status, res.statusText, body));
     }
 
     let text = "";
