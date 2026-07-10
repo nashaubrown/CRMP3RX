@@ -1,10 +1,15 @@
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { signOut } from "@/lib/auth";
+import { db } from "@/lib/db";
 import { requireUser } from "@/lib/rbac";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
+  const pref = await db.user.findUnique({
+    where: { id: user.id },
+    select: { generativeUi: true },
+  });
 
   async function handleSignOut() {
     "use server";
@@ -17,6 +22,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar
           user={{ name: user.name, email: user.email, role: user.role }}
+          generativeUi={pref?.generativeUi ?? false}
           onSignOut={handleSignOut}
         />
         <main className="flex-1 p-4 md:p-6">{children}</main>

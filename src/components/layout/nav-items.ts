@@ -8,6 +8,7 @@ import {
   Store,
   Target,
   Users,
+  WandSparkles,
   type LucideIcon,
 } from "lucide-react";
 
@@ -19,6 +20,7 @@ export type NavItem = {
 
 export const navItems: NavItem[] = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { title: "Canvas", href: "/canvas", icon: WandSparkles },
   { title: "Merchants", href: "/merchants", icon: Store },
   { title: "Contacts", href: "/contacts", icon: Users },
   { title: "Leads", href: "/leads", icon: Target },

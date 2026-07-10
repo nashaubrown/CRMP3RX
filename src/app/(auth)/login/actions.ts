@@ -28,7 +28,8 @@ export async function loginWithCredentials(
     await signIn("credentials", {
       email: parsed.data.email,
       password: parsed.data.password,
-      redirectTo: "/dashboard",
+      // "/" routes to the user's home per their UI-mode preference
+      redirectTo: "/",
     });
     return { error: null };
   } catch (error) {
@@ -41,5 +42,5 @@ export async function loginWithCredentials(
 }
 
 export async function loginWithGoogle() {
-  await signIn("google", { redirectTo: "/dashboard" });
+  await signIn("google", { redirectTo: "/" });
 }

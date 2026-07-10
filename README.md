@@ -123,6 +123,7 @@ npx prisma studio     # browse the database
 | Scheduling | `/settings`, public `/book/[slug]`, Schedule button on merchant/contact pages | Google Calendar connect, availability editor, Meet links, email+SMS confirmations; user-scheduled meetings mirror onto the record's timeline |
 | Tasks | `/tasks` + dashboard | Overdue highlighting, complete/reopen |
 | Ask Perx (AI) | `/assistant` + topbar sparkle | Read-only, RBAC-scoped tools, streaming, audit-logged; provider-pluggable (Anthropic default; Groq/Gemini/OpenRouter/Mistral/Ollama via `AI_PROVIDER` — free hosted tiers may train on your prompts, see `.env.example`) |
+| Generative UI | `/canvas` + topbar toggle | Prompt-driven canvas: the AI composes a live view (stat tiles, charts, tables, record cards, action buttons) from CRM data via a validated view spec. Per-user Classic/Generative toggle; inline write actions (log activity, complete task) re-check RBAC server-side |
 | REST API | `/api/v1/*` | API-key auth (created in Settings), same RBAC as the web app |
 | MCP for Claude | `/api/mcp` | Connect claude.ai / Claude Code / Claude Desktop to the CRM |
 | CSV export/import | Buttons on list pages | Export honors active filters; import validates per row, skips duplicates, needs the same edit rights as the forms |
@@ -215,3 +216,8 @@ implementation if you scale beyond one region/instance.
 - [x] **Phase 5** — dashboard (pipeline, due today, recent comms, team feed) & tasks
 - [x] **Phase 6** — AI assistant ("Ask Perx"): read-only RBAC-scoped tools, streaming chat, conversation history
 - [x] **Phase 7** — hardening: vitest unit + integration tests, error boundaries, docs, Vercel-readiness
+
+Post-launch additions: user-scheduled meetings on records, REST API + MCP
+server for Claude, CSV export/import, provider-pluggable AI (Groq/Gemini/…),
+security hardening, and a **Generative UI** canvas (AI-composed views, per-user
+Classic/Generative toggle).

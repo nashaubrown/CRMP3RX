@@ -5,6 +5,7 @@ import Link from "next/link";
 import { LogOutIcon, MenuIcon } from "lucide-react";
 
 import { AssistantSheet } from "@/components/assistant/assistant-sheet";
+import { UiModeToggle } from "@/components/generative/ui-mode-toggle";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -26,10 +27,11 @@ type TopbarProps = {
     image?: string | null;
     role: string;
   };
+  generativeUi: boolean;
   onSignOut: () => Promise<void>;
 };
 
-export function Topbar({ user, onSignOut }: TopbarProps) {
+export function Topbar({ user, generativeUi, onSignOut }: TopbarProps) {
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
 
   const initials = (user.name ?? user.email ?? "?")
@@ -63,6 +65,7 @@ export function Topbar({ user, onSignOut }: TopbarProps) {
 
       <div className="flex-1" />
 
+      <UiModeToggle generative={generativeUi} />
       <AssistantSheet />
       <ThemeToggle />
 

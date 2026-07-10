@@ -30,6 +30,8 @@ model User {
   image         String?
   // Public booking page lives at /book/[bookingSlug]
   bookingSlug   String?   @unique
+  // When true, the user's home is the AI-composed "Generative" canvas
+  generativeUi  Boolean   @default(false)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -50,6 +52,7 @@ model User {
   conversations  Conversation[]
   merchantShares MerchantShare[]
   apiKeys        ApiKey[]
+  canvasViews    CanvasView[]
 }
 
 // Personal access tokens for the REST API and the MCP endpoint. Only a
@@ -544,6 +547,21 @@ model Conversation {
   messages ChatMessage[]
 
   @@index([userId])
+}
+
+// A generated "AI-composed view" from the Generative UI canvas: the user's
+// prompt and the validated view spec the model produced. Kept as a per-user
+// history (like Conversation) so views can be reopened.
+model CanvasView {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prompt    String
+  title     String
+  spec      Json
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 model ChatMessage {
