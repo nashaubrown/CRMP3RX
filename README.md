@@ -12,7 +12,8 @@ scheduling, and an AI assistant over your CRM data.
 - **Auth.js v5** — email/password + Google OAuth, JWT sessions, RBAC (`ADMIN` / `SALES_REP`)
 - **Resend** (email), **Twilio** (SMS, behind a swappable provider interface)
 - **Google Calendar** (two-way sync + public booking page)
-- **Anthropic Claude** (read-only AI assistant, server-side)
+- **AI assistant** — Anthropic Claude by default, or any free/OpenAI-compatible
+  provider (Groq, Gemini, OpenRouter, Mistral, Ollama) via `AI_PROVIDER`
 
 ## Local setup
 
@@ -121,7 +122,7 @@ npx prisma studio     # browse the database
 | Email & SMS | Buttons on merchant/contact pages | Templates with merge vars (`/templates`), STOP opt-out, delivery webhooks, hourly send limits |
 | Scheduling | `/settings`, public `/book/[slug]`, Schedule button on merchant/contact pages | Google Calendar connect, availability editor, Meet links, email+SMS confirmations; user-scheduled meetings mirror onto the record's timeline |
 | Tasks | `/tasks` + dashboard | Overdue highlighting, complete/reopen |
-| Ask Perx (AI) | `/assistant` + topbar sparkle | Read-only, RBAC-scoped tools, streaming, audit-logged |
+| Ask Perx (AI) | `/assistant` + topbar sparkle | Read-only, RBAC-scoped tools, streaming, audit-logged; provider-pluggable (Anthropic default; Groq/Gemini/OpenRouter/Mistral/Ollama via `AI_PROVIDER` — free hosted tiers may train on your prompts, see `.env.example`) |
 | REST API | `/api/v1/*` | API-key auth (created in Settings), same RBAC as the web app |
 | MCP for Claude | `/api/mcp` | Connect claude.ai / Claude Code / Claude Desktop to the CRM |
 | CSV export/import | Buttons on list pages | Export honors active filters; import validates per row, skips duplicates, needs the same edit rights as the forms |

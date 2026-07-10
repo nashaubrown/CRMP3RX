@@ -1,7 +1,8 @@
-import Anthropic from "@anthropic-ai/sdk";
-
 import { db } from "@/lib/db";
 import type { SessionUser } from "@/lib/authz";
+import { aiConfigHint, aiConfigured, getAiProvider } from "@/integrations/ai";
+import type { AiMessage, AiToolDef } from "@/integrations/ai";
+import { describeAnthropicError } from "@/integrations/ai/anthropic";
 import {
   assistantToolDefinitions,
   executeAssistantTool,
@@ -11,12 +12,14 @@ const MAX_TOOL_ITERATIONS = 8;
 const HISTORY_LIMIT = 20;
 
 export function assistantConfigured(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
+  return aiConfigured();
 }
 
-function getModel(): string {
-  return process.env.ANTHROPIC_MODEL || "claude-opus-4-8";
-}
+const assistantTools: AiToolDef[] = assistantToolDefinitions.map((t) => ({
+  name: t.name,
+  description: t.description ?? "",
+  inputSchema: t.input_schema as Record<string, unknown>,
+}));
 
 function systemPrompt(ctx: SessionUser): string {
   return `You are "Ask Perx", the AI assistant inside Perx Technologies' internal CRM. Perx is a B2B2C merchant-loyalty SaaS in the Maldives; its sales team uses this CRM to manage merchants, contacts, leads, deals, tasks and communications.
@@ -47,11 +50,9 @@ export async function* runAssistantTurn(
   conversationId: string | null,
   userMessage: string
 ): AsyncGenerator<AssistantEvent> {
-  if (!assistantConfigured()) {
-    yield {
-      type: "error",
-      message: "Ask Perx isn't configured yet — set ANTHROPIC_API_KEY in .env and restart.",
-    };
+  const provider = getAiProvider();
+  if (!provider) {
+    yield { type: "error", message: `Ask Perx isn't configured yet. ${aiConfigHint()}` };
     return;
   }
 
@@ -80,12 +81,13 @@ export async function* runAssistantTurn(
     data: { conversationId: conversation.id, role: "USER", content: userMessage },
   });
 
-  const client = new Anthropic();
-  const messages: Anthropic.MessageParam[] = [
-    ...history.map((m) => ({
-      role: m.role === "USER" ? ("user" as const) : ("assistant" as const),
-      content: m.content,
-    })),
+  const messages: AiMessage[] = [
+    ...history.map(
+      (m): AiMessage => ({
+        role: m.role === "USER" ? "user" : "assistant",
+        content: m.content,
+      })
+    ),
     { role: "user", content: userMessage },
   ];
 
@@ -94,42 +96,35 @@ export async function* runAssistantTurn(
 
   try {
     for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
-      const stream = client.messages.stream({
-        model: getModel(),
-        max_tokens: 8192,
-        system: systemPrompt(ctx),
-        tools: assistantToolDefinitions,
-        messages,
-      });
+      let turnText = "";
+      let toolCalls: { id: string; name: string; input: Record<string, unknown> }[] = [];
 
-      for await (const event of stream) {
-        if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-          fullText += event.delta.text;
-          yield { type: "delta", text: event.delta.text };
+      for await (const event of provider.streamTurn({
+        system: systemPrompt(ctx),
+        messages,
+        tools: assistantTools,
+      })) {
+        if (event.type === "delta") {
+          fullText += event.text;
+          yield { type: "delta", text: event.text };
+        } else {
+          turnText = event.text;
+          toolCalls = event.toolCalls;
         }
       }
 
-      const message = await stream.finalMessage();
+      if (toolCalls.length === 0) break;
 
-      if (message.stop_reason !== "tool_use") break;
+      messages.push({ role: "assistant", content: turnText, toolCalls });
 
-      const toolUses = message.content.filter(
-        (b): b is Anthropic.ToolUseBlock => b.type === "tool_use"
-      );
-      messages.push({ role: "assistant", content: message.content });
-
-      const results: Anthropic.ToolResultBlockParam[] = [];
-      for (const toolUse of toolUses) {
-        yield { type: "tool", name: toolUse.name };
-        toolCallLog.push({ tool: toolUse.name, input: toolUse.input });
-        const result = await executeAssistantTool(
-          ctx,
-          toolUse.name,
-          toolUse.input as Record<string, unknown>
-        );
-        results.push({ type: "tool_result", tool_use_id: toolUse.id, content: result });
+      const results: { toolCallId: string; name: string; content: string }[] = [];
+      for (const call of toolCalls) {
+        yield { type: "tool", name: call.name };
+        toolCallLog.push({ tool: call.name, input: call.input });
+        const result = await executeAssistantTool(ctx, call.name, call.input);
+        results.push({ toolCallId: call.id, name: call.name, content: result });
       }
-      messages.push({ role: "user", content: results });
+      messages.push({ role: "tool_results", results });
     }
 
     await db.chatMessage.create({
@@ -148,11 +143,7 @@ export async function* runAssistantTurn(
     yield { type: "done" };
   } catch (e) {
     const message =
-      e instanceof Anthropic.APIError
-        ? `Claude API error (${e.status}): ${e.message}`
-        : e instanceof Error
-          ? e.message
-          : "Something went wrong";
+      describeAnthropicError(e) ?? (e instanceof Error ? e.message : "Something went wrong");
     yield { type: "error", message };
   }
 }

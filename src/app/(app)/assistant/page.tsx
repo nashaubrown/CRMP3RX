@@ -56,8 +56,9 @@ export default async function AssistantPage({
         <Alert variant="destructive">
           <AlertTriangleIcon />
           <AlertDescription>
-            Set <code>ANTHROPIC_API_KEY</code> (and optionally <code>ANTHROPIC_MODEL</code>) in{" "}
-            <code>.env</code>, then restart the server to enable Ask Perx.
+            Set <code>ANTHROPIC_API_KEY</code> in <code>.env</code> — or use a free provider by
+            setting <code>AI_PROVIDER</code> (GROQ, GEMINI, OPENROUTER, MISTRAL, OLLAMA) with
+            its API key (see <code>.env.example</code>) — then restart the server.
           </AlertDescription>
         </Alert>
       ) : null}

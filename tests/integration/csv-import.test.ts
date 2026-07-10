@@ -40,7 +40,7 @@ afterAll(async () => {
 
 describe("merchant CSV import", () => {
   it("creates valid rows, skips duplicates, reports bad rows", async () => {
-    const rows = [
+    const rows: Record<string, string>[] = [
       { name: `Alpha Cafe ${suffix}`, status: "ACTIVE", email: "alpha@x.mv", monthlytxnvolume: "500" },
       { name: `Beta Mart ${suffix}`, phone: "777 1234", loyaltylive: "yes" },
       { name: "", email: "noname@x.mv" }, // missing name
@@ -80,7 +80,7 @@ describe("merchant CSV import", () => {
 describe("contact CSV import", () => {
   it("resolves merchants by name, dedupes, and enforces edit rights", async () => {
     const merchantName = `Alpha Cafe ${suffix}`;
-    const rows = [
+    const rows: Record<string, string>[] = [
       { firstname: "Aminath", lastname: "Waheeda", merchant: merchantName, email: `w-${suffix}@x.mv`, isprimary: "true" },
       { firstname: "Ibrahim", lastname: "Rasheed", merchant: "No Such Merchant XYZ" },
       { firstname: "NoLast", lastname: "", merchant: merchantName },
