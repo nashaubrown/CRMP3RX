@@ -2,17 +2,14 @@ import type { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import type { SessionUser } from "@/lib/rbac";
-import { isAdmin } from "@/lib/rbac";
 import type { ContactInput, ContactListParams } from "@/lib/validators/contact";
+import { assertMerchantEdit, getMerchantAccess } from "@/services/merchant-access";
 import { audit, shallowDiff } from "@/services/audit";
 
 export const CONTACTS_PAGE_SIZE = 10;
 
-// A contact is visible when the user owns it directly OR owns its merchant.
-export function contactScope(ctx: SessionUser): Prisma.ContactWhereInput {
-  if (isAdmin(ctx)) return {};
-  return { OR: [{ ownerId: ctx.id }, { merchant: { ownerId: ctx.id } }] };
-}
+// Contacts follow the hybrid model: everyone can view them; editing requires
+// edit rights on the merchant they belong to.
 
 const AUDITED_FIELDS = [
   "firstName",
@@ -31,7 +28,6 @@ function pickAudited(record: Record<string, unknown>) {
 export async function listContacts(ctx: SessionUser, params: ContactListParams) {
   const where: Prisma.ContactWhereInput = {
     AND: [
-      contactScope(ctx),
       params.merchantId ? { merchantId: params.merchantId } : {},
       params.q
         ? {
@@ -76,8 +72,8 @@ export async function listContacts(ctx: SessionUser, params: ContactListParams) 
 }
 
 export async function getContact(ctx: SessionUser, id: string) {
-  return db.contact.findFirst({
-    where: { AND: [{ id }, contactScope(ctx)] },
+  const contact = await db.contact.findUnique({
+    where: { id },
     include: {
       merchant: { select: { id: true, name: true, ownerId: true } },
       owner: { select: { id: true, name: true } },
@@ -87,18 +83,14 @@ export async function getContact(ctx: SessionUser, id: string) {
       },
     },
   });
-}
+  if (!contact) return null;
 
-async function assertMerchantVisible(ctx: SessionUser, merchantId: string) {
-  const merchant = await db.merchant.findFirst({
-    where: isAdmin(ctx) ? { id: merchantId } : { id: merchantId, ownerId: ctx.id },
-    select: { id: true },
-  });
-  if (!merchant) throw new Error("Merchant not found");
+  const access = await getMerchantAccess(ctx, contact.merchantId);
+  return { ...contact, access: access! };
 }
 
 export async function createContact(ctx: SessionUser, input: ContactInput) {
-  await assertMerchantVisible(ctx, input.merchantId);
+  await assertMerchantEdit(ctx, input.merchantId);
 
   const contact = await db.contact.create({
     data: {
@@ -125,10 +117,12 @@ export async function createContact(ctx: SessionUser, input: ContactInput) {
 }
 
 export async function updateContact(ctx: SessionUser, id: string, input: ContactInput) {
-  const existing = await db.contact.findFirst({ where: { AND: [{ id }, contactScope(ctx)] } });
+  const existing = await db.contact.findUnique({ where: { id } });
   if (!existing) throw new Error("Contact not found");
+
+  await assertMerchantEdit(ctx, existing.merchantId);
   if (input.merchantId !== existing.merchantId) {
-    await assertMerchantVisible(ctx, input.merchantId);
+    await assertMerchantEdit(ctx, input.merchantId);
   }
 
   const updated = await db.contact.update({
@@ -159,8 +153,10 @@ export async function updateContact(ctx: SessionUser, id: string, input: Contact
 }
 
 export async function deleteContact(ctx: SessionUser, id: string) {
-  const existing = await db.contact.findFirst({ where: { AND: [{ id }, contactScope(ctx)] } });
+  const existing = await db.contact.findUnique({ where: { id } });
   if (!existing) throw new Error("Contact not found");
+
+  await assertMerchantEdit(ctx, existing.merchantId);
 
   await db.contact.delete({ where: { id } });
 

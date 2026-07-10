@@ -1,9 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { GlobeIcon, MailIcon, MapPinIcon, PencilIcon, PhoneIcon, PlusIcon } from "lucide-react";
+import {
+  GlobeIcon,
+  MailIcon,
+  MapPinIcon,
+  PencilIcon,
+  PhoneIcon,
+  PlusIcon,
+  UsersIcon,
+} from "lucide-react";
 
 import { deleteMerchantAction } from "@/app/(app)/merchants/actions";
+import { ShareDialog } from "@/app/(app)/merchants/share-dialog";
 import { ActivityTimeline } from "@/components/activity/activity-timeline";
 import { DeleteButton } from "@/components/delete-button";
 import { DealStageBadge, MerchantStatusBadge } from "@/components/status-badges";
@@ -12,9 +21,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatMoney } from "@/lib/format";
 import { formatPhone } from "@/lib/phone";
-import { requireUser } from "@/lib/rbac";
+import { isAdmin, requireUser } from "@/lib/rbac";
 import { listActivitiesForEntity } from "@/services/activities";
 import { getMerchant } from "@/services/merchants";
+import { listTeamMembers } from "@/services/users";
 
 export const metadata: Metadata = { title: "Merchant" };
 
@@ -29,7 +39,10 @@ export default async function MerchantDetailPage({
   const merchant = await getMerchant(user, id);
   if (!merchant) notFound();
 
-  const activities = await listActivitiesForEntity(user, "MERCHANT", id);
+  const [activities, team] = await Promise.all([
+    listActivitiesForEntity(user, "MERCHANT", id),
+    merchant.access.canManageShares ? listTeamMembers() : Promise.resolve([]),
+  ]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -43,19 +56,45 @@ export default async function MerchantDetailPage({
             {merchant.category ?? "Uncategorized"} · owned by {merchant.owner.name}
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/merchants/${merchant.id}/edit`}>
-              <PencilIcon /> Edit
-            </Link>
-          </Button>
-          <DeleteButton
-            action={deleteMerchantAction.bind(null, merchant.id)}
-            title={`Delete ${merchant.name}?`}
-            description="This permanently deletes the merchant along with its contacts and deals. This cannot be undone."
-          />
+        <div className="flex flex-wrap gap-2">
+          {merchant.access.canManageShares ? (
+            <ShareDialog
+              merchantId={merchant.id}
+              ownerId={merchant.owner.id}
+              ownerName={merchant.owner.name}
+              team={team}
+              shares={merchant.shares.map((s) => ({
+                userId: s.userId,
+                permission: s.permission,
+              }))}
+            />
+          ) : null}
+          {merchant.access.canEdit ? (
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/merchants/${merchant.id}/edit`}>
+                <PencilIcon /> Edit
+              </Link>
+            </Button>
+          ) : null}
+          {merchant.access.canDelete ? (
+            <DeleteButton
+              action={deleteMerchantAction.bind(null, merchant.id)}
+              title={`Delete ${merchant.name}?`}
+              description="This permanently deletes the merchant along with its contacts and deals. This cannot be undone."
+            />
+          ) : null}
         </div>
       </div>
+
+      {merchant.shares.length > 0 ? (
+        <p className="text-muted-foreground -mt-2 flex items-center gap-1.5 text-xs">
+          <UsersIcon className="size-3.5" />
+          Shared with{" "}
+          {merchant.shares
+            .map((s) => `${s.user.name} (${s.permission.toLowerCase()})`)
+            .join(", ")}
+        </p>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="flex flex-col gap-4 lg:col-span-2">
@@ -125,7 +164,7 @@ export default async function MerchantDetailPage({
                 <p className="flex items-center justify-between">
                   <span className="text-muted-foreground">Loyalty program</span>
                   {merchant.loyaltyLive ? (
-                    <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-transparent">
+                    <Badge className="border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
                       Live
                     </Badge>
                   ) : (
@@ -139,11 +178,13 @@ export default async function MerchantDetailPage({
           <Card>
             <CardHeader className="flex-row items-center justify-between">
               <CardTitle className="text-base">Contacts ({merchant.contacts.length})</CardTitle>
-              <Button variant="outline" size="sm" asChild>
-                <Link href={`/contacts/new?merchantId=${merchant.id}`}>
-                  <PlusIcon /> Add contact
-                </Link>
-              </Button>
+              {merchant.access.canEdit ? (
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={`/contacts/new?merchantId=${merchant.id}`}>
+                    <PlusIcon /> Add contact
+                  </Link>
+                </Button>
+              ) : null}
             </CardHeader>
             <CardContent className="flex flex-col gap-1 text-sm">
               {merchant.contacts.length === 0 ? (
@@ -201,6 +242,9 @@ export default async function MerchantDetailPage({
             entityType="MERCHANT"
             entityId={merchant.id}
             revalidatePath={`/merchants/${merchant.id}`}
+            canContribute={merchant.access.canEdit}
+            currentUserId={user.id}
+            currentUserIsAdmin={isAdmin(user)}
           />
         </div>
       </div>

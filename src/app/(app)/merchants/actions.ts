@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { requireUserOrThrow } from "@/lib/rbac";
 import { merchantSchema } from "@/lib/validators/merchant";
+import { removeMerchantShare, setMerchantShare } from "@/services/merchant-shares";
 import { createMerchant, deleteMerchant, updateMerchant } from "@/services/merchants";
 
 export type MerchantFormState = {
@@ -92,4 +93,35 @@ export async function deleteMerchantAction(id: string) {
   await deleteMerchant(ctx, id);
   revalidatePath("/merchants");
   redirect("/merchants");
+}
+
+export async function setShareAction(
+  merchantId: string,
+  userId: string,
+  permission: "VIEW" | "EDIT"
+): Promise<{ error: string | null }> {
+  const ctx = await requireUserOrThrow();
+  try {
+    await setMerchantShare(ctx, merchantId, userId, permission);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Something went wrong" };
+  }
+  revalidatePath(`/merchants/${merchantId}`);
+  revalidatePath("/merchants");
+  return { error: null };
+}
+
+export async function removeShareAction(
+  merchantId: string,
+  userId: string
+): Promise<{ error: string | null }> {
+  const ctx = await requireUserOrThrow();
+  try {
+    await removeMerchantShare(ctx, merchantId, userId);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Something went wrong" };
+  }
+  revalidatePath(`/merchants/${merchantId}`);
+  revalidatePath("/merchants");
+  return { error: null };
 }

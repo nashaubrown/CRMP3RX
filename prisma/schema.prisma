@@ -48,6 +48,7 @@ model User {
   meetings       Meeting[]
   auditLogs      AuditLog[]
   conversations  Conversation[]
+  merchantShares MerchantShare[]
 }
 
 // Auth.js adapter models
@@ -114,6 +115,27 @@ enum MerchantStatus {
   CHURNED
 }
 
+// Collaboration on a merchant. All merchants are org-visible (hybrid model);
+// a VIEW share adds the merchant to the collaborator's working set, an EDIT
+// share additionally grants editing the merchant/contacts and logging activity.
+enum SharePermission {
+  VIEW
+  EDIT
+}
+
+model MerchantShare {
+  id         String          @id @default(cuid())
+  merchantId String
+  merchant   Merchant        @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission SharePermission @default(VIEW)
+  createdAt  DateTime        @default(now())
+
+  @@unique([merchantId, userId])
+  @@index([userId])
+}
+
 model Merchant {
   id       String         @id @default(cuid())
   name     String
@@ -139,6 +161,7 @@ model Merchant {
   contacts Contact[]
   leads    Lead[]
   deals    Deal[]
+  shares   MerchantShare[]
 
   @@index([ownerId])
   @@index([status])

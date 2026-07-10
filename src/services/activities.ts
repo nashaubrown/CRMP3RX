@@ -5,43 +5,48 @@ import { parseMvLocal } from "@/lib/datetime";
 import type { SessionUser } from "@/lib/rbac";
 import { isAdmin } from "@/lib/rbac";
 import type { ActivityInput } from "@/lib/validators/activity";
-import { contactScope } from "@/services/contacts";
+import { getMerchantAccess } from "@/services/merchant-access";
 import { audit } from "@/services/audit";
 
-// Visibility of an activity follows visibility of the record it's attached to.
-export async function assertEntityVisible(
+// Hybrid model: activity is viewable by anyone who can view the record (i.e.
+// everyone). Contributing requires edit rights on the underlying merchant;
+// completing/deleting an activity requires being its creator (or admin).
+
+async function resolveMerchantId(
+  entityType: EntityType,
+  entityId: string
+): Promise<string | null> {
+  if (entityType === "MERCHANT") {
+    const m = await db.merchant.findUnique({ where: { id: entityId }, select: { id: true } });
+    return m?.id ?? null;
+  }
+  if (entityType === "CONTACT") {
+    const c = await db.contact.findUnique({
+      where: { id: entityId },
+      select: { merchantId: true },
+    });
+    return c?.merchantId ?? null;
+  }
+  const d = await db.deal.findUnique({ where: { id: entityId }, select: { merchantId: true } });
+  return d?.merchantId ?? null;
+}
+
+export async function canContribute(
   ctx: SessionUser,
   entityType: EntityType,
   entityId: string
-) {
-  if (entityType === "MERCHANT") {
-    const found = await db.merchant.findFirst({
-      where: isAdmin(ctx) ? { id: entityId } : { id: entityId, ownerId: ctx.id },
-      select: { id: true },
-    });
-    if (found) return;
-  } else if (entityType === "CONTACT") {
-    const found = await db.contact.findFirst({
-      where: { AND: [{ id: entityId }, contactScope(ctx)] },
-      select: { id: true },
-    });
-    if (found) return;
-  } else {
-    const found = await db.deal.findFirst({
-      where: isAdmin(ctx) ? { id: entityId } : { id: entityId, ownerId: ctx.id },
-      select: { id: true },
-    });
-    if (found) return;
-  }
-  throw new Error("Record not found");
+): Promise<boolean> {
+  const merchantId = await resolveMerchantId(entityType, entityId);
+  if (!merchantId) return false;
+  const access = await getMerchantAccess(ctx, merchantId);
+  return Boolean(access?.canEdit);
 }
 
 export async function listActivitiesForEntity(
-  ctx: SessionUser,
+  _ctx: SessionUser,
   entityType: EntityType,
   entityId: string
 ) {
-  await assertEntityVisible(ctx, entityType, entityId);
   return db.activity.findMany({
     where: { entityType, entityId },
     orderBy: { createdAt: "desc" },
@@ -50,7 +55,8 @@ export async function listActivitiesForEntity(
 }
 
 export async function createActivity(ctx: SessionUser, input: ActivityInput) {
-  await assertEntityVisible(ctx, input.entityType, input.entityId);
+  const allowed = await canContribute(ctx, input.entityType, input.entityId);
+  if (!allowed) throw new Error("You don't have edit access to this record");
 
   const activity = await db.activity.create({
     data: {

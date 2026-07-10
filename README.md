@@ -45,9 +45,20 @@ Open http://localhost:3000 and sign in with a seeded account:
 | `hassan@perx.mv` | Sales rep | `perx1234` |
 | `mariyam@perx.mv` | Sales rep | `perx1234` |
 
-Admins see all records; sales reps only see records they own — the fastest way to
-see RBAC in action is to compare the dashboard counts between `admin@perx.mv` and
-`hassan@perx.mv`.
+## Access model (hybrid sharing)
+
+- **Merchants, contacts and deals are org-visible**: every signed-in user can view
+  every record — transparency prevents duplicates and turf confusion.
+- **Editing is gated**: a merchant (and its contacts/activity log) can be edited by
+  its owner, admins, and teammates holding an **Edit** share.
+- **Sharing** (owner or admin, via the Share button on a merchant): a **View** share
+  adds the merchant to the teammate's "Shared with me" working set and dashboard
+  counts; an **Edit** share additionally grants collaboration rights.
+- **Deleting and share management** stay owner/admin-only. Every change, including
+  shares, lands in the audit log.
+
+The seed shares two of Hassan's merchants with Mariyam (one Edit, one View) — sign
+in as `mariyam@perx.mv` and use the "Shared with me" filter on Merchants to see it.
 
 ## Environment variables
 

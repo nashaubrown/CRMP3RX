@@ -1,20 +1,23 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { db } from "@/lib/db";
 import { ownerScope, requireUser } from "@/lib/rbac";
+import { merchantMineWhere } from "@/services/merchant-access";
 
 export default async function DashboardPage() {
   const user = await requireUser();
   const scope = ownerScope(user);
+  // "My merchants" = owned + shared with me (hybrid sharing model).
+  const mine = user.role === "ADMIN" ? {} : merchantMineWhere(user);
 
   const [merchantCount, contactCount, openDealCount, leadCount] = await Promise.all([
-    db.merchant.count({ where: { ...scope } }),
-    db.contact.count({ where: user.role === "ADMIN" ? {} : { ownerId: user.id } }),
+    db.merchant.count({ where: mine }),
+    db.contact.count({ where: { merchant: mine } }),
     db.deal.count({ where: { ...scope, stage: { notIn: ["WON", "LOST"] } } }),
     db.lead.count({ where: { ...scope, status: { in: ["NEW", "CONTACTED"] } } }),
   ]);
 
   const stats = [
-    { label: "Merchants", value: merchantCount, description: "Accounts you manage" },
+    { label: "My merchants", value: merchantCount, description: "Owned or shared with you" },
     { label: "Contacts", value: contactCount, description: "People at your merchants" },
     { label: "Open deals", value: openDealCount, description: "In the pipeline" },
     { label: "Active leads", value: leadCount, description: "New or contacted" },

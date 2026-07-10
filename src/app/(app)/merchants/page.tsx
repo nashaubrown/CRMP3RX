@@ -8,6 +8,7 @@ import { ParamSelect } from "@/components/list/param-select";
 import { SearchInput } from "@/components/list/search-input";
 import { SortableHead } from "@/components/list/sortable-head";
 import { MerchantStatusBadge } from "@/components/status-badges";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -19,7 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDate } from "@/lib/datetime";
-import { isAdmin, requireUser } from "@/lib/rbac";
+import { requireUser } from "@/lib/rbac";
 import { merchantListParamsSchema } from "@/lib/validators/merchant";
 import { listMerchants } from "@/services/merchants";
 
@@ -36,11 +37,11 @@ export default async function MerchantsPage({
   const params = parsed.success ? parsed.data : merchantListParamsSchema.parse({});
 
   const { items, total, page, pageCount } = await listMerchants(user, params);
-  const admin = isAdmin(user);
 
   const tableParams = {
     q: params.q,
     status: params.status,
+    scope: params.scope === "all" ? undefined : params.scope,
     sort: params.sort,
     dir: params.dir,
   };
@@ -51,7 +52,7 @@ export default async function MerchantsPage({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Merchants</h1>
           <p className="text-muted-foreground text-sm">
-            {admin ? "All merchant accounts" : "Merchant accounts you own"}
+            All merchant accounts — filter to your own or ones shared with you
           </p>
         </div>
         <Button asChild>
@@ -63,6 +64,15 @@ export default async function MerchantsPage({
 
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput placeholder="Search name, category, email…" />
+        <ParamSelect
+          param="scope"
+          placeholder="All merchants"
+          className="w-44"
+          options={[
+            { value: "mine", label: "My merchants" },
+            { value: "shared", label: "Shared with me" },
+          ]}
+        />
         <ParamSelect
           param="status"
           placeholder="All statuses"
@@ -104,7 +114,7 @@ export default async function MerchantsPage({
                     <SortableHead label="Status" sortKey="status" basePath="/merchants" searchParams={tableParams} />
                     <TableHead>Contacts</TableHead>
                     <TableHead>Deals</TableHead>
-                    {admin ? <TableHead>Owner</TableHead> : null}
+                    <TableHead>Owner</TableHead>
                     <SortableHead label="Updated" sortKey="updatedAt" basePath="/merchants" searchParams={tableParams} />
                   </TableRow>
                 </TableHeader>
@@ -128,11 +138,18 @@ export default async function MerchantsPage({
                       <TableCell className="text-muted-foreground">
                         {merchant._count.deals}
                       </TableCell>
-                      {admin ? (
-                        <TableCell className="text-muted-foreground">
-                          {merchant.owner.name}
-                        </TableCell>
-                      ) : null}
+                      <TableCell className="text-muted-foreground">
+                        {merchant.owner.id === user.id ? (
+                          "You"
+                        ) : merchant.shares.some((s) => s.userId === user.id) ? (
+                          <span className="flex items-center gap-1.5">
+                            {merchant.owner.name}
+                            <Badge variant="secondary">Shared</Badge>
+                          </span>
+                        ) : (
+                          merchant.owner.name
+                        )}
+                      </TableCell>
                       <TableCell className="text-muted-foreground">
                         {formatDate(merchant.updatedAt)}
                       </TableCell>

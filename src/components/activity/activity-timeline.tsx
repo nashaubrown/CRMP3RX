@@ -32,11 +32,17 @@ export function ActivityTimeline({
   entityType,
   entityId,
   revalidatePath,
+  canContribute,
+  currentUserId,
+  currentUserIsAdmin,
 }: {
   activities: ActivityWithOwner[];
   entityType: EntityType;
   entityId: string;
   revalidatePath: string;
+  canContribute: boolean;
+  currentUserId: string;
+  currentUserIsAdmin: boolean;
 }) {
   const now = new Date();
 
@@ -46,15 +52,23 @@ export function ActivityTimeline({
         <CardTitle>Activity</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
-        <AddActivityForm
-          entityType={entityType}
-          entityId={entityId}
-          revalidatePath={revalidatePath}
-        />
+        {canContribute ? (
+          <AddActivityForm
+            entityType={entityType}
+            entityId={entityId}
+            revalidatePath={revalidatePath}
+          />
+        ) : (
+          <p className="text-muted-foreground rounded-lg border border-dashed px-3 py-2 text-xs">
+            View only — ask the owner for edit access to log activity here.
+          </p>
+        )}
 
         {activities.length === 0 ? (
           <p className="text-muted-foreground py-4 text-center text-sm">
-            No activity yet — add a note above to get started.
+            {canContribute
+              ? "No activity yet — add a note above to get started."
+              : "No activity yet."}
           </p>
         ) : (
           <ol className="flex flex-col">
@@ -100,12 +114,14 @@ export function ActivityTimeline({
                       {activity.dueAt ? <> · due {formatDateTime(activity.dueAt)}</> : null}
                     </p>
                   </div>
-                  <ActivityItemActions
-                    activityId={activity.id}
-                    isTask={isTask}
-                    completed={Boolean(activity.completedAt)}
-                    revalidatePath={revalidatePath}
-                  />
+                  {currentUserIsAdmin || activity.owner.id === currentUserId ? (
+                    <ActivityItemActions
+                      activityId={activity.id}
+                      isTask={isTask}
+                      completed={Boolean(activity.completedAt)}
+                      revalidatePath={revalidatePath}
+                    />
+                  ) : null}
                 </li>
               );
             })}

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { updateMerchantAction } from "@/app/(app)/merchants/actions";
 import { MerchantForm } from "@/app/(app)/merchants/merchant-form";
@@ -22,6 +22,8 @@ export default async function EditMerchantPage({
     listAssignableUsers(user),
   ]);
   if (!merchant) notFound();
+  // View-only users can see the record but not this form.
+  if (!merchant.access.canEdit) redirect(`/merchants/${id}`);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">

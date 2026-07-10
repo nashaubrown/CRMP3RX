@@ -246,6 +246,14 @@ async function main() {
     });
   }
 
+  // Sample shares (hybrid model): Hassan collaborates with Mariyam.
+  await db.merchantShare.create({
+    data: { merchantId: merchants[2].id, userId: rep2.id, permission: "EDIT" }, // Lily Retail Group
+  });
+  await db.merchantShare.create({
+    data: { merchantId: merchants[6].id, userId: rep2.id, permission: "VIEW" }, // Velana Duty Free
+  });
+
   // Message templates.
   await db.messageTemplate.createMany({
     data: [

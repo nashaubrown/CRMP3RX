@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { createContactAction } from "@/app/(app)/contacts/actions";
 import { ContactForm } from "@/app/(app)/contacts/contact-form";
 import { requireUser } from "@/lib/rbac";
-import { listMerchantOptions } from "@/services/merchants";
+import { listEditableMerchantOptions } from "@/services/merchants";
 
 export const metadata: Metadata = { title: "New contact" };
 
@@ -14,7 +14,7 @@ export default async function NewContactPage({
 }) {
   const user = await requireUser();
   const { merchantId } = await searchParams;
-  const merchants = await listMerchantOptions(user);
+  const merchants = await listEditableMerchantOptions(user);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">

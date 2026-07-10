@@ -2,8 +2,13 @@ import type { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import type { SessionUser } from "@/lib/rbac";
-import { isAdmin, ownerScope } from "@/lib/rbac";
+import { isAdmin } from "@/lib/rbac";
 import type { MerchantInput, MerchantListParams } from "@/lib/validators/merchant";
+import {
+  getMerchantAccess,
+  merchantMineWhere,
+  merchantSharedWhere,
+} from "@/services/merchant-access";
 import { audit, shallowDiff } from "@/services/audit";
 
 export const MERCHANTS_PAGE_SIZE = 10;
@@ -29,8 +34,16 @@ function pickAudited(record: Record<string, unknown>) {
 }
 
 export async function listMerchants(ctx: SessionUser, params: MerchantListParams) {
+  // Hybrid model: everyone sees all merchants; scope narrows to the working set.
+  const scopeWhere: Prisma.MerchantWhereInput =
+    params.scope === "mine"
+      ? merchantMineWhere(ctx)
+      : params.scope === "shared"
+        ? merchantSharedWhere(ctx)
+        : {};
+
   const where: Prisma.MerchantWhereInput = {
-    ...ownerScope(ctx),
+    ...scopeWhere,
     ...(params.status ? { status: params.status } : {}),
     ...(params.q
       ? {
@@ -64,6 +77,7 @@ export async function listMerchants(ctx: SessionUser, params: MerchantListParams
       take: MERCHANTS_PAGE_SIZE,
       include: {
         owner: { select: { id: true, name: true } },
+        shares: { select: { userId: true, permission: true } },
         _count: { select: { contacts: true, deals: true } },
       },
     }),
@@ -78,10 +92,15 @@ export async function listMerchants(ctx: SessionUser, params: MerchantListParams
 }
 
 export async function getMerchant(ctx: SessionUser, id: string) {
-  return db.merchant.findFirst({
-    where: { id, ...ownerScope(ctx) },
+  // Everyone can view every merchant (hybrid sharing model).
+  const merchant = await db.merchant.findUnique({
+    where: { id },
     include: {
       owner: { select: { id: true, name: true } },
+      shares: {
+        include: { user: { select: { id: true, name: true } } },
+        orderBy: { createdAt: "asc" },
+      },
       contacts: { orderBy: [{ isPrimary: "desc" }, { firstName: "asc" }] },
       deals: {
         orderBy: { updatedAt: "desc" },
@@ -89,12 +108,24 @@ export async function getMerchant(ctx: SessionUser, id: string) {
       },
     },
   });
+  if (!merchant) return null;
+
+  const access = await getMerchantAccess(ctx, id);
+  return { ...merchant, access: access! };
 }
 
-// Merchants the current user can attach contacts/deals to (for selects).
-export async function listMerchantOptions(ctx: SessionUser) {
+// Merchants the current user can attach contacts to (edit rights required).
+export async function listEditableMerchantOptions(ctx: SessionUser) {
+  const where: Prisma.MerchantWhereInput = isAdmin(ctx)
+    ? {}
+    : {
+        OR: [
+          { ownerId: ctx.id },
+          { shares: { some: { userId: ctx.id, permission: "EDIT" } } },
+        ],
+      };
   return db.merchant.findMany({
-    where: { ...ownerScope(ctx) },
+    where,
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });
@@ -133,9 +164,13 @@ export async function createMerchant(ctx: SessionUser, input: MerchantInput) {
 }
 
 export async function updateMerchant(ctx: SessionUser, id: string, input: MerchantInput) {
-  const existing = await db.merchant.findFirst({ where: { id, ...ownerScope(ctx) } });
+  const existing = await db.merchant.findUnique({ where: { id } });
   if (!existing) throw new Error("Merchant not found");
 
+  const access = await getMerchantAccess(ctx, id);
+  if (!access?.canEdit) throw new Error("You don't have edit access to this merchant");
+
+  // Only admins may reassign ownership.
   const ownerId = isAdmin(ctx) && input.ownerId ? input.ownerId : existing.ownerId;
 
   const updated = await db.merchant.update({
@@ -171,8 +206,11 @@ export async function updateMerchant(ctx: SessionUser, id: string, input: Mercha
 }
 
 export async function deleteMerchant(ctx: SessionUser, id: string) {
-  const existing = await db.merchant.findFirst({ where: { id, ...ownerScope(ctx) } });
+  const existing = await db.merchant.findUnique({ where: { id } });
   if (!existing) throw new Error("Merchant not found");
+
+  const access = await getMerchantAccess(ctx, id);
+  if (!access?.canDelete) throw new Error("Only the owner or an admin can delete this merchant");
 
   // Contacts and deals cascade via the schema.
   await db.merchant.delete({ where: { id } });

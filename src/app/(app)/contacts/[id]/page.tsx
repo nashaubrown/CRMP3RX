@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatMoney } from "@/lib/format";
 import { formatPhone } from "@/lib/phone";
-import { requireUser } from "@/lib/rbac";
+import { isAdmin, requireUser } from "@/lib/rbac";
 import { listActivitiesForEntity } from "@/services/activities";
 import { getContact } from "@/services/contacts";
 
@@ -48,18 +48,20 @@ export default async function ContactDetailPage({
             </Link>
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/contacts/${contact.id}/edit`}>
-              <PencilIcon /> Edit
-            </Link>
-          </Button>
-          <DeleteButton
-            action={deleteContactAction.bind(null, contact.id)}
-            title={`Delete ${contact.firstName} ${contact.lastName}?`}
-            description="This permanently deletes the contact. This cannot be undone."
-          />
-        </div>
+        {contact.access.canEdit ? (
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/contacts/${contact.id}/edit`}>
+                <PencilIcon /> Edit
+              </Link>
+            </Button>
+            <DeleteButton
+              action={deleteContactAction.bind(null, contact.id)}
+              title={`Delete ${contact.firstName} ${contact.lastName}?`}
+              description="This permanently deletes the contact. This cannot be undone."
+            />
+          </div>
+        ) : null}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -125,6 +127,9 @@ export default async function ContactDetailPage({
             entityType="CONTACT"
             entityId={contact.id}
             revalidatePath={`/contacts/${contact.id}`}
+            canContribute={contact.access.canEdit}
+            currentUserId={user.id}
+            currentUserIsAdmin={isAdmin(user)}
           />
         </div>
       </div>

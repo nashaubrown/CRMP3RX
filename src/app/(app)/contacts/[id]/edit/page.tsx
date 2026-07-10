@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { updateContactAction } from "@/app/(app)/contacts/actions";
 import { ContactForm } from "@/app/(app)/contacts/contact-form";
 import { requireUser } from "@/lib/rbac";
 import { getContact } from "@/services/contacts";
-import { listMerchantOptions } from "@/services/merchants";
+import { listEditableMerchantOptions } from "@/services/merchants";
 
 export const metadata: Metadata = { title: "Edit contact" };
 
@@ -19,9 +19,11 @@ export default async function EditContactPage({
 
   const [contact, merchants] = await Promise.all([
     getContact(user, id),
-    listMerchantOptions(user),
+    listEditableMerchantOptions(user),
   ]);
   if (!contact) notFound();
+  // View-only users can see the record but not this form.
+  if (!contact.access.canEdit) redirect(`/contacts/${id}`);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
