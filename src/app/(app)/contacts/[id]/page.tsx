@@ -17,8 +17,10 @@ import { listActivitiesForEntity } from "@/services/activities";
 import { listContactHistory } from "@/services/audit-log";
 import { getContact } from "@/services/contacts";
 import { buildMergeVars, listCommunicationsForEntity } from "@/services/messaging";
+import { hasCalendarConnected } from "@/services/scheduling";
 import { listTemplates } from "@/services/templates";
 import { ComposeButtons } from "@/components/compose/compose-buttons";
+import { ScheduleMeetingDialog } from "@/components/scheduling/schedule-meeting-dialog";
 import { CommunicationsCard } from "@/components/compose/communications-card";
 import { HistoryCard } from "@/components/history/history-card";
 import { serializeEvents } from "@/components/history/serialize";
@@ -36,15 +38,17 @@ export default async function ContactDetailPage({
   const contact = await getContact(user, id);
   if (!contact) notFound();
 
-  const [activities, history, comms, templates, mergeVars] = await Promise.all([
-    listActivitiesForEntity(user, "CONTACT", id),
-    contact.access.canViewHistory
-      ? listContactHistory(user, id, contact.merchantId)
-      : Promise.resolve([]),
-    listCommunicationsForEntity(user, "CONTACT", id),
-    contact.access.canEdit ? listTemplates() : Promise.resolve([]),
-    contact.access.canEdit ? buildMergeVars(user, "CONTACT", id) : Promise.resolve({}),
-  ]);
+  const [activities, history, comms, templates, mergeVars, calendarConnected] =
+    await Promise.all([
+      listActivitiesForEntity(user, "CONTACT", id),
+      contact.access.canViewHistory
+        ? listContactHistory(user, id, contact.merchantId)
+        : Promise.resolve([]),
+      listCommunicationsForEntity(user, "CONTACT", id),
+      contact.access.canEdit ? listTemplates() : Promise.resolve([]),
+      contact.access.canEdit ? buildMergeVars(user, "CONTACT", id) : Promise.resolve({}),
+      contact.access.canEdit ? hasCalendarConnected(user.id) : Promise.resolve(false),
+    ]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -81,6 +85,24 @@ export default async function ContactDetailPage({
               }
               templates={templates}
               mergeVars={mergeVars}
+            />
+            <ScheduleMeetingDialog
+              entityType="CONTACT"
+              entityId={contact.id}
+              revalidatePath={`/contacts/${contact.id}`}
+              defaultTitle={`Perx × ${contact.firstName} ${contact.lastName}`}
+              calendarConnected={calendarConnected}
+              attendees={
+                contact.email
+                  ? [
+                      {
+                        name: `${contact.firstName} ${contact.lastName}`,
+                        email: contact.email,
+                        phone: contact.phone,
+                      },
+                    ]
+                  : []
+              }
             />
             <Button variant="outline" size="sm" asChild>
               <Link href={`/contacts/${contact.id}/edit`}>

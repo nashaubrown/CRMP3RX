@@ -300,6 +300,11 @@ model Activity {
   entityType EntityType
   entityId   String
 
+  // Set when this activity mirrors a scheduled Meeting (cancelling the
+  // meeting removes the timeline entry).
+  meetingId String?  @unique
+  meeting   Meeting? @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+
   ownerId String
   owner   User   @relation(fields: [ownerId], references: [id])
 
@@ -473,6 +478,8 @@ model Meeting {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  activities Activity[]
 
   @@index([hostUserId, startAt])
   @@index([contactId])

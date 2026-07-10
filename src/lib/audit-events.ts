@@ -140,6 +140,13 @@ export function describeEvent(event: RawEvent): HistoryEvent {
     case "lead.convert":
       return { ...base, category: "record", title: "converted a lead into this merchant" };
 
+    case "meeting.schedule":
+      return {
+        ...base,
+        category: "activity",
+        title: `scheduled meeting "${fmt(diff.title)}" with ${fmt(diff.attendeeEmail)}`,
+      };
+
     case "activity.create":
       return {
         ...base,

@@ -26,9 +26,11 @@ import { listActivitiesForEntity } from "@/services/activities";
 import { listMerchantHistory } from "@/services/audit-log";
 import { buildMergeVars, listCommunicationsForEntity } from "@/services/messaging";
 import { getMerchant } from "@/services/merchants";
+import { hasCalendarConnected } from "@/services/scheduling";
 import { listTemplates } from "@/services/templates";
 import { listTeamMembers } from "@/services/users";
 import { ComposeButtons } from "@/components/compose/compose-buttons";
+import { ScheduleMeetingDialog } from "@/components/scheduling/schedule-meeting-dialog";
 import { CommunicationsCard } from "@/components/compose/communications-card";
 import { HistoryCard } from "@/components/history/history-card";
 import { serializeEvents } from "@/components/history/serialize";
@@ -46,14 +48,16 @@ export default async function MerchantDetailPage({
   const merchant = await getMerchant(user, id);
   if (!merchant) notFound();
 
-  const [activities, team, history, comms, templates, mergeVars] = await Promise.all([
-    listActivitiesForEntity(user, "MERCHANT", id),
-    merchant.access.canManageShares ? listTeamMembers() : Promise.resolve([]),
-    merchant.access.canViewHistory ? listMerchantHistory(user, id) : Promise.resolve([]),
-    listCommunicationsForEntity(user, "MERCHANT", id),
-    merchant.access.canEdit ? listTemplates() : Promise.resolve([]),
-    merchant.access.canEdit ? buildMergeVars(user, "MERCHANT", id) : Promise.resolve({}),
-  ]);
+  const [activities, team, history, comms, templates, mergeVars, calendarConnected] =
+    await Promise.all([
+      listActivitiesForEntity(user, "MERCHANT", id),
+      merchant.access.canManageShares ? listTeamMembers() : Promise.resolve([]),
+      merchant.access.canViewHistory ? listMerchantHistory(user, id) : Promise.resolve([]),
+      listCommunicationsForEntity(user, "MERCHANT", id),
+      merchant.access.canEdit ? listTemplates() : Promise.resolve([]),
+      merchant.access.canEdit ? buildMergeVars(user, "MERCHANT", id) : Promise.resolve({}),
+      merchant.access.canEdit ? hasCalendarConnected(user.id) : Promise.resolve(false),
+    ]);
 
   const emailRecipients = [
     ...(merchant.email ? [{ label: `${merchant.name} <${merchant.email}>`, value: merchant.email }] : []),
@@ -90,6 +94,23 @@ export default async function MerchantDetailPage({
               phones={phoneRecipients}
               templates={templates}
               mergeVars={mergeVars}
+            />
+          ) : null}
+          {merchant.access.canEdit ? (
+            <ScheduleMeetingDialog
+              entityType="MERCHANT"
+              entityId={merchant.id}
+              revalidatePath={`/merchants/${merchant.id}`}
+              defaultTitle={`Perx × ${merchant.name}`}
+              calendarConnected={calendarConnected}
+              attendees={merchant.contacts
+                .filter((c) => c.email)
+                .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary))
+                .map((c) => ({
+                  name: `${c.firstName} ${c.lastName}`,
+                  email: c.email!,
+                  phone: c.phone,
+                }))}
             />
           ) : null}
           {merchant.access.canManageShares ? (

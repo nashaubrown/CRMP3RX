@@ -119,7 +119,7 @@ npx prisma studio     # browse the database
 | Leads | `/leads` + public `/capture` | Rule-based scoring, claim, convert-to-merchant |
 | Deals | `/deals` | Drag-drop kanban, won/lost reasons, MVR/USD metrics |
 | Email & SMS | Buttons on merchant/contact pages | Templates with merge vars (`/templates`), STOP opt-out, delivery webhooks, hourly send limits |
-| Scheduling | `/settings` + public `/book/[slug]` | Google Calendar connect, availability editor, Meet links, email+SMS confirmations |
+| Scheduling | `/settings`, public `/book/[slug]`, Schedule button on merchant/contact pages | Google Calendar connect, availability editor, Meet links, email+SMS confirmations; user-scheduled meetings mirror onto the record's timeline |
 | Tasks | `/tasks` + dashboard | Overdue highlighting, complete/reopen |
 | Ask Perx (AI) | `/assistant` + topbar sparkle | Read-only, RBAC-scoped tools, streaming, audit-logged |
 

@@ -143,7 +143,7 @@ export default async function SettingsPage({
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Upcoming meetings</CardTitle>
-          <CardDescription>Bookings made through your public page.</CardDescription>
+          <CardDescription>Meetings you host — booked via your public page or scheduled from a merchant/contact.</CardDescription>
         </CardHeader>
         <CardContent>
           <MeetingList
