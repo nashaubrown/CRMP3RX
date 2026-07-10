@@ -10,7 +10,7 @@ export type HistoryEvent = {
   // e.g. "updated this merchant", "added contact Ahmed Tester"
   title: string;
   changes: FieldChange[];
-  category: "record" | "contacts" | "sharing" | "activity";
+  category: "record" | "contacts" | "sharing" | "activity" | "deals";
   createdAt: Date;
 };
 
@@ -116,6 +116,29 @@ export function describeEvent(event: RawEvent): HistoryEvent {
         category: "sharing",
         title: `removed ${fmt(diff.userName)}'s access`,
       };
+
+    case "deal.create":
+      return { ...base, category: "deals", title: `created deal ${fmt(diff.title)}` };
+    case "deal.update":
+      return {
+        ...base,
+        category: "deals",
+        title: "updated deal details",
+        changes: toChanges(diff),
+      };
+    case "deal.stage": {
+      const stage = diff.stage as { from?: unknown; to?: unknown } | undefined;
+      const reason = diff.lostReason ? ` (${fmt(diff.lostReason)})` : "";
+      return {
+        ...base,
+        category: "deals",
+        title: `moved deal ${fmt(diff.title)}: ${fmt(stage?.from)} → ${fmt(stage?.to)}${reason}`,
+      };
+    }
+    case "deal.delete":
+      return { ...base, category: "deals", title: `deleted deal ${fmt(diff.title)}` };
+    case "lead.convert":
+      return { ...base, category: "record", title: "converted a lead into this merchant" };
 
     case "activity.create":
       return {

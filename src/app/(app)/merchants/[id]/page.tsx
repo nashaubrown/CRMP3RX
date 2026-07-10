@@ -214,17 +214,25 @@ export default async function MerchantDetailPage({
           </Card>
 
           <Card>
-            <CardHeader>
+            <CardHeader className="flex-row items-center justify-between">
               <CardTitle className="text-base">Deals ({merchant.deals.length})</CardTitle>
+              {merchant.access.canEdit ? (
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={`/deals/new?merchantId=${merchant.id}`}>
+                    <PlusIcon /> New deal
+                  </Link>
+                </Button>
+              ) : null}
             </CardHeader>
             <CardContent className="flex flex-col gap-1 text-sm">
               {merchant.deals.length === 0 ? (
-                <p className="text-muted-foreground">No deals yet — deals ship in Phase 2.</p>
+                <p className="text-muted-foreground">No deals yet.</p>
               ) : (
                 merchant.deals.map((deal) => (
-                  <div
+                  <Link
                     key={deal.id}
-                    className="-mx-2 flex items-center justify-between gap-2 rounded-md px-2 py-1.5"
+                    href={`/deals/${deal.id}`}
+                    className="hover:bg-muted/60 -mx-2 flex items-center justify-between gap-2 rounded-md px-2 py-1.5"
                   >
                     <span className="font-medium">{deal.title}</span>
                     <span className="flex items-center gap-2">
@@ -233,7 +241,7 @@ export default async function MerchantDetailPage({
                       </span>
                       <DealStageBadge stage={deal.stage} />
                     </span>
-                  </div>
+                  </Link>
                 ))
               )}
             </CardContent>

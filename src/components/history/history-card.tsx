@@ -21,6 +21,7 @@ const CATEGORY_LABELS: Record<HistoryEvent["category"], string> = {
   contacts: "Contacts",
   sharing: "Sharing",
   activity: "Activity log",
+  deals: "Deals",
 };
 
 // Serialized event (dates arrive as strings across the RSC boundary).

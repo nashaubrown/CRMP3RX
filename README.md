@@ -114,7 +114,7 @@ npx prisma studio     # browse the database
 
 - [x] **Phase 0** — foundation: scaffold, Postgres + Prisma schema/seed, Auth.js + RBAC, app shell (sidebar/topbar, mobile nav, dark mode)
 - [x] **Phase 1** — core CRM: merchants & contacts CRUD (search/filter/sort/pagination), ownership + RBAC scoping, activity timelines, audit logging
-- [ ] **Phase 2** — sales pipeline: leads + scoring, deals kanban, pipeline metrics
+- [x] **Phase 2** — sales pipeline: rule-scored leads + public capture form (`/capture`), claim/convert flow, deals kanban with drag-drop + won/lost reasons, per-stage metrics split by MVR/USD
 - [ ] **Phase 3** — communications: email (Resend), SMS (adapter), templates, webhooks, opt-out
 - [ ] **Phase 4** — scheduling: Google Calendar sync + public booking page
 - [ ] **Phase 5** — dashboard & tasks
