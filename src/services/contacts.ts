@@ -3,7 +3,12 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import type { SessionUser } from "@/lib/rbac";
 import type { ContactInput, ContactListParams } from "@/lib/validators/contact";
-import { assertMerchantEdit, getMerchantAccess } from "@/services/merchant-access";
+import {
+  assertMerchantEdit,
+  getMerchantAccess,
+  merchantMineWhere,
+  merchantSharedWhere,
+} from "@/services/merchant-access";
 import { audit, shallowDiff } from "@/services/audit";
 
 export const CONTACTS_PAGE_SIZE = 10;
@@ -26,8 +31,18 @@ function pickAudited(record: Record<string, unknown>) {
 }
 
 export async function listContacts(ctx: SessionUser, params: ContactListParams) {
+  // A contact's working-set scope follows its merchant (same logic as the
+  // merchants list): "mine" = merchant owned by or shared with me.
+  const scopeWhere: Prisma.ContactWhereInput =
+    params.scope === "mine"
+      ? { merchant: merchantMineWhere(ctx) }
+      : params.scope === "shared"
+        ? { merchant: merchantSharedWhere(ctx) }
+        : {};
+
   const where: Prisma.ContactWhereInput = {
     AND: [
+      scopeWhere,
       params.merchantId ? { merchantId: params.merchantId } : {},
       params.q
         ? {
@@ -59,7 +74,17 @@ export async function listContacts(ctx: SessionUser, params: ContactListParams) 
       orderBy,
       skip: (params.page - 1) * CONTACTS_PAGE_SIZE,
       take: CONTACTS_PAGE_SIZE,
-      include: { merchant: { select: { id: true, name: true } } },
+      include: {
+        merchant: {
+          select: {
+            id: true,
+            name: true,
+            ownerId: true,
+            owner: { select: { name: true } },
+            shares: { select: { userId: true, permission: true } },
+          },
+        },
+      },
     }),
   ]);
 

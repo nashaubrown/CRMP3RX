@@ -34,6 +34,8 @@ export type ContactInput = z.infer<typeof contactSchema>;
 export const contactListParamsSchema = z.object({
   q: z.string().trim().max(200).optional(),
   merchantId: z.string().optional(),
+  // Follows the merchant's ownership/shares (hybrid sharing model)
+  scope: z.enum(["all", "mine", "shared"]).default("all"),
   sort: z.enum(["name", "merchant", "updatedAt", "createdAt"]).default("updatedAt"),
   dir: z.enum(["asc", "desc"]).default("desc"),
   page: z.coerce.number().int().min(1).default(1),

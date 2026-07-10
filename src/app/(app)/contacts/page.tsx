@@ -4,6 +4,7 @@ import { PlusIcon, UsersIcon } from "lucide-react";
 
 import { EmptyState } from "@/components/list/empty-state";
 import { Pagination } from "@/components/list/pagination";
+import { ParamSelect } from "@/components/list/param-select";
 import { SearchInput } from "@/components/list/search-input";
 import { SortableHead } from "@/components/list/sortable-head";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +40,7 @@ export default async function ContactsPage({
   const tableParams = {
     q: params.q,
     merchantId: params.merchantId,
+    scope: params.scope === "all" ? undefined : params.scope,
     sort: params.sort,
     dir: params.dir,
   };
@@ -48,7 +50,9 @@ export default async function ContactsPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Contacts</h1>
-          <p className="text-muted-foreground text-sm">People at your merchant accounts</p>
+          <p className="text-muted-foreground text-sm">
+            People at merchant accounts — filter to your own or shared merchants
+          </p>
         </div>
         <Button asChild>
           <Link href="/contacts/new">
@@ -57,7 +61,18 @@ export default async function ContactsPage({
         </Button>
       </div>
 
-      <SearchInput placeholder="Search name, email, title, merchant…" />
+      <div className="flex flex-wrap items-center gap-2">
+        <SearchInput placeholder="Search name, email, title, merchant…" />
+        <ParamSelect
+          param="scope"
+          placeholder="All contacts"
+          className="w-44"
+          options={[
+            { value: "mine", label: "My merchants'" },
+            { value: "shared", label: "Shared with me" },
+          ]}
+        />
+      </div>
 
       {items.length === 0 ? (
         <EmptyState
@@ -84,6 +99,7 @@ export default async function ContactsPage({
                     <SortableHead label="Name" sortKey="name" basePath="/contacts" searchParams={tableParams} className="pl-4" />
                     <TableHead>Title</TableHead>
                     <SortableHead label="Merchant" sortKey="merchant" basePath="/contacts" searchParams={tableParams} />
+                    <TableHead>Owner</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Phone</TableHead>
                   </TableRow>
@@ -111,6 +127,18 @@ export default async function ContactsPage({
                         >
                           {contact.merchant.name}
                         </Link>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {contact.merchant.ownerId === user.id ? (
+                          "You"
+                        ) : contact.merchant.shares.some((s) => s.userId === user.id) ? (
+                          <span className="flex items-center gap-1.5">
+                            {contact.merchant.owner.name}
+                            <Badge variant="secondary">Shared</Badge>
+                          </span>
+                        ) : (
+                          contact.merchant.owner.name
+                        )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {contact.email ?? "—"}
