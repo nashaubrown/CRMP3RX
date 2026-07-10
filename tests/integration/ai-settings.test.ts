@@ -1,6 +1,7 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { db } from "@/lib/db";
+import { encryptSecret } from "@/lib/crypto";
 import { getAiProvider, resolveAiConfig } from "@/integrations/ai";
 import {
   clearAiSettings,
@@ -90,6 +91,54 @@ describe("ai settings", () => {
       /admin/i
     );
     await expect(clearAiSettings(rep())).rejects.toThrow(/admin/i);
+  });
+
+  it("ignores a stale/incorrect stored base URL for a named provider", async () => {
+    // Simulate the real-world bug: a GROQ row with the provider's WEBSITE
+    // saved as the base URL. The request must still hit the canonical API.
+    await db.aiSetting.create({
+      data: {
+        id: "singleton",
+        provider: "GROQ",
+        apiKeyEnc: encryptSecret("gsk_real_key"),
+        baseUrl: "https://console.groq.com/keys",
+        model: "llama-3.1-8b-instant",
+      },
+    });
+
+    const provider = await getAiProvider();
+    expect(provider).not.toBeNull();
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(c) {
+            c.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"ok"}}]}\n'));
+            c.enqueue(new TextEncoder().encode("data: [DONE]\n"));
+            c.close();
+          },
+        }),
+        { status: 200 }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      // drain the stream so the fetch is issued
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      for await (const _event of provider!.streamTurn({
+        system: "s",
+        messages: [{ role: "user", content: "hi" }],
+        tools: [],
+      })) {
+        /* no-op */
+      }
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    const calledUrl = fetchMock.mock.calls[0][0];
+    expect(calledUrl).toBe("https://api.groq.com/openai/v1/chat/completions");
+    expect(calledUrl).not.toContain("console.groq.com");
   });
 
   it("clear reverts to the env-derived config", async () => {

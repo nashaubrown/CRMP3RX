@@ -141,7 +141,10 @@ export function buildProvider(config: ResolvedAiConfig | null): AiProvider | nul
     return new AnthropicProvider(config.model || preset.defaultModel, config.apiKey);
   }
 
-  const baseUrl = config.baseUrl || preset.baseUrl;
+  // Named providers ALWAYS use their canonical API URL — only CUSTOM takes a
+  // supplied base URL. This ignores any stale/incorrect stored or env base URL
+  // (e.g. someone pasting the provider's website into the field).
+  const baseUrl = preset.custom ? config.baseUrl : preset.baseUrl;
   const model = config.model || preset.defaultModel;
   if (!baseUrl || !model) return null;
   if (!config.apiKey && !preset.keyOptional) return null;

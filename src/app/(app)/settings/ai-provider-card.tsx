@@ -76,7 +76,8 @@ export function AiProviderCard({
         provider,
         apiKey: apiKey || undefined,
         model: model || undefined,
-        baseUrl: baseUrl || undefined,
+        // Base URL only applies to Custom; never persist it for named providers.
+        baseUrl: opt?.custom ? baseUrl || undefined : undefined,
       });
       if (result.error) toast.error(result.error);
       else {
@@ -133,7 +134,14 @@ export function AiProviderCard({
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <Label>Provider</Label>
-            <Select value={provider} onValueChange={setProvider}>
+            <Select
+              value={provider}
+              onValueChange={(v) => {
+                setProvider(v);
+                // Base URL only belongs to Custom — don't carry it across.
+                setBaseUrl(v === "CUSTOM" && saved?.provider === "CUSTOM" ? saved.baseUrl ?? "" : "");
+              }}
+            >
               <SelectTrigger aria-label="Provider">
                 <SelectValue />
               </SelectTrigger>
