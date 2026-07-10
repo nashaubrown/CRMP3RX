@@ -30,12 +30,16 @@ cp .env.example .env
 # set AUTH_SECRET (openssl rand -base64 32); the defaults work for everything else
 
 # 4. Migrate + seed
-npx prisma migrate dev
-npx prisma db seed
+pnpm db:migrate
+pnpm db:seed
 
 # 5. Run
 pnpm dev
 ```
+
+> After every `git pull` that touches `prisma/`, run `pnpm db:migrate` (applies new
+> migrations and regenerates the client). `pnpm install` also regenerates the
+> client automatically via the `postinstall` hook.
 
 Open http://localhost:3000 and sign in with a seeded account:
 
@@ -100,9 +104,10 @@ Conventions:
 pnpm dev              # dev server
 pnpm build && pnpm start
 pnpm lint
-npx tsc --noEmit      # typecheck
+pnpm typecheck
+pnpm db:migrate       # apply migrations + regenerate client
+pnpm db:seed          # re-seed (wipes app data first)
 npx prisma studio     # browse the database
-npx prisma db seed    # re-seed (wipes app data first)
 ```
 
 ## Build phases
