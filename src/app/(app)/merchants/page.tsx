@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PlusIcon, StoreIcon } from "lucide-react";
 
+import { ExportButton } from "@/components/csv/export-button";
+import { ImportDialog } from "@/components/csv/import-dialog";
 import { EmptyState } from "@/components/list/empty-state";
 import { Pagination } from "@/components/list/pagination";
 import { ParamSelect } from "@/components/list/param-select";
@@ -55,11 +57,22 @@ export default async function MerchantsPage({
             All merchant accounts — filter to your own or ones shared with you
           </p>
         </div>
-        <Button asChild>
-          <Link href="/merchants/new">
-            <PlusIcon /> New merchant
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <ExportButton
+            entity="merchants"
+            filters={{ q: params.q, status: params.status, scope: tableParams.scope }}
+          />
+          <ImportDialog
+            entity="merchants"
+            revalidatePath="/merchants"
+            columnsHint="name, category, status, email, phone, website, address, posSystem, monthlyTxnVolume, loyaltyLive, notes"
+          />
+          <Button asChild>
+            <Link href="/merchants/new">
+              <PlusIcon /> New merchant
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

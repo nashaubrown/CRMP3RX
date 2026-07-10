@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PlusIcon, UsersIcon } from "lucide-react";
 
+import { ExportButton } from "@/components/csv/export-button";
+import { ImportDialog } from "@/components/csv/import-dialog";
 import { EmptyState } from "@/components/list/empty-state";
 import { Pagination } from "@/components/list/pagination";
 import { ParamSelect } from "@/components/list/param-select";
@@ -54,11 +56,22 @@ export default async function ContactsPage({
             People at merchant accounts — filter to your own or shared merchants
           </p>
         </div>
-        <Button asChild>
-          <Link href="/contacts/new">
-            <PlusIcon /> New contact
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <ExportButton
+            entity="contacts"
+            filters={{ q: params.q, merchantId: params.merchantId, scope: tableParams.scope }}
+          />
+          <ImportDialog
+            entity="contacts"
+            revalidatePath="/contacts"
+            columnsHint="firstName, lastName, merchant (or merchantId), title, email, phone, isPrimary"
+          />
+          <Button asChild>
+            <Link href="/contacts/new">
+              <PlusIcon /> New contact
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

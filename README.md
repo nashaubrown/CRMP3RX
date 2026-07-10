@@ -124,6 +124,7 @@ npx prisma studio     # browse the database
 | Ask Perx (AI) | `/assistant` + topbar sparkle | Read-only, RBAC-scoped tools, streaming, audit-logged |
 | REST API | `/api/v1/*` | API-key auth (created in Settings), same RBAC as the web app |
 | MCP for Claude | `/api/mcp` | Connect claude.ai / Claude Code / Claude Desktop to the CRM |
+| CSV export/import | Buttons on list pages | Export honors active filters; import validates per row, skips duplicates, needs the same edit rights as the forms |
 
 ## Testing
 

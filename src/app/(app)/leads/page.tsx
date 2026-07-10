@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PlusIcon, TargetIcon } from "lucide-react";
 
+import { ExportButton } from "@/components/csv/export-button";
 import { EmptyState } from "@/components/list/empty-state";
 import { Pagination } from "@/components/list/pagination";
 import { ParamSelect } from "@/components/list/param-select";
@@ -56,11 +57,17 @@ export default async function LeadsPage({
             Rule-scored prospects — claim unassigned ones from the public form
           </p>
         </div>
-        <Button asChild>
-          <Link href="/leads/new">
-            <PlusIcon /> New lead
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <ExportButton
+            entity="leads"
+            filters={{ q: params.q, status: params.status, scope: tableParams.scope }}
+          />
+          <Button asChild>
+            <Link href="/leads/new">
+              <PlusIcon /> New lead
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

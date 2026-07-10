@@ -3,6 +3,7 @@ import Link from "next/link";
 import { PlusIcon } from "lucide-react";
 
 import { DealsBoard } from "@/app/(app)/deals/board";
+import { ExportButton } from "@/components/csv/export-button";
 import { ParamSelect } from "@/components/list/param-select";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -58,7 +59,11 @@ export default async function DealsPage({
             Drag deals across stages — dropping on Lost asks for a reason
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <ExportButton
+            entity="deals"
+            filters={{ scope: scope === "all" ? undefined : scope }}
+          />
           <ParamSelect
             param="scope"
             placeholder="Everyone's deals"
