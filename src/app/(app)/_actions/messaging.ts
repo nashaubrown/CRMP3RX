@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { textToHtml } from "@/lib/html";
 import { toE164 } from "@/lib/phone";
 import { requireUserOrThrow } from "@/lib/rbac";
 import { sendEmailFromRecord, sendSmsFromRecord } from "@/services/messaging";
@@ -28,8 +29,8 @@ export async function sendEmailAction(
     await sendEmailFromRecord(ctx, {
       to: parsed.data.to,
       subject: parsed.data.subject,
-      // Preserve line breaks from the plain-text editor
-      bodyHtml: parsed.data.body.replace(/\n/g, "<br/>"),
+      // Plain-text editor: escape HTML, then preserve line breaks
+      bodyHtml: textToHtml(parsed.data.body),
       templateId: parsed.data.templateId ?? null,
       entityType: parsed.data.entityType,
       entityId: parsed.data.entityId,

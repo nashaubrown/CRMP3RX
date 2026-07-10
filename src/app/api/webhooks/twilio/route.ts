@@ -16,12 +16,21 @@ const STATUS_MAP: Record<string, SmsStatus> = {
   failed: "FAILED",
 };
 
-function verifyTwilioSignature(url: string, params: Record<string, string>, signature: string) {
+function verifyTwilioSignature(
+  url: string,
+  params: Record<string, string>,
+  signature: string | null
+) {
   const token = process.env.TWILIO_AUTH_TOKEN;
   if (!token) return true; // dev without credentials: skip verification
+  // With a token configured, a missing signature must fail — otherwise
+  // anyone could forge opt-outs/status updates by omitting the header.
+  if (!signature) return false;
   const data = url + Object.keys(params).sort().map((k) => k + params[k]).join("");
   const expected = crypto.createHmac("sha1", token).update(data).digest("base64");
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+  const a = Buffer.from(expected);
+  const b = Buffer.from(signature);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
 export async function POST(request: Request) {
@@ -31,7 +40,7 @@ export async function POST(request: Request) {
 
   const signature = request.headers.get("x-twilio-signature");
   const url = `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/api/webhooks/twilio`;
-  if (signature && !verifyTwilioSignature(url, params, signature)) {
+  if (!verifyTwilioSignature(url, params, signature)) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 

@@ -98,6 +98,9 @@ export async function POST(req: Request) {
   }
 
   const messages = (Array.isArray(body) ? body : [body]) as JsonRpcRequest[];
+  if (messages.length > 20) {
+    return Response.json(rpcError(null, -32600, "Batch too large (max 20)"), { status: 400 });
+  }
   const requests = messages.filter((m) => m.method && m.id !== undefined && m.id !== null);
   const notifications = messages.filter((m) => m.method && (m.id === undefined || m.id === null));
 

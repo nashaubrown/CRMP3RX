@@ -5,6 +5,7 @@ import { getCalendarProvider } from "@/integrations/calendar/google";
 import type { BusyInterval } from "@/integrations/calendar/types";
 import { APP_TIMEZONE, formatDateTime, parseMvLocal } from "@/lib/datetime";
 import { db } from "@/lib/db";
+import { escapeHtml } from "@/lib/html";
 import type { SessionUser } from "@/lib/authz";
 import { canContribute, resolveMerchantId } from "@/services/activities";
 import { audit } from "@/services/audit";
@@ -184,12 +185,12 @@ export async function bookMeeting(input: BookingInput) {
   // Confirmations (email + SMS when a phone was given)
   const when = formatDateTime(slot.startAt);
   const meetLine = event?.meetUrl
-    ? `<p>Join online: <a href="${event.meetUrl}">${event.meetUrl}</a></p>`
+    ? `<p>Join online: <a href="${escapeHtml(event.meetUrl)}">${escapeHtml(event.meetUrl)}</a></p>`
     : "";
   await sendSystemEmail({
     to: input.bookerEmail,
     subject: `Confirmed: meeting with ${host.name} (Perx) — ${when}`,
-    bodyHtml: `<p>Hi ${input.bookerName},</p><p>Your meeting with ${host.name} from Perx is confirmed for <strong>${when}</strong> (Maldives time).</p>${meetLine}<p>See you then!</p>`,
+    bodyHtml: `<p>Hi ${escapeHtml(input.bookerName)},</p><p>Your meeting with ${escapeHtml(host.name)} from Perx is confirmed for <strong>${when}</strong> (Maldives time).</p>${meetLine}<p>See you then!</p>`,
     sentById: host.id,
     entityType: contact ? "CONTACT" : undefined,
     entityId: contact?.id,
@@ -325,12 +326,12 @@ export async function scheduleMeeting(ctx: SessionUser, input: ScheduleMeetingIn
   // Invite the attendee (email + SMS when a phone was given)
   const when = formatDateTime(startAt);
   const meetLine = event?.meetUrl
-    ? `<p>Join online: <a href="${event.meetUrl}">${event.meetUrl}</a></p>`
+    ? `<p>Join online: <a href="${escapeHtml(event.meetUrl)}">${escapeHtml(event.meetUrl)}</a></p>`
     : "";
   await sendSystemEmail({
     to: input.attendeeEmail,
     subject: `Meeting with ${ctx.name} (Perx) — ${when}`,
-    bodyHtml: `<p>Hi ${input.attendeeName},</p><p>${ctx.name} from Perx has scheduled <strong>${input.title}</strong> with you for <strong>${when}</strong> (Maldives time).</p>${meetLine}<p>See you then!</p>`,
+    bodyHtml: `<p>Hi ${escapeHtml(input.attendeeName)},</p><p>${escapeHtml(ctx.name ?? "Your contact")} from Perx has scheduled <strong>${escapeHtml(input.title)}</strong> with you for <strong>${when}</strong> (Maldives time).</p>${meetLine}<p>See you then!</p>`,
     sentById: ctx.id,
     entityType: contactId ? "CONTACT" : input.entityType,
     entityId: contactId ?? input.entityId,
@@ -389,7 +390,7 @@ export async function cancelMeeting(ctx: SessionUser, meetingId: string) {
   await sendSystemEmail({
     to: meeting.bookerEmail,
     subject: `Cancelled: meeting on ${formatDateTime(meeting.startAt)} (Perx)`,
-    bodyHtml: `<p>Hi ${meeting.bookerName},</p><p>Your meeting scheduled for <strong>${formatDateTime(meeting.startAt)}</strong> (Maldives time) has been cancelled. Feel free to book a new time.</p>`,
+    bodyHtml: `<p>Hi ${escapeHtml(meeting.bookerName)},</p><p>Your meeting scheduled for <strong>${formatDateTime(meeting.startAt)}</strong> (Maldives time) has been cancelled. Feel free to book a new time.</p>`,
     sentById: meeting.hostUserId,
   });
 }
