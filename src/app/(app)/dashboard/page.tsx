@@ -1,101 +1,230 @@
 import Link from "next/link";
+import { CalendarIcon, CheckSquareIcon, MailIcon, MessageSquareIcon } from "lucide-react";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatDateTime } from "@/lib/datetime";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { formatDateTime, formatTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
-import { ownerScope, requireUser } from "@/lib/rbac";
+import { isAdmin, ownerScope, requireUser } from "@/lib/rbac";
+import { cn } from "@/lib/utils";
 import { listChangesToMyMerchants } from "@/services/audit-log";
+import { getDealsBoard } from "@/services/deals";
 import { merchantMineWhere } from "@/services/merchant-access";
+import { listDueToday, listRecentComms } from "@/services/tasks";
+
+function money(n: number, currency: string) {
+  return `${currency} ${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+}
+
+const OPEN_STAGES = ["NEW", "QUALIFIED", "PROPOSAL", "NEGOTIATION"] as const;
+const STAGE_LABELS: Record<string, string> = {
+  NEW: "New",
+  QUALIFIED: "Qualified",
+  PROPOSAL: "Proposal",
+  NEGOTIATION: "Negotiation",
+};
 
 export default async function DashboardPage() {
   const user = await requireUser();
+  const admin = isAdmin(user);
   const scope = ownerScope(user);
-  // "My merchants" = owned + shared with me (hybrid sharing model).
-  const mine = user.role === "ADMIN" ? {} : merchantMineWhere(user);
+  const mine = admin ? {} : merchantMineWhere(user);
 
-  const [merchantCount, contactCount, openDealCount, leadCount, feed] = await Promise.all([
+  const [merchantCount, leadCount, board, dueToday, recentComms, feed] = await Promise.all([
     db.merchant.count({ where: mine }),
-    db.contact.count({ where: { merchant: mine } }),
-    db.deal.count({ where: { ...scope, stage: { notIn: ["WON", "LOST"] } } }),
     db.lead.count({ where: { ...scope, status: { in: ["NEW", "CONTACTED"] } } }),
+    getDealsBoard(user, admin ? "all" : "mine"),
+    listDueToday(user),
+    listRecentComms(user),
     listChangesToMyMerchants(user),
   ]);
 
+  const open = board.summaries.filter((s) => OPEN_STAGES.includes(s.stage as never));
+  const openMvr = open.reduce((sum, s) => sum + s.totalMvr, 0);
+  const openUsd = open.reduce((sum, s) => sum + s.totalUsd, 0);
+  const openCount = open.reduce((sum, s) => sum + s.count, 0);
+  const maxCount = Math.max(1, ...open.map((s) => s.count));
+
   const stats = [
-    { label: "My merchants", value: merchantCount, description: "Owned or shared with you" },
-    { label: "Contacts", value: contactCount, description: "People at your merchants" },
-    { label: "Open deals", value: openDealCount, description: "In the pipeline" },
-    { label: "Active leads", value: leadCount, description: "New or contacted" },
+    { label: "My merchants", value: String(merchantCount), href: "/merchants?scope=mine" },
+    { label: "Open deals", value: String(openCount), href: "/deals" },
+    {
+      label: "Open pipeline",
+      value: `${money(openMvr, "MVR")}${openUsd > 0 ? ` · ${money(openUsd, "USD")}` : ""}`,
+      href: "/deals",
+    },
+    { label: "Active leads", value: String(leadCount), href: "/leads?scope=mine" },
   ];
 
+  const now = new Date();
+
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Welcome back, {user.name?.split(" ")[0]}
         </h1>
         <p className="text-muted-foreground text-sm">
-          Here&apos;s a snapshot of your book of business.
+          {admin ? "Team-wide view" : "Your book of business"} · {formatDateTime(now, "EEEE, d MMMM")}
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {stats.map((stat) => (
-          <Card key={stat.label}>
-            <CardHeader>
-              <CardDescription>{stat.label}</CardDescription>
-              <CardTitle className="text-3xl tabular-nums">{stat.value}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground text-xs">{stat.description}</p>
-            </CardContent>
-          </Card>
+          <Link key={stat.label} href={stat.href}>
+            <Card className="hover:border-ring/50 h-full py-4 transition-colors">
+              <CardHeader className="px-4">
+                <CardDescription className="text-xs">{stat.label}</CardDescription>
+                <CardTitle className="text-lg tabular-nums">{stat.value}</CardTitle>
+              </CardHeader>
+            </Card>
+          </Link>
         ))}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Changes by others to your merchants</CardTitle>
-          <CardDescription>
-            Edits, contact changes, sharing and activity logged by teammates on accounts you own
-            {user.role === "ADMIN" ? " (admins: across all accounts)" : ""}.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {feed.length === 0 ? (
-            <p className="text-muted-foreground text-sm">
-              Nothing yet — when a teammate changes one of your records, it shows up here.
-            </p>
-          ) : (
-            <ol className="flex flex-col gap-3">
-              {feed.map((event) => (
-                <li key={event.id} className="flex flex-col gap-0.5 text-sm">
-                  <span>
-                    <span className="font-medium">{event.actorName}</span> {event.title}
-                    {" · "}
-                    <Link href={`/merchants/${event.merchantId}`} className="hover:underline">
-                      <span className="font-medium">{event.merchantName}</span>
-                    </Link>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Pipeline by stage</CardTitle>
+            <CardDescription>{admin ? "All open deals" : "Your open deals"}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            {open.map((s) => (
+              <div key={s.stage} className="flex flex-col gap-1">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">{STAGE_LABELS[s.stage]}</span>
+                  <span className="text-muted-foreground text-xs tabular-nums">
+                    {s.count} deal{s.count === 1 ? "" : "s"}
+                    {s.totalMvr > 0 ? ` · ${money(s.totalMvr, "MVR")}` : ""}
+                    {s.totalUsd > 0 ? ` · ${money(s.totalUsd, "USD")}` : ""}
                   </span>
-                  <span className="text-muted-foreground text-xs">
-                    {formatDateTime(event.createdAt)}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          )}
-        </CardContent>
-      </Card>
+                </div>
+                <div className="bg-muted h-2 overflow-hidden rounded-full">
+                  <div
+                    className="bg-primary h-full rounded-full"
+                    style={{ width: `${(s.count / maxCount) * 100}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+            <Link href="/deals" className="text-muted-foreground text-xs underline">
+              Open the board →
+            </Link>
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Pipeline dashboard</CardTitle>
-          <CardDescription>
-            Pipeline value, deals by stage, activities due today and recent communications land in
-            Phase 5.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <CheckSquareIcon className="size-4" /> On your plate today
+            </CardTitle>
+            <CardDescription>Due or overdue tasks, plus today&apos;s meetings.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2 text-sm">
+            {dueToday.activities.length === 0 && dueToday.meetings.length === 0 ? (
+              <p className="text-muted-foreground">Nothing due — go find some merchants! 🏝️</p>
+            ) : (
+              <>
+                {dueToday.activities.map((a) => (
+                  <div key={a.id} className="flex items-center justify-between gap-2">
+                    <Link href={a.entity.href} className="min-w-0 truncate hover:underline">
+                      {a.subject}
+                      <span className="text-muted-foreground"> · {a.entity.label}</span>
+                    </Link>
+                    <span
+                      className={cn(
+                        "shrink-0 text-xs tabular-nums",
+                        a.overdue ? "text-destructive font-medium" : "text-muted-foreground"
+                      )}
+                    >
+                      {a.overdue ? "Overdue" : formatTime(a.dueAt)}
+                    </span>
+                  </div>
+                ))}
+                {dueToday.meetings.map((m) => (
+                  <div key={m.id} className="flex items-center justify-between gap-2">
+                    <span className="min-w-0 truncate">
+                      <CalendarIcon className="text-muted-foreground mr-1 inline size-3.5" />
+                      {m.bookerName}
+                    </span>
+                    <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+                      {formatTime(m.startAt)}
+                    </span>
+                  </div>
+                ))}
+              </>
+            )}
+            <Link href="/tasks" className="text-muted-foreground text-xs underline">
+              All tasks →
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Recent communications</CardTitle>
+            <CardDescription>Your latest emails and SMS.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2 text-sm">
+            {recentComms.length === 0 ? (
+              <p className="text-muted-foreground">Nothing sent yet.</p>
+            ) : (
+              recentComms.map((c) => (
+                <div key={`${c.channel}-${c.id}`} className="flex items-center gap-2">
+                  {c.channel === "EMAIL" ? (
+                    <MailIcon className="text-muted-foreground size-3.5 shrink-0" />
+                  ) : (
+                    <MessageSquareIcon className="text-muted-foreground size-3.5 shrink-0" />
+                  )}
+                  <span className="min-w-0 flex-1 truncate">{c.summary}</span>
+                  <Badge variant="outline" className="shrink-0 text-[10px] capitalize">
+                    {c.status.toLowerCase()}
+                  </Badge>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Changes by others to your merchants</CardTitle>
+            <CardDescription>
+              {admin ? "Latest team activity across all accounts." : "Keep an eye on shared work."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {feed.length === 0 ? (
+              <p className="text-muted-foreground text-sm">
+                Nothing yet — when a teammate changes one of your records, it shows up here.
+              </p>
+            ) : (
+              <ol className="flex flex-col gap-2 text-sm">
+                {feed.map((event) => (
+                  <li key={event.id} className="flex flex-col gap-0.5">
+                    <span>
+                      <span className="font-medium">{event.actorName}</span> {event.title}
+                      {" · "}
+                      <Link href={`/merchants/${event.merchantId}`} className="hover:underline">
+                        <span className="font-medium">{event.merchantName}</span>
+                      </Link>
+                    </span>
+                    <span className="text-muted-foreground text-xs">
+                      {formatDateTime(event.createdAt)}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
