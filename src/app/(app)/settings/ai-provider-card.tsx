@@ -66,6 +66,11 @@ export function AiProviderCard({
   const keptKey = saved?.provider === provider && saved.hasKey;
 
   function save() {
+    // Guard against browser autofill dropping an email/garbage into Model.
+    if (model && (model.includes("@") || /\s/.test(model))) {
+      toast.error("That doesn't look like a model ID — clear the Model field to use the default.");
+      return;
+    }
     start(async () => {
       const result = await saveAiSettingsAction({
         provider,
@@ -149,6 +154,10 @@ export function AiProviderCard({
             </Label>
             <Input
               id="ai-model"
+              name="ai-model"
+              autoComplete="off"
+              data-1p-ignore
+              data-lpignore="true"
               value={model}
               onChange={(e) => setModel(e.target.value)}
               placeholder={opt?.defaultModel || "provider default"}
@@ -167,8 +176,11 @@ export function AiProviderCard({
           </Label>
           <Input
             id="ai-key"
+            name="ai-provider-key"
             type="password"
-            autoComplete="off"
+            autoComplete="new-password"
+            data-1p-ignore
+            data-lpignore="true"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             placeholder={keptKey ? "•••••••• (saved)" : opt?.keyOptional ? "—" : "sk-… / gsk_… / your key"}
@@ -180,6 +192,10 @@ export function AiProviderCard({
             <Label htmlFor="ai-baseurl">Base URL (OpenAI-compatible)</Label>
             <Input
               id="ai-baseurl"
+              name="ai-baseurl"
+              autoComplete="off"
+              data-1p-ignore
+              data-lpignore="true"
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
               placeholder="https://your-server/v1"

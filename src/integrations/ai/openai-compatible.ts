@@ -116,7 +116,7 @@ export function summarizeHttpError(
     status === 401 || status === 403
       ? "Check the API key (and that it has access)."
       : status === 404
-        ? "The model may not exist or isn't available to your account — verify the model ID. On OpenRouter, free (:free) models also require enabling free-model access at openrouter.ai/settings/privacy."
+        ? "The model ID is wrong, deprecated, or your key can't access it — check the exact model name on the provider's models page (and that the key is valid). On OpenRouter, free (:free) models also require enabling free-model access at openrouter.ai/settings/privacy."
         : status === 429
           ? "Rate limited — wait a moment and retry (free tiers have low limits)."
           : status >= 500

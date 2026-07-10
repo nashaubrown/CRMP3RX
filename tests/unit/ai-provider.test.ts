@@ -84,7 +84,7 @@ describe("summarizeHttpError", () => {
     expect(msg).not.toContain("<!DOCTYPE");
     expect(msg).not.toContain("__variable");
     expect(msg).toContain("OpenRouter (llama:free) error (404");
-    expect(msg).toMatch(/model may not exist|openrouter\.ai\/settings\/privacy/);
+    expect(msg).toMatch(/model ID is wrong|openrouter\.ai\/settings\/privacy/);
   });
 
   it("extracts the message from a JSON error body", () => {
