@@ -97,7 +97,7 @@ npx prisma db seed    # re-seed (wipes app data first)
 ## Build phases
 
 - [x] **Phase 0** — foundation: scaffold, Postgres + Prisma schema/seed, Auth.js + RBAC, app shell (sidebar/topbar, mobile nav, dark mode)
-- [ ] **Phase 1** — core CRM: merchants & contacts CRUD, ownership, activity timeline
+- [x] **Phase 1** — core CRM: merchants & contacts CRUD (search/filter/sort/pagination), ownership + RBAC scoping, activity timelines, audit logging
 - [ ] **Phase 2** — sales pipeline: leads + scoring, deals kanban, pipeline metrics
 - [ ] **Phase 3** — communications: email (Resend), SMS (adapter), templates, webhooks, opt-out
 - [ ] **Phase 4** — scheduling: Google Calendar sync + public booking page
