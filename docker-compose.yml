@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: perx
+      POSTGRES_PASSWORD: perx
+      POSTGRES_DB: perx_crm
+    ports:
+      - "5432:5432"
+    volumes:
+      - perx_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U perx -d perx_crm"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  perx_pgdata:

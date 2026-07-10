@@ -1,0 +1,505 @@
+// Perx CRM data model.
+// Conventions:
+//  - All timestamps are stored in UTC (timestamptz); the UI renders Asia/Maldives.
+//  - Polymorphic links (Activity, EmailMessage, SmsMessage, AuditLog) use
+//    entityType + entityId because Prisma has no native polymorphism; integrity
+//    is enforced in the services layer.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------- Auth & users ----------
+
+enum Role {
+  ADMIN
+  SALES_REP
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified DateTime?
+  passwordHash  String?
+  role          Role      @default(SALES_REP)
+  image         String?
+  // Public booking page lives at /book/[bookingSlug]
+  bookingSlug   String?   @unique
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts        Account[]
+  sessions        Session[]
+  calendarAccount GoogleCalendarAccount?
+  availability    AvailabilitySchedule?
+
+  ownedMerchants Merchant[]     @relation("MerchantOwner")
+  ownedContacts  Contact[]      @relation("ContactOwner")
+  ownedLeads     Lead[]         @relation("LeadOwner")
+  ownedDeals     Deal[]         @relation("DealOwner")
+  activities     Activity[]
+  sentEmails     EmailMessage[]
+  sentSms        SmsMessage[]
+  meetings       Meeting[]
+  auditLogs      AuditLog[]
+  conversations  Conversation[]
+}
+
+// Auth.js adapter models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Google Calendar connection (separate from Google login OAuth —
+// calendar needs offline access + calendar scopes).
+model GoogleCalendarAccount {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  accessToken  String
+  refreshToken String
+  expiresAt    DateTime
+  scope        String
+  calendarId   String   @default("primary")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ---------- CRM core ----------
+
+enum MerchantStatus {
+  PROSPECT
+  ACTIVE
+  CHURNED
+}
+
+model Merchant {
+  id       String         @id @default(cuid())
+  name     String
+  // MCC-style category, e.g. "Restaurants & Cafés"
+  category String?
+  status   MerchantStatus @default(PROSPECT)
+  website  String?
+  phone    String?
+  email    String?
+  address  String?
+  notes    String?
+
+  // Perx-specific fields
+  posSystem        String?
+  monthlyTxnVolume Int?
+  loyaltyLive      Boolean @default(false)
+
+  ownerId   String
+  owner     User     @relation("MerchantOwner", fields: [ownerId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contacts Contact[]
+  leads    Lead[]
+  deals    Deal[]
+
+  @@index([ownerId])
+  @@index([status])
+  @@index([name])
+}
+
+model Contact {
+  id        String  @id @default(cuid())
+  firstName String
+  lastName  String
+  title     String?
+  email     String?
+  phone     String? // E.164, default region +960
+  isPrimary Boolean @default(false)
+
+  merchantId String
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  ownerId    String?
+  owner      User?    @relation("ContactOwner", fields: [ownerId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  leads    Lead[]
+  deals    Deal[]
+  meetings Meeting[]
+
+  @@index([merchantId])
+  @@index([ownerId])
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  UNQUALIFIED
+}
+
+model Lead {
+  id     String     @id @default(cuid())
+  source String
+  status LeadStatus @default(NEW)
+  score  Int        @default(0)
+
+  // Raw capture fields (public form) — may exist before a Contact/Merchant does
+  name    String?
+  email   String?
+  phone   String?
+  company String?
+  message String?
+
+  contactId  String?
+  contact    Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  merchantId String?
+  merchant   Merchant? @relation(fields: [merchantId], references: [id], onDelete: SetNull)
+  ownerId    String?
+  owner      User?     @relation("LeadOwner", fields: [ownerId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId])
+  @@index([status])
+  @@index([merchantId])
+  @@index([contactId])
+}
+
+enum DealStage {
+  NEW
+  QUALIFIED
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum Currency {
+  MVR
+  USD
+}
+
+model Deal {
+  id                String    @id @default(cuid())
+  title             String
+  stage             DealStage @default(NEW)
+  value             Decimal   @db.Decimal(14, 2)
+  currency          Currency  @default(MVR)
+  expectedCloseDate DateTime?
+  lostReason        String?
+  closedAt          DateTime?
+  // Board ordering within a stage column
+  position          Int       @default(0)
+
+  merchantId String
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  contactId  String?
+  contact    Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  ownerId    String
+  owner      User     @relation("DealOwner", fields: [ownerId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId])
+  @@index([stage])
+  @@index([merchantId])
+  @@index([contactId])
+  @@index([expectedCloseDate])
+}
+
+// ---------- Activities & polymorphic links ----------
+
+enum EntityType {
+  MERCHANT
+  CONTACT
+  DEAL
+}
+
+enum ActivityType {
+  NOTE
+  CALL
+  EMAIL
+  SMS
+  MEETING
+  TASK
+}
+
+model Activity {
+  id          String       @id @default(cuid())
+  type        ActivityType
+  subject     String
+  body        String?
+  dueAt       DateTime?
+  completedAt DateTime?
+
+  entityType EntityType
+  entityId   String
+
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([entityType, entityId])
+  @@index([ownerId])
+  @@index([dueAt])
+  @@index([type])
+}
+
+// ---------- Messaging ----------
+
+enum EmailStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  OPENED
+  BOUNCED
+  FAILED
+}
+
+model EmailMessage {
+  id         String      @id @default(cuid())
+  to         String
+  from       String
+  subject    String
+  html       String
+  status     EmailStatus @default(QUEUED)
+  providerId String? // Resend message id (webhook correlation)
+  error      String?
+
+  templateId String?
+  template   MessageTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  entityType EntityType?
+  entityId   String?
+
+  sentById String
+  sentBy   User   @relation(fields: [sentById], references: [id])
+
+  sentAt      DateTime?
+  deliveredAt DateTime?
+  openedAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([entityType, entityId])
+  @@index([providerId])
+  @@index([sentById])
+}
+
+enum SmsStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  FAILED
+}
+
+enum SmsProviderKind {
+  TWILIO
+  LOCAL_GATEWAY
+  CONSOLE
+}
+
+model SmsMessage {
+  id         String          @id @default(cuid())
+  to         String // E.164
+  body       String
+  status     SmsStatus       @default(QUEUED)
+  provider   SmsProviderKind
+  providerId String? // Twilio SID etc. (status-callback correlation)
+  error      String?
+
+  templateId String?
+  template   MessageTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  entityType EntityType?
+  entityId   String?
+
+  sentById String
+  sentBy   User   @relation(fields: [sentById], references: [id])
+
+  sentAt      DateTime?
+  deliveredAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([entityType, entityId])
+  @@index([providerId])
+  @@index([sentById])
+}
+
+// STOP-keyword suppression list
+model SmsOptOut {
+  id        String   @id @default(cuid())
+  phone     String   @unique // E.164
+  createdAt DateTime @default(now())
+}
+
+enum MessageChannel {
+  EMAIL
+  SMS
+}
+
+model MessageTemplate {
+  id      String         @id @default(cuid())
+  name    String
+  channel MessageChannel
+  subject String? // email only
+  body    String // supports {{merge_vars}}
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  emails EmailMessage[]
+  sms    SmsMessage[]
+}
+
+// ---------- Scheduling ----------
+
+model AvailabilitySchedule {
+  id               String @id @default(cuid())
+  userId           String @unique
+  timezone         String @default("Indian/Maldives")
+  slotDurationMins Int    @default(30)
+  bufferMins       Int    @default(0)
+
+  user  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rules AvailabilityRule[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AvailabilityRule {
+  id         String @id @default(cuid())
+  scheduleId String
+  dayOfWeek  Int // 0 = Sunday … 6 = Saturday
+  // Minutes from midnight in the schedule's timezone
+  startMinutes Int
+  endMinutes   Int
+
+  schedule AvailabilitySchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@index([scheduleId])
+}
+
+enum MeetingStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+model Meeting {
+  id            String        @id @default(cuid())
+  hostUserId    String
+  host          User          @relation(fields: [hostUserId], references: [id])
+  contactId     String?
+  contact       Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  title         String
+  notes         String?
+  bookerName    String
+  bookerEmail   String
+  bookerPhone   String?
+  startAt       DateTime
+  endAt         DateTime
+  googleEventId String?
+  googleMeetUrl String?
+  status        MeetingStatus @default(CONFIRMED)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([hostUserId, startAt])
+  @@index([contactId])
+  @@index([googleEventId])
+}
+
+// ---------- Audit & AI assistant ----------
+
+model AuditLog {
+  id      String  @id @default(cuid())
+  actorId String?
+  actor   User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  // e.g. "merchant.create", "deal.update", "assistant.tool_call"
+  action     String
+  entityType String
+  entityId   String
+  diff       Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([createdAt])
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages ChatMessage[]
+
+  @@index([userId])
+}
+
+model ChatMessage {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           ChatRole
+  content        String
+  toolCalls      Json?
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId])
+}
