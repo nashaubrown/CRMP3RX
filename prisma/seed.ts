@@ -107,8 +107,16 @@ async function main() {
     { name: "Ocean Blue Water Sports", category: "Tourism & Activities", status: "PROSPECT", posSystem: "Square", monthlyTxnVolume: 2600, loyaltyLive: false, owner: rep2.id, phone: "+9609556677", email: "info@oceanblue.mv", address: "Hulhumalé Beach Front" },
   ];
 
+  // Spread record creation over the past couple of months so the dashboard's
+  // week-over-week trends and sparklines reflect a CRM that's been in use.
+  const DAY = 24 * 60 * 60 * 1000;
+  const seedNow = Date.now();
+  const daysAgo = (d: number) => new Date(seedNow - d * DAY);
+  const spreadDate = (i: number, total: number, spanDays: number) =>
+    daysAgo(Math.round(((total - 1 - i) / Math.max(1, total - 1)) * spanDays));
+
   const merchants = [] as { id: string; name: string; ownerId: string }[];
-  for (const m of merchantSeeds) {
+  for (const [i, m] of merchantSeeds.entries()) {
     const created = await db.merchant.create({
       data: {
         name: m.name,
@@ -122,6 +130,7 @@ async function main() {
         email: m.email,
         address: m.address,
         website: m.website,
+        createdAt: spreadDate(i, merchantSeeds.length, 63),
       },
     });
     merchants.push({ id: created.id, name: created.name, ownerId: created.ownerId });
@@ -164,7 +173,7 @@ async function main() {
     { source: "COLD_OUTREACH", status: "UNQUALIFIED", name: "Test Enquiry", company: "N/A", email: "spam@example.com", message: "Not a real business", owner: rep2.id },
   ] as const;
 
-  for (const l of leadSeeds) {
+  for (const [i, l] of leadSeeds.entries()) {
     const merchant = "merchantIdx" in l && l.merchantIdx !== undefined ? merchants[l.merchantIdx] : undefined;
     const contact = "contactIdx" in l && l.contactIdx !== undefined ? contacts[l.contactIdx] : undefined;
     await db.lead.create({
@@ -181,6 +190,7 @@ async function main() {
         merchantId: merchant?.id,
         contactId: contact?.id,
         ownerId: l.owner,
+        createdAt: spreadDate(i, leadSeeds.length, 49),
       },
     });
   }
@@ -203,6 +213,12 @@ async function main() {
 
   const deals: { id: string; ownerId: string }[] = [];
   for (const [i, d] of dealSeeds.entries()) {
+    const closed = d.stage === "WON" || d.stage === "LOST";
+    // Closed deals were created ~4 weeks before they closed; open deals are
+    // spread over the last six weeks.
+    const createdAt = closed
+      ? new Date(d.close.getTime() - 28 * DAY)
+      : spreadDate(i, dealSeeds.length, 42);
     const deal = await db.deal.create({
       data: {
         title: d.title,
@@ -213,9 +229,10 @@ async function main() {
         currency: d.currency,
         expectedCloseDate: d.close,
         lostReason: "lostReason" in d ? d.lostReason : undefined,
-        closedAt: d.stage === "WON" || d.stage === "LOST" ? d.close : undefined,
+        closedAt: closed ? d.close : undefined,
         position: i,
         ownerId: d.owner,
+        createdAt,
       },
     });
     deals.push({ id: deal.id, ownerId: deal.ownerId });

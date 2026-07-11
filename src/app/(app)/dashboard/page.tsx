@@ -9,11 +9,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { StatTrendCard, type StatTrend } from "@/components/dashboard/stat-trend-card";
 import { formatDateTime, formatTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { isAdmin, ownerScope, requireUser } from "@/lib/rbac";
 import { cn } from "@/lib/utils";
 import { listChangesToMyMerchants } from "@/services/audit-log";
+import { getDashboardTrends, type Trend } from "@/services/dashboard";
 import { getDealsBoard } from "@/services/deals";
 import { merchantMineWhere } from "@/services/merchant-access";
 import { listDueToday, listRecentComms } from "@/services/tasks";
@@ -36,13 +38,14 @@ export default async function DashboardPage() {
   const scope = ownerScope(user);
   const mine = admin ? {} : merchantMineWhere(user);
 
-  const [merchantCount, leadCount, board, dueToday, recentComms, feed] = await Promise.all([
+  const [merchantCount, leadCount, board, dueToday, recentComms, feed, trends] = await Promise.all([
     db.merchant.count({ where: mine }),
     db.lead.count({ where: { ...scope, status: { in: ["NEW", "CONTACTED"] } } }),
     getDealsBoard(user, admin ? "all" : "mine"),
     listDueToday(user),
     listRecentComms(user),
     listChangesToMyMerchants(user),
+    getDashboardTrends(user),
   ]);
 
   const open = board.summaries.filter((s) => OPEN_STAGES.includes(s.stage as never));
@@ -51,15 +54,38 @@ export default async function DashboardPage() {
   const openCount = open.reduce((sum, s) => sum + s.count, 0);
   const maxCount = Math.max(1, ...open.map((s) => s.count));
 
-  const stats = [
-    { label: "My merchants", value: String(merchantCount), href: "/merchants?scope=mine" },
-    { label: "Open deals", value: String(openCount), href: "/deals" },
+  // Direction/label for a "new this week vs last week" delta.
+  function delta(t: Trend, fmt: (n: number) => string) {
+    const direction: StatTrend["direction"] =
+      t.thisWeek > t.prevWeek ? "up" : t.thisWeek < t.prevWeek ? "down" : "flat";
+    return { deltaText: fmt(t.thisWeek), direction, series: t.series };
+  }
+
+  const stats: StatTrend[] = [
+    {
+      label: "My merchants",
+      value: String(merchantCount),
+      href: "/merchants?scope=mine",
+      ...delta(trends.merchants, (n) => `${n} new`),
+    },
+    {
+      label: "Open deals",
+      value: String(openCount),
+      href: "/deals",
+      ...delta(trends.deals, (n) => `${n} new`),
+    },
     {
       label: "Open pipeline",
       value: `${money(openMvr, "MVR")}${openUsd > 0 ? ` · ${money(openUsd, "USD")}` : ""}`,
       href: "/deals",
+      ...delta(trends.pipelineMvr, (n) => (n > 0 ? `+${money(n, "MVR")}` : "MVR 0")),
     },
-    { label: "Active leads", value: String(leadCount), href: "/leads?scope=mine" },
+    {
+      label: "Active leads",
+      value: String(leadCount),
+      href: "/leads?scope=mine",
+      ...delta(trends.leads, (n) => `${n} new`),
+    },
   ];
 
   const now = new Date();
@@ -77,14 +103,7 @@ export default async function DashboardPage() {
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {stats.map((stat) => (
-          <Link key={stat.label} href={stat.href}>
-            <Card className="hover:border-ring/50 h-full py-4 transition-colors">
-              <CardHeader className="px-4">
-                <CardDescription className="text-xs">{stat.label}</CardDescription>
-                <CardTitle className="text-lg tabular-nums">{stat.value}</CardTitle>
-              </CardHeader>
-            </Card>
-          </Link>
+          <StatTrendCard key={stat.label} stat={stat} />
         ))}
       </div>
 
