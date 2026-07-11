@@ -4,6 +4,7 @@ import {
   OpenAiCompatibleProvider,
   accumulateToolCallDelta,
   finalizeToolCalls,
+  retryDelayMs,
   summarizeHttpError,
   toOpenAiMessages,
   toOpenAiTools,
@@ -107,6 +108,22 @@ describe("summarizeHttpError", () => {
   });
 });
 
+describe("retryDelayMs", () => {
+  it("honors a numeric Retry-After (seconds) within the cap", () => {
+    expect(retryDelayMs("2", 0, 12_000)).toBe(2000);
+  });
+
+  it("returns null when the wait exceeds the cap", () => {
+    expect(retryDelayMs("60", 0, 12_000)).toBeNull();
+  });
+
+  it("falls back to exponential backoff when no header is given", () => {
+    expect(retryDelayMs(null, 0, 12_000)).toBe(1000);
+    expect(retryDelayMs(null, 1, 12_000)).toBe(2000);
+    expect(retryDelayMs(null, 2, 12_000)).toBe(4000);
+  });
+});
+
 describe("OpenAiCompatibleProvider.streamTurn", () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -164,10 +181,29 @@ describe("OpenAiCompatibleProvider.streamTurn", () => {
   it("throws a labeled error on non-200 responses", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(new Response('{"error":"rate limited"}', { status: 429 }))
+      // Retry-After too long to wait -> surfaces the error immediately
+      vi.fn().mockResolvedValue(
+        new Response('{"error":"rate limited"}', { status: 429, headers: { "retry-after": "600" } })
+      )
     );
     await expect(
       collect(provider.streamTurn({ system: "s", messages: [], tools: [] }))
     ).rejects.toThrow(/Fake \(test-model\) error \(429\)/);
+  });
+
+  it("retries a 429 with a short Retry-After, then succeeds", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response("rate limited", { status: 429, headers: { "retry-after": "0" } })
+      )
+      .mockResolvedValueOnce(sseResponse(['data: {"choices":[{"delta":{"content":"hi"}}]}', "data: [DONE]"]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const events = await collect(
+      provider.streamTurn({ system: "s", messages: [{ role: "user", content: "x" }], tools: [] })
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(events.at(-1)).toMatchObject({ type: "final", text: "hi" });
   });
 });

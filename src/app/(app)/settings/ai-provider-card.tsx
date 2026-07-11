@@ -29,7 +29,11 @@ type ProviderOption = {
   defaultModel: string;
   keyOptional: boolean;
   custom: boolean;
+  models: string[];
 };
+
+const CUSTOM_MODEL = "__custom__";
+const DEFAULT_MODEL = "__default__"; // Radix Select can't use an empty-string value
 
 const KEY_HELP: Record<string, string> = {
   ANTHROPIC: "console.anthropic.com → API keys",
@@ -64,6 +68,13 @@ export function AiProviderCard({
 
   const opt = options.find((o) => o.value === provider);
   const keptKey = saved?.provider === provider && saved.hasKey;
+  const curatedModels = opt?.models ?? [];
+
+  // "Custom model" mode: free-text instead of the dropdown. Starts on when the
+  // saved model isn't one of the curated IDs (or the provider has no list).
+  const [customModel, setCustomModel] = React.useState(
+    Boolean(model) && !curatedModels.includes(model)
+  );
 
   function save() {
     // Guard against browser autofill dropping an email/garbage into Model.
@@ -138,7 +149,9 @@ export function AiProviderCard({
               value={provider}
               onValueChange={(v) => {
                 setProvider(v);
-                // Base URL only belongs to Custom — don't carry it across.
+                // Reset model + base URL so values don't carry across providers.
+                setModel("");
+                setCustomModel((options.find((o) => o.value === v)?.models ?? []).length === 0);
                 setBaseUrl(v === "CUSTOM" && saved?.provider === "CUSTOM" ? saved.baseUrl ?? "" : "");
               }}
             >
@@ -160,16 +173,61 @@ export function AiProviderCard({
             <Label htmlFor="ai-model">
               Model <span className="text-muted-foreground">(optional)</span>
             </Label>
-            <Input
-              id="ai-model"
-              name="ai-model"
-              autoComplete="off"
-              data-1p-ignore
-              data-lpignore="true"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder={opt?.defaultModel || "provider default"}
-            />
+            {curatedModels.length > 0 && !customModel ? (
+              <Select
+                value={
+                  model === "" ? DEFAULT_MODEL : curatedModels.includes(model) ? model : CUSTOM_MODEL
+                }
+                onValueChange={(v) => {
+                  if (v === CUSTOM_MODEL) {
+                    setCustomModel(true);
+                    setModel("");
+                  } else if (v === DEFAULT_MODEL) {
+                    setModel("");
+                  } else {
+                    setModel(v);
+                  }
+                }}
+              >
+                <SelectTrigger aria-label="Model">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={DEFAULT_MODEL}>Default ({opt?.defaultModel})</SelectItem>
+                  {curatedModels.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {m}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value={CUSTOM_MODEL}>Custom…</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : (
+              <>
+                <Input
+                  id="ai-model"
+                  name="ai-model"
+                  autoComplete="off"
+                  data-1p-ignore
+                  data-lpignore="true"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  placeholder={opt?.defaultModel || "provider default"}
+                />
+                {curatedModels.length > 0 ? (
+                  <button
+                    type="button"
+                    className="text-muted-foreground hover:text-foreground w-fit text-xs underline"
+                    onClick={() => {
+                      setCustomModel(false);
+                      setModel("");
+                    }}
+                  >
+                    ← choose from list
+                  </button>
+                ) : null}
+              </>
+            )}
           </div>
         </div>
 

@@ -29,6 +29,9 @@ export type Preset = {
   keyEnv?: string; // provider-specific key env var (AI_API_KEY always wins)
   keyOptional?: boolean;
   custom?: boolean; // requires a base URL to be supplied
+  // Curated known-good model IDs for the Settings dropdown. Empty = free-text
+  // (e.g. Ollama, where models depend on what the user has pulled).
+  models?: string[];
 };
 
 export const PRESETS: Record<string, Preset> = {
@@ -37,42 +40,54 @@ export const PRESETS: Record<string, Preset> = {
     baseUrl: "",
     defaultModel: "claude-opus-4-8",
     keyEnv: "ANTHROPIC_API_KEY",
+    models: ["claude-opus-4-8", "claude-sonnet-5", "claude-haiku-4-5"],
   },
   GROQ: {
     name: "Groq",
     baseUrl: "https://api.groq.com/openai/v1",
     defaultModel: "llama-3.3-70b-versatile",
     keyEnv: "GROQ_API_KEY",
+    models: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "openai/gpt-oss-120b"],
   },
   GEMINI: {
     name: "Google Gemini",
     baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
     defaultModel: "gemini-2.5-flash",
     keyEnv: "GEMINI_API_KEY",
+    models: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
   },
   OPENROUTER: {
     name: "OpenRouter",
     baseUrl: "https://openrouter.ai/api/v1",
     defaultModel: "meta-llama/llama-3.3-70b-instruct:free",
     keyEnv: "OPENROUTER_API_KEY",
+    models: [
+      "meta-llama/llama-3.3-70b-instruct:free",
+      "mistralai/mistral-7b-instruct:free",
+      "meta-llama/llama-3.3-70b-instruct",
+    ],
   },
   MISTRAL: {
     name: "Mistral",
     baseUrl: "https://api.mistral.ai/v1",
     defaultModel: "mistral-small-latest",
     keyEnv: "MISTRAL_API_KEY",
+    models: ["mistral-small-latest", "mistral-large-latest"],
   },
   OLLAMA: {
     name: "Ollama",
     baseUrl: "http://localhost:11434/v1",
     defaultModel: "llama3.2",
     keyOptional: true,
+    // Free-text: models depend on what you've `ollama pull`ed
+    models: [],
   },
   OPENAI: {
     name: "OpenAI",
     baseUrl: "https://api.openai.com/v1",
     defaultModel: "gpt-4o-mini",
     keyEnv: "OPENAI_API_KEY",
+    models: ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini"],
   },
   CUSTOM: {
     name: "Custom",
@@ -80,6 +95,7 @@ export const PRESETS: Record<string, Preset> = {
     defaultModel: "",
     keyOptional: true,
     custom: true,
+    models: [],
   },
 };
 

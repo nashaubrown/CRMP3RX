@@ -21,6 +21,7 @@ export const AI_PROVIDER_OPTIONS = Object.entries(PRESETS).map(([value, p]) => (
   defaultModel: p.defaultModel,
   keyOptional: Boolean(p.keyOptional),
   custom: Boolean(p.custom),
+  models: p.models ?? [],
 }));
 
 export const saveAiSettingsSchema = z.object({

@@ -132,6 +132,30 @@ export function summarizeHttpError(
     .join("");
 }
 
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+// How long to wait before retrying a rate-limited/overloaded request:
+// honor the Retry-After header (seconds or HTTP-date) when present, else an
+// exponential backoff. Returns null when the provider says to wait too long
+// to be worth blocking the request on.
+export function retryDelayMs(retryAfter: string | null, attempt: number, capMs: number): number | null {
+  let ms: number | null = null;
+  if (retryAfter) {
+    const secs = Number(retryAfter);
+    if (Number.isFinite(secs)) ms = secs * 1000;
+    else {
+      const when = Date.parse(retryAfter);
+      if (!Number.isNaN(when)) ms = when - Date.now();
+    }
+  }
+  if (ms === null) ms = 1000 * 2 ** attempt; // 1s, 2s, 4s…
+  ms = Math.max(0, ms);
+  return ms <= capMs ? ms : null;
+}
+
+const MAX_RETRIES = 2;
+const RETRY_CAP_MS = 12_000;
+
 export class OpenAiCompatibleProvider implements AiProvider {
   readonly label: string;
 
@@ -146,7 +170,8 @@ export class OpenAiCompatibleProvider implements AiProvider {
     messages: AiMessage[];
     tools: AiToolDef[];
   }): AsyncGenerator<AiStreamEvent> {
-    const res = await fetch(`${this.opts.baseUrl.replace(/\/$/, "")}/chat/completions`, {
+    const url = `${this.opts.baseUrl.replace(/\/$/, "")}/chat/completions`;
+    const init: RequestInit = {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -158,10 +183,24 @@ export class OpenAiCompatibleProvider implements AiProvider {
         messages: toOpenAiMessages(params.system, params.messages),
         ...(params.tools.length ? { tools: toOpenAiTools(params.tools) } : {}),
       }),
-    });
+    };
 
-    if (!res.ok || !res.body) {
+    // Retry rate-limits (429) and transient overload (503) a couple of times,
+    // honoring Retry-After, so free-tier bumps self-heal instead of erroring.
+    let res: Response;
+    for (let attempt = 0; ; attempt++) {
+      res = await fetch(url, init);
+      if (res.ok && res.body) break;
+
       const body = await res.text().catch(() => "");
+      const retryable = res.status === 429 || res.status === 503;
+      const wait = retryable
+        ? retryDelayMs(res.headers.get("retry-after"), attempt, RETRY_CAP_MS)
+        : null;
+      if (retryable && attempt < MAX_RETRIES && wait !== null) {
+        await sleep(wait);
+        continue;
+      }
       throw new Error(summarizeHttpError(this.label, res.status, res.statusText, body));
     }
 

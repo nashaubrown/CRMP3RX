@@ -173,6 +173,7 @@ export default async function SettingsPage({
             defaultModel: o.defaultModel,
             keyOptional: o.keyOptional,
             custom: o.custom,
+            models: o.models,
           }))}
           active={aiSettings.activeProviderLabel}
           source={aiSettings.activeSource}
