@@ -113,7 +113,7 @@ function StageColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        "bg-muted/40 flex w-60 shrink-0 flex-col gap-2 rounded-lg border border-t-4 p-2",
+        "bg-muted/40 flex min-w-48 flex-1 basis-0 flex-col gap-2 rounded-lg border border-t-4 p-2",
         accent,
         isOver && "ring-ring ring-2"
       )}
