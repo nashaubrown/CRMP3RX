@@ -1,43 +1,62 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { MoreHorizontalIcon } from "lucide-react";
 
-import { navItems } from "@/components/layout/nav-items";
+import { navItems, type NavItem } from "@/components/layout/nav-items";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
-// Primary navigation as a bottom bar across the whole app (mobile-style).
-// Fixed to the bottom of the viewport; all destinations shown as icon + label,
-// horizontally scrollable on narrow screens and spread out on wide ones.
-export function BottomNav() {
+// The 4 tabs kept visible on phones; everything else lives under "More".
+const MOBILE_PRIMARY = ["/dashboard", "/merchants", "/deals", "/tasks"];
+
+function useIsActive() {
   const pathname = usePathname();
+  return (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+}
+
+const tabBase =
+  "relative flex flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium transition-colors";
+
+function ActiveBar() {
+  return <span className="bg-primary absolute inset-x-3 top-0 h-0.5 rounded-full" aria-hidden />;
+}
+
+// Primary navigation as a bottom bar. On wide screens every destination shows;
+// on phones only 4 primary tabs plus a "More" sheet for the rest.
+export function BottomNav() {
+  const isActive = useIsActive();
+  const [moreOpen, setMoreOpen] = React.useState(false);
+
+  const primary = MOBILE_PRIMARY.map((h) => navItems.find((i) => i.href === h)).filter(
+    Boolean
+  ) as NavItem[];
+  const overflow = navItems.filter((i) => !MOBILE_PRIMARY.includes(i.href));
+  const overflowActive = overflow.some((i) => isActive(i.href));
 
   return (
     <nav
       aria-label="Primary"
       className="bg-background/95 supports-[backdrop-filter]:bg-background/80 fixed inset-x-0 bottom-0 z-40 border-t backdrop-blur pb-[env(safe-area-inset-bottom)]"
     >
-      <ul className="mx-auto flex max-w-3xl justify-start overflow-x-auto sm:justify-around">
+      {/* Tablet / desktop: every destination */}
+      <ul className="mx-auto hidden max-w-3xl justify-around sm:flex">
         {navItems.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          const active = isActive(item.href);
           return (
-            <li key={item.href} className="shrink-0">
+            <li key={item.href}>
               <Link
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "relative flex min-w-16 flex-col items-center gap-1 px-3 py-2 text-[11px] font-medium transition-colors",
-                  active
-                    ? "text-primary"
-                    : "text-muted-foreground hover:text-foreground"
+                  tabBase,
+                  "min-w-16 px-3",
+                  active ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                {active ? (
-                  <span
-                    className="bg-primary absolute inset-x-3 top-0 h-0.5 rounded-full"
-                    aria-hidden
-                  />
-                ) : null}
+                {active ? <ActiveBar /> : null}
                 <item.icon className="size-5 shrink-0" />
                 {item.title}
               </Link>
@@ -45,6 +64,69 @@ export function BottomNav() {
           );
         })}
       </ul>
+
+      {/* Phones: 4 primary tabs + More */}
+      <div className="flex sm:hidden">
+        {primary.map((item) => {
+          const active = isActive(item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                tabBase,
+                "min-h-14 flex-1",
+                active ? "text-primary" : "text-muted-foreground"
+              )}
+            >
+              {active ? <ActiveBar /> : null}
+              <item.icon className="size-5 shrink-0" />
+              {item.title}
+            </Link>
+          );
+        })}
+
+        <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
+          <SheetTrigger
+            className={cn(
+              tabBase,
+              "min-h-14 flex-1",
+              overflowActive ? "text-primary" : "text-muted-foreground"
+            )}
+          >
+            {overflowActive ? <ActiveBar /> : null}
+            <MoreHorizontalIcon className="size-5 shrink-0" />
+            More
+          </SheetTrigger>
+          <SheetContent side="bottom" className="rounded-t-2xl p-0">
+            <SheetHeader className="border-b px-4">
+              <SheetTitle>More</SheetTitle>
+            </SheetHeader>
+            <div className="grid grid-cols-1 gap-1 p-2 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
+              {overflow.map((item) => {
+                const active = isActive(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMoreOpen(false)}
+                    className={cn(
+                      "flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium",
+                      active
+                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                        : "text-foreground hover:bg-muted"
+                    )}
+                  >
+                    <item.icon className="text-muted-foreground size-5 shrink-0" />
+                    {item.title}
+                  </Link>
+                );
+              })}
+            </div>
+          </SheetContent>
+        </Sheet>
+      </div>
     </nav>
   );
 }
