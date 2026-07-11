@@ -1,12 +1,10 @@
 "use client";
 
-import * as React from "react";
 import Link from "next/link";
-import { LogOutIcon, MenuIcon } from "lucide-react";
+import { LogOutIcon } from "lucide-react";
 
 import { AssistantSheet } from "@/components/assistant/assistant-sheet";
 import { UiModeToggle } from "@/components/generative/ui-mode-toggle";
-import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -18,7 +16,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 type TopbarProps = {
   user: {
@@ -32,8 +29,6 @@ type TopbarProps = {
 };
 
 export function Topbar({ user, generativeUi, onSignOut }: TopbarProps) {
-  const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
-
   const initials = (user.name ?? user.email ?? "?")
     .split(" ")
     .map((part) => part[0])
@@ -43,25 +38,12 @@ export function Topbar({ user, generativeUi, onSignOut }: TopbarProps) {
 
   return (
     <header className="bg-background sticky top-0 z-40 flex h-14 items-center gap-2 border-b px-4">
-      <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-        <SheetTrigger asChild>
-          <Button variant="ghost" size="icon" className="md:hidden" aria-label="Open menu">
-            <MenuIcon className="size-5" />
-          </Button>
-        </SheetTrigger>
-        <SheetContent side="left" className="w-64 p-0">
-          <SheetHeader className="border-b">
-            <SheetTitle>
-              <Link href="/dashboard" onClick={() => setMobileNavOpen(false)}>
-                Perx CRM
-              </Link>
-            </SheetTitle>
-          </SheetHeader>
-          <div className="py-2">
-            <SidebarNav onNavigate={() => setMobileNavOpen(false)} />
-          </div>
-        </SheetContent>
-      </Sheet>
+      <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
+        <span className="bg-primary text-primary-foreground flex size-7 items-center justify-center rounded-md text-sm font-bold">
+          P
+        </span>
+        <span className="hidden sm:inline">Perx CRM</span>
+      </Link>
 
       <div className="flex-1" />
 
