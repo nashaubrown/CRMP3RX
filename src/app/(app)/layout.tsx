@@ -23,8 +23,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         generativeUi={pref?.generativeUi ?? false}
         onSignOut={handleSignOut}
       />
-      {/* pb clears the fixed bottom nav */}
-      <main className="flex-1 p-4 pb-24 md:p-6 md:pb-24">{children}</main>
+      {/* Centered, max-width content so it doesn't stretch edge-to-edge on
+          wide screens; pb clears the fixed bottom nav. */}
+      <main className="mx-auto w-full max-w-[1600px] flex-1 p-4 pb-24 md:p-6 md:pb-24">
+        {children}
+      </main>
       <BottomNav />
     </div>
   );

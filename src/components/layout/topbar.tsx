@@ -37,8 +37,9 @@ export function Topbar({ user, generativeUi, onSignOut }: TopbarProps) {
     .toUpperCase();
 
   return (
-    <header className="bg-background sticky top-0 z-40 flex h-14 items-center gap-2 border-b px-4">
-      <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
+    <header className="bg-background sticky top-0 z-40 border-b">
+      <div className="mx-auto flex h-14 w-full max-w-[1600px] items-center gap-2 px-4">
+        <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
         <span className="bg-primary text-primary-foreground flex size-7 items-center justify-center rounded-md text-sm font-bold">
           P
         </span>
@@ -78,6 +79,7 @@ export function Topbar({ user, generativeUi, onSignOut }: TopbarProps) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      </div>
     </header>
   );
 }
