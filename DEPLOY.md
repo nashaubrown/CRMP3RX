@@ -54,9 +54,15 @@ pnpm create:admin
 but that also creates demo logins with a known password, so prefer `create:admin`
 for real use.)
 
-### 6. Sign in and go
-- Open your Vercel URL, sign in with the admin credentials above, and start
-  adding your team, merchants, and deals.
+### 6. Sign in and add your team
+- Open your Vercel URL and sign in with the admin credentials above.
+- Go to **Team** in the nav (admins only) to add teammates: enter their name,
+  email, role (Admin or Sales rep) and a temporary password, then share those
+  credentials with them. They can sign in immediately — no email setup needed.
+- From there, start adding merchants, contacts, and deals.
+
+> The `create:admin` script is only needed once, to bootstrap the very first
+> admin. After that, everyone is added from the in-app **Team** page.
 
 ## Updating later
 Push to the branch Vercel is watching → it redeploys and applies any new

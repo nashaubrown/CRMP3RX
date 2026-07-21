@@ -7,6 +7,7 @@ import {
   Sparkles,
   Store,
   Target,
+  UserCog,
   Users,
   WandSparkles,
   type LucideIcon,
@@ -16,6 +17,7 @@ export type NavItem = {
   title: string;
   href: string;
   icon: LucideIcon;
+  adminOnly?: boolean;
 };
 
 export const navItems: NavItem[] = [
@@ -28,5 +30,11 @@ export const navItems: NavItem[] = [
   { title: "Tasks", href: "/tasks", icon: CheckSquare },
   { title: "Templates", href: "/templates", icon: FileText },
   { title: "Ask Perx", href: "/assistant", icon: Sparkles },
+  { title: "Team", href: "/team", icon: UserCog, adminOnly: true },
   { title: "Settings", href: "/settings", icon: Settings },
 ];
+
+// Nav destinations visible to the given role (admins see everything).
+export function navItemsFor(isAdmin: boolean): NavItem[] {
+  return isAdmin ? navItems : navItems.filter((i) => !i.adminOnly);
+}

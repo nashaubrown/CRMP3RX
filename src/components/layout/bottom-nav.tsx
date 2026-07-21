@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MoreHorizontalIcon } from "lucide-react";
 
-import { navItems, type NavItem } from "@/components/layout/nav-items";
+import { navItemsFor, type NavItem } from "@/components/layout/nav-items";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
@@ -26,10 +26,11 @@ function ActiveBar() {
 
 // Primary navigation as a bottom bar. On wide screens every destination shows;
 // on phones only 4 primary tabs plus a "More" sheet for the rest.
-export function BottomNav() {
+export function BottomNav({ isAdmin = false }: { isAdmin?: boolean }) {
   const isActive = useIsActive();
   const [moreOpen, setMoreOpen] = React.useState(false);
 
+  const navItems = navItemsFor(isAdmin);
   const primary = MOBILE_PRIMARY.map((h) => navItems.find((i) => i.href === h)).filter(
     Boolean
   ) as NavItem[];
