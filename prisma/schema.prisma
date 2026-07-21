@@ -32,6 +32,8 @@ model User {
   bookingSlug   String?   @unique
   // When true, the user's home is the AI-composed "Generative" canvas
   generativeUi  Boolean   @default(false)
+  // Set when an admin offboards someone: blocks all sign-in, keeps their records.
+  disabledAt    DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 

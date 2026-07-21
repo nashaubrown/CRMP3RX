@@ -43,6 +43,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const valid = await compare(parsed.data.password, user?.passwordHash ?? DUMMY_HASH);
         if (!user?.passwordHash || !valid) return null;
+        // Offboarded accounts keep their records but can't sign in.
+        if (user.disabledAt) return null;
 
         return {
           id: user.id,
@@ -73,7 +75,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const existing = await db.user.findUnique({
           where: { email: user.email ?? "" },
         });
-        return Boolean(existing);
+        return Boolean(existing) && !existing?.disabledAt;
       }
       return true;
     },
