@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { BrandLogo } from "@/components/layout/brand-logo";
 import { googleAuthEnabled } from "@/lib/auth";
 import { getSessionUser } from "@/lib/rbac";
 import { LoginForm } from "./login-form";
@@ -22,9 +23,10 @@ export default async function LoginPage() {
     <div className="bg-muted/40 flex min-h-svh items-center justify-center p-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <div className="bg-primary text-primary-foreground mx-auto mb-2 flex size-10 items-center justify-center rounded-lg text-lg font-bold">
-            P
-          </div>
+          <BrandLogo
+            imgClassName="mx-auto mb-2 h-12 w-auto rounded-lg"
+            fallbackClassName="mx-auto mb-2 size-10 rounded-lg text-lg"
+          />
           <CardTitle className="text-xl">Perx CRM</CardTitle>
           <CardDescription>Sign in with your Perx account</CardDescription>
         </CardHeader>
