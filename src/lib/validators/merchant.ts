@@ -35,6 +35,16 @@ export const merchantSchema = z.object({
     }
     return n;
   }),
+  subscriptionPlan: optionalTrimmed,
+  branches: optionalTrimmed.transform((v, ctx) => {
+    if (v === undefined) return undefined;
+    const n = Number(v);
+    if (!Number.isInteger(n) || n < 0) {
+      ctx.addIssue({ code: "custom", message: "Must be a whole number, 0 or more" });
+      return z.NEVER;
+    }
+    return n;
+  }),
   loyaltyLive: z
     .union([z.literal("on"), z.literal("true"), z.boolean()])
     .optional()

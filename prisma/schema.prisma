@@ -191,16 +191,21 @@ model Merchant {
   posSystem        String?
   monthlyTxnVolume Int?
   loyaltyLive      Boolean @default(false)
+  // Admin-managed option-set value (label), e.g. "Growth"
+  subscriptionPlan String?
+  // Number of physical branches/outlets
+  branches         Int?
 
   ownerId   String
   owner     User     @relation("MerchantOwner", fields: [ownerId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  contacts Contact[]
-  leads    Lead[]
-  deals    Deal[]
-  shares   MerchantShare[]
+  contacts     Contact[]
+  contactLinks ContactMerchant[]
+  leads        Lead[]
+  deals        Deal[]
+  shares       MerchantShare[]
 
   @@index([ownerId])
   @@index([status])
@@ -216,6 +221,7 @@ model Contact {
   phone     String? // E.164, default region +960
   isPrimary Boolean @default(false)
 
+  // Home/primary merchant. Additional merchant tags live in ContactMerchant.
   merchantId String
   merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
   ownerId    String?
@@ -224,12 +230,47 @@ model Contact {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  leads    Lead[]
-  deals    Deal[]
-  meetings Meeting[]
+  merchantLinks ContactMerchant[]
+  leads         Lead[]
+  deals         Deal[]
+  meetings      Meeting[]
 
   @@index([merchantId])
   @@index([ownerId])
+}
+
+// Many-to-many tags: which merchants a contact is associated with. Always
+// includes the contact's home merchant (Contact.merchantId) plus any extras.
+model ContactMerchant {
+  contactId  String
+  merchantId String
+  contact    Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@id([contactId, merchantId])
+  @@index([merchantId])
+  @@index([contactId])
+}
+
+// Admin-managed dropdown values (option sets), e.g. merchant Category and
+// Subscription Plan. Keeping the selected value as a label string on the
+// record means archiving/renaming an option never orphans existing data.
+enum OptionSetKey {
+  MERCHANT_CATEGORY
+  SUBSCRIPTION_PLAN
+}
+
+model OptionItem {
+  id        String       @id @default(cuid())
+  setKey    OptionSetKey
+  label     String
+  sortOrder Int          @default(0)
+  archived  Boolean      @default(false)
+  createdAt DateTime     @default(now())
+
+  @@unique([setKey, label])
+  @@index([setKey])
 }
 
 enum LeadStatus {

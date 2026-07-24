@@ -21,7 +21,7 @@ export default async function NewContactPage({
       <h1 className="text-2xl font-semibold tracking-tight">New contact</h1>
       <ContactForm
         action={createContactAction}
-        defaultValues={{ merchantId }}
+        defaultValues={{ merchantIds: merchantId ? [merchantId] : [] }}
         merchants={merchants}
         cancelHref={merchantId ? `/merchants/${merchantId}` : "/contacts"}
         submitLabel="Create contact"

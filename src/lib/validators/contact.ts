@@ -22,7 +22,18 @@ export const contactSchema = z.object({
     }
     return e164;
   }),
-  merchantId: z.string().min(1, "Merchant is required"),
+  // One or more merchants this contact is tagged to. The first is the
+  // "home" merchant (Contact.merchantId); the rest are additional tags.
+  merchantIds: z
+    .union([z.string(), z.array(z.string())])
+    .transform((v) => (Array.isArray(v) ? v : [v]))
+    .pipe(
+      z
+        .array(z.string().min(1))
+        .min(1, "Select at least one merchant")
+        // De-duplicate while preserving order (first selected = home merchant).
+        .transform((ids) => Array.from(new Set(ids)))
+    ),
   isPrimary: z
     .union([z.literal("on"), z.literal("true"), z.boolean()])
     .optional()

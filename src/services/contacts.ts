@@ -101,6 +101,10 @@ export async function getContact(ctx: SessionUser, id: string) {
     where: { id },
     include: {
       merchant: { select: { id: true, name: true, ownerId: true } },
+      merchantLinks: {
+        include: { merchant: { select: { id: true, name: true } } },
+        orderBy: { createdAt: "asc" },
+      },
       owner: { select: { id: true, name: true } },
       deals: {
         orderBy: { updatedAt: "desc" },
@@ -115,7 +119,9 @@ export async function getContact(ctx: SessionUser, id: string) {
 }
 
 export async function createContact(ctx: SessionUser, input: ContactInput) {
-  await assertMerchantEdit(ctx, input.merchantId);
+  // First selected merchant is the "home" merchant; edit rights on it required.
+  const homeMerchantId = input.merchantIds[0];
+  await assertMerchantEdit(ctx, homeMerchantId);
 
   const contact = await db.contact.create({
     data: {
@@ -124,9 +130,12 @@ export async function createContact(ctx: SessionUser, input: ContactInput) {
       title: input.title ?? null,
       email: input.email ?? null,
       phone: input.phone ?? null,
-      merchantId: input.merchantId,
+      merchantId: homeMerchantId,
       isPrimary: input.isPrimary,
       ownerId: ctx.id,
+      merchantLinks: {
+        create: input.merchantIds.map((merchantId) => ({ merchantId })),
+      },
     },
   });
 
@@ -146,22 +155,34 @@ export async function updateContact(ctx: SessionUser, id: string, input: Contact
   const existing = await db.contact.findUnique({ where: { id } });
   if (!existing) throw new Error("Contact not found");
 
+  const homeMerchantId = input.merchantIds[0];
   await assertMerchantEdit(ctx, existing.merchantId);
-  if (input.merchantId !== existing.merchantId) {
-    await assertMerchantEdit(ctx, input.merchantId);
+  if (homeMerchantId !== existing.merchantId) {
+    await assertMerchantEdit(ctx, homeMerchantId);
   }
 
-  const updated = await db.contact.update({
-    where: { id },
-    data: {
-      firstName: input.firstName,
-      lastName: input.lastName,
-      title: input.title ?? null,
-      email: input.email ?? null,
-      phone: input.phone ?? null,
-      merchantId: input.merchantId,
-      isPrimary: input.isPrimary,
-    },
+  const updated = await db.$transaction(async (tx) => {
+    const row = await tx.contact.update({
+      where: { id },
+      data: {
+        firstName: input.firstName,
+        lastName: input.lastName,
+        title: input.title ?? null,
+        email: input.email ?? null,
+        phone: input.phone ?? null,
+        merchantId: homeMerchantId,
+        isPrimary: input.isPrimary,
+      },
+    });
+    // Sync the merchant tags to exactly the submitted set.
+    await tx.contactMerchant.deleteMany({
+      where: { contactId: id, merchantId: { notIn: input.merchantIds } },
+    });
+    await tx.contactMerchant.createMany({
+      data: input.merchantIds.map((merchantId) => ({ contactId: id, merchantId })),
+      skipDuplicates: true,
+    });
+    return row;
   });
 
   await audit({

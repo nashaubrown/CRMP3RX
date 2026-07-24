@@ -5,6 +5,7 @@ import { CalendarCheckIcon, CalendarIcon, LinkIcon } from "lucide-react";
 import { disconnectCalendarAction } from "@/app/(app)/settings/actions";
 import { AiProviderCard } from "@/app/(app)/settings/ai-provider-card";
 import { ApiKeysCard } from "@/app/(app)/settings/api-keys-card";
+import { OptionSetsCard } from "@/app/(app)/settings/option-sets-card";
 import { AvailabilityForm } from "@/app/(app)/settings/availability-form";
 import { MeetingList } from "@/app/(app)/settings/meeting-list";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -22,6 +23,8 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/rbac";
 import { AI_PROVIDER_OPTIONS, getAiSettings } from "@/services/ai-settings";
 import { listApiKeys } from "@/services/api-keys";
+import { isAdmin } from "@/lib/authz";
+import { listManagedOptions, OPTION_SETS } from "@/services/option-sets";
 import { listUpcomingMeetings } from "@/services/scheduling";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -42,7 +45,8 @@ export default async function SettingsPage({
   const user = await requireUser();
   const { calendar: calendarMsg } = await searchParams;
 
-  const [profile, meetings, apiKeys, aiSettings] = await Promise.all([
+  const admin = isAdmin(user);
+  const [profile, meetings, apiKeys, aiSettings, optionSets] = await Promise.all([
     db.user.findUnique({
       where: { id: user.id },
       select: {
@@ -54,6 +58,20 @@ export default async function SettingsPage({
     listUpcomingMeetings(user),
     listApiKeys(user),
     getAiSettings(user),
+    admin
+      ? Promise.all(
+          OPTION_SETS.map(async (s) => ({
+            key: s.key,
+            label: s.label,
+            description: s.description,
+            options: (await listManagedOptions(user, s.key)).map((o) => ({
+              id: o.id,
+              label: o.label,
+              archived: o.archived,
+            })),
+          }))
+        )
+      : Promise.resolve([]),
   ]);
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -164,6 +182,8 @@ export default async function SettingsPage({
           />
         </CardContent>
       </Card>
+
+      {admin ? <OptionSetsCard sets={optionSets} /> : null}
 
       {aiSettings.isAdmin ? (
         <AiProviderCard

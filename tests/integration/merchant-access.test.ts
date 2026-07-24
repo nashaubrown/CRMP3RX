@@ -22,6 +22,7 @@ const baseInput = {
   loyaltyLive: false,
   phone: undefined,
   monthlyTxnVolume: undefined,
+  branches: undefined,
 };
 
 beforeAll(async () => {

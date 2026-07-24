@@ -31,6 +31,8 @@ function parseForm(formData: FormData) {
     posSystem: field(formData, "posSystem"),
     monthlyTxnVolume: field(formData, "monthlyTxnVolume"),
     loyaltyLive: field(formData, "loyaltyLive"),
+    subscriptionPlan: field(formData, "subscriptionPlan"),
+    branches: field(formData, "branches"),
     ownerId: field(formData, "ownerId"),
   });
 }

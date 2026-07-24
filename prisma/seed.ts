@@ -115,6 +115,7 @@ async function main() {
   const spreadDate = (i: number, total: number, spanDays: number) =>
     daysAgo(Math.round(((total - 1 - i) / Math.max(1, total - 1)) * spanDays));
 
+  const plans = ["Starter", "Growth", "Enterprise"];
   const merchants = [] as { id: string; name: string; ownerId: string }[];
   for (const [i, m] of merchantSeeds.entries()) {
     const created = await db.merchant.create({
@@ -125,6 +126,8 @@ async function main() {
         posSystem: m.posSystem,
         monthlyTxnVolume: m.monthlyTxnVolume,
         loyaltyLive: m.loyaltyLive,
+        subscriptionPlan: plans[i % plans.length],
+        branches: 1 + (i % 5),
         ownerId: m.owner,
         phone: m.phone,
         email: m.email,
@@ -158,8 +161,19 @@ async function main() {
           ownerId: merchant.ownerId,
         },
       });
+      // Tag the contact to its home merchant (mirrors the app's create flow).
+      await db.contactMerchant.create({
+        data: { contactId: contact.id, merchantId: merchant.id },
+      });
       contacts.push({ id: contact.id, merchantId: contact.merchantId, ownerId: contact.ownerId });
     }
+  }
+
+  // Demo the multi-merchant tagging: the first contact also covers merchant #2.
+  if (contacts[0] && merchants[1]) {
+    await db.contactMerchant.create({
+      data: { contactId: contacts[0].id, merchantId: merchants[1].id },
+    });
   }
 
   // Leads across statuses.

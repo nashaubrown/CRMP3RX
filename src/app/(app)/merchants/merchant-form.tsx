@@ -33,14 +33,53 @@ export type MerchantFormValues = {
   posSystem?: string | null;
   monthlyTxnVolume?: number | null;
   loyaltyLive?: boolean;
+  subscriptionPlan?: string | null;
+  branches?: number | null;
   ownerId?: string;
 };
 
 const initialState: MerchantFormState = { error: null };
 
+// Sentinel for "no selection" — Radix Select can't use an empty-string value.
+const NONE = "__none__";
+
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
   return <p className="text-destructive text-xs">{message}</p>;
+}
+
+// A dropdown over an admin-managed option set. Submits via a hidden input so an
+// empty selection posts "" (cleared) rather than a sentinel.
+function OptionSelect({
+  name,
+  options,
+  defaultValue,
+  placeholder,
+}: {
+  name: string;
+  options: string[];
+  defaultValue?: string | null;
+  placeholder: string;
+}) {
+  const [value, setValue] = React.useState(defaultValue ?? "");
+  return (
+    <>
+      <input type="hidden" name={name} value={value} />
+      <Select value={value === "" ? undefined : value} onValueChange={(v) => setValue(v === NONE ? "" : v)}>
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NONE}>— None —</SelectItem>
+          {options.map((o) => (
+            <SelectItem key={o} value={o}>
+              {o}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </>
+  );
 }
 
 export function MerchantForm({
@@ -48,6 +87,9 @@ export function MerchantForm({
   defaultValues,
   owners,
   showOwnerSelect,
+  defaultOwnerId,
+  categoryOptions,
+  planOptions,
   cancelHref,
   submitLabel,
 }: {
@@ -55,6 +97,9 @@ export function MerchantForm({
   defaultValues?: MerchantFormValues;
   owners: { id: string; name: string }[];
   showOwnerSelect: boolean;
+  defaultOwnerId?: string;
+  categoryOptions: string[];
+  planOptions: string[];
   cancelHref: string;
   submitLabel: string;
 }) {
@@ -80,11 +125,11 @@ export function MerchantForm({
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="category">Category</Label>
-              <Input
-                id="category"
+              <OptionSelect
                 name="category"
-                placeholder="e.g. Restaurants & Cafés"
-                defaultValue={defaultValues?.category ?? ""}
+                options={categoryOptions}
+                defaultValue={defaultValues?.category}
+                placeholder="Select a category"
               />
             </div>
 
@@ -119,7 +164,7 @@ export function MerchantForm({
                 id="phone"
                 name="phone"
                 placeholder="+960 777 1234"
-                defaultValue={defaultValues?.phone ?? ""}
+                defaultValue={defaultValues?.phone ?? "+960 "}
               />
               <FieldError message={errors.phone} />
             </div>
@@ -143,7 +188,7 @@ export function MerchantForm({
             {showOwnerSelect ? (
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="ownerId">Owner</Label>
-                <Select name="ownerId" defaultValue={defaultValues?.ownerId ?? owners[0]?.id}>
+                <Select name="ownerId" defaultValue={defaultValues?.ownerId ?? defaultOwnerId ?? owners[0]?.id}>
                   <SelectTrigger id="ownerId" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
@@ -181,6 +226,27 @@ export function MerchantForm({
                   defaultValue={defaultValues?.monthlyTxnVolume ?? ""}
                 />
                 <FieldError message={errors.monthlyTxnVolume} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="subscriptionPlan">Subscription plan</Label>
+                <OptionSelect
+                  name="subscriptionPlan"
+                  options={planOptions}
+                  defaultValue={defaultValues?.subscriptionPlan}
+                  placeholder="Select a plan"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="branches">Number of branches</Label>
+                <Input
+                  id="branches"
+                  name="branches"
+                  type="number"
+                  min={0}
+                  placeholder="e.g. 3"
+                  defaultValue={defaultValues?.branches ?? ""}
+                />
+                <FieldError message={errors.branches} />
               </div>
               <div className="flex items-center gap-3">
                 <Switch
