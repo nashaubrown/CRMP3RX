@@ -64,10 +64,13 @@ export default async function SettingsPage({
             key: s.key,
             label: s.label,
             description: s.description,
+            priced: s.key === "SUBSCRIPTION_PLAN",
             options: (await listManagedOptions(user, s.key)).map((o) => ({
               id: o.id,
               label: o.label,
               archived: o.archived,
+              priceMvr: o.priceMvr,
+              perLocation: o.perLocation,
             })),
           }))
         )

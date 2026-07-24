@@ -269,6 +269,10 @@ model OptionItem {
   label     String
   sortOrder Int          @default(0)
   archived  Boolean      @default(false)
+  // Billing (subscription-plan option set only): monthly price in MVR and
+  // whether it's charged per branch/location.
+  priceMvr    Int?
+  perLocation Boolean    @default(false)
   createdAt DateTime     @default(now())
 
   @@unique([setKey, label])

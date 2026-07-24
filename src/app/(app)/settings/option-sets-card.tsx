@@ -16,6 +16,7 @@ import {
   addOptionAction,
   renameOptionAction,
   setOptionArchivedAction,
+  setOptionPricingAction,
 } from "@/app/(app)/settings/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,12 +28,68 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
-type Option = { id: string; label: string; archived: boolean };
-type OptionSet = { key: string; label: string; description: string; options: Option[] };
+type Option = {
+  id: string;
+  label: string;
+  archived: boolean;
+  priceMvr: number | null;
+  perLocation: boolean;
+};
+type OptionSet = {
+  key: string;
+  label: string;
+  description: string;
+  priced: boolean;
+  options: Option[];
+};
 
-function OptionRow({ option }: { option: Option }) {
+// Price (MVR) + per-location editor for a priced option (subscription plan).
+function PricingRow({ option }: { option: Option }) {
+  const [pending, startTransition] = React.useTransition();
+  const [price, setPrice] = React.useState(option.priceMvr?.toString() ?? "");
+  const [perLocation, setPerLocation] = React.useState(option.perLocation);
+
+  function save(nextPrice: string, nextPer: boolean) {
+    const parsed = nextPrice.trim() === "" ? null : Number(nextPrice);
+    startTransition(async () => {
+      const res = await setOptionPricingAction(option.id, parsed, nextPer);
+      if (res.error) toast.error(res.error);
+    });
+  }
+
+  return (
+    <div className="text-muted-foreground flex flex-wrap items-center gap-2 pl-2 text-xs">
+      <span>MVR</span>
+      <Input
+        type="number"
+        min={0}
+        value={price}
+        onChange={(e) => setPrice(e.target.value)}
+        onBlur={() => save(price, perLocation)}
+        className="h-7 w-24"
+        placeholder="0"
+        disabled={pending}
+      />
+      <label className="flex items-center gap-1.5">
+        <Switch
+          checked={perLocation}
+          onCheckedChange={(v) => {
+            setPerLocation(v);
+            save(price, v);
+          }}
+          disabled={pending}
+        />
+        per location
+      </label>
+      <span>/ month</span>
+    </div>
+  );
+}
+
+function OptionRow({ option, priced }: { option: Option; priced: boolean }) {
   const [pending, startTransition] = React.useTransition();
   const [editing, setEditing] = React.useState(false);
   const [value, setValue] = React.useState(option.label);
@@ -67,10 +124,11 @@ function OptionRow({ option }: { option: Option }) {
   return (
     <div
       className={cn(
-        "flex items-center gap-2 rounded-md border px-2 py-1.5",
+        "flex flex-col gap-1.5 rounded-md border px-2 py-1.5",
         option.archived && "opacity-60"
       )}
     >
+      <div className="flex items-center gap-2">
       {editing ? (
         <>
           <Input
@@ -136,6 +194,8 @@ function OptionRow({ option }: { option: Option }) {
           </Button>
         </>
       )}
+      </div>
+      {priced && !option.archived ? <PricingRow option={option} /> : null}
     </div>
   );
 }
@@ -166,7 +226,7 @@ function OptionSetBlock({ set }: { set: OptionSet }) {
       </div>
       <div className="flex flex-col gap-1.5">
         {set.options.map((o) => (
-          <OptionRow key={o.id} option={o} />
+          <OptionRow key={o.id} option={o} priced={set.priced} />
         ))}
         {set.options.length === 0 ? (
           <p className="text-muted-foreground text-sm">No values yet.</p>

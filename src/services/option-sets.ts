@@ -51,6 +51,8 @@ export type ManagedOption = {
   label: string;
   sortOrder: number;
   archived: boolean;
+  priceMvr: number | null;
+  perLocation: boolean;
 };
 
 // Full list (including archived) for the admin manager UI.
@@ -62,8 +64,38 @@ export async function listManagedOptions(
   return db.optionItem.findMany({
     where: { setKey },
     orderBy: [{ archived: "asc" }, { sortOrder: "asc" }, { label: "asc" }],
-    select: { id: true, label: true, sortOrder: true, archived: true },
+    select: { id: true, label: true, sortOrder: true, archived: true, priceMvr: true, perLocation: true },
   });
+}
+
+const priceSchema = z
+  .union([z.number(), z.string()])
+  .nullable()
+  .transform((v, ctx) => {
+    if (v === null || v === "") return null;
+    const n = Number(v);
+    if (!Number.isInteger(n) || n < 0) {
+      ctx.addIssue({ code: "custom", message: "Price must be a whole number of MVR, 0 or more" });
+      return z.NEVER;
+    }
+    return n;
+  });
+
+// Set the monthly price (MVR) and per-location flag for a subscription plan.
+export async function setOptionPricing(
+  ctx: SessionUser,
+  id: string,
+  priceMvrInput: number | string | null,
+  perLocation: boolean
+): Promise<void> {
+  assertAdmin(ctx);
+  const priceMvr = priceSchema.parse(priceMvrInput);
+  const item = await db.optionItem.findUnique({ where: { id }, select: { setKey: true } });
+  if (!item) throw new OptionSetError("Option not found.");
+  if (item.setKey !== "SUBSCRIPTION_PLAN") {
+    throw new OptionSetError("Pricing only applies to subscription plans.");
+  }
+  await db.optionItem.update({ where: { id }, data: { priceMvr, perLocation } });
 }
 
 export async function addOption(
