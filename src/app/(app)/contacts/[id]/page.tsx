@@ -6,6 +6,7 @@ import { BuildingIcon, MailIcon, PencilIcon, PhoneIcon } from "lucide-react";
 import { deleteContactAction } from "@/app/(app)/contacts/actions";
 import { ActivityTimeline } from "@/components/activity/activity-timeline";
 import { DeleteButton } from "@/components/delete-button";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { DealStageBadge } from "@/components/status-badges";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -52,6 +53,12 @@ export default async function ContactDetailPage({
 
   return (
     <div className="flex flex-col gap-4">
+      <Breadcrumbs
+        items={[
+          { label: "Contacts", href: "/contacts" },
+          { label: `${contact.firstName} ${contact.lastName}` },
+        ]}
+      />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">

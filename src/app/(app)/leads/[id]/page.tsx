@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { BuildingIcon, MailIcon, PencilIcon, PhoneIcon } from "lucide-react";
 
 import { deleteLeadAction } from "@/app/(app)/leads/actions";
@@ -32,6 +34,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+      <Breadcrumbs items={[{ label: "Leads", href: "/leads" }, { label: title }]} />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">

@@ -5,6 +5,7 @@ import { PlusIcon, UsersIcon } from "lucide-react";
 import { ExportButton } from "@/components/csv/export-button";
 import { ImportDialog } from "@/components/csv/import-dialog";
 import { EmptyState } from "@/components/list/empty-state";
+import { FlashToast } from "@/components/list/flash-toast";
 import { Pagination } from "@/components/list/pagination";
 import { ParamSelect } from "@/components/list/param-select";
 import { SearchInput } from "@/components/list/search-input";
@@ -49,6 +50,7 @@ export default async function ContactsPage({
 
   return (
     <div className="flex flex-col gap-4">
+      <FlashToast message="Contact created" />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Contacts</h1>

@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { updateContactAction } from "@/app/(app)/contacts/actions";
 import { ContactForm } from "@/app/(app)/contacts/contact-form";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { requireUser } from "@/lib/rbac";
 import { getContact } from "@/services/contacts";
 import { listEditableMerchantOptions } from "@/services/merchants";
@@ -39,6 +40,13 @@ export default async function EditContactPage({
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+      <Breadcrumbs
+        items={[
+          { label: "Contacts", href: "/contacts" },
+          { label: `${contact.firstName} ${contact.lastName}`, href: `/contacts/${contact.id}` },
+          { label: "Edit" },
+        ]}
+      />
       <h1 className="text-2xl font-semibold tracking-tight">
         Edit {contact.firstName} {contact.lastName}
       </h1>

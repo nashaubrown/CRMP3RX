@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { createDealAction } from "@/app/(app)/deals/actions";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { DealForm } from "@/app/(app)/deals/deal-form";
 import { isAdmin, requireUser } from "@/lib/rbac";
 import { listContactOptionsByMerchant } from "@/services/deals";
@@ -25,6 +26,7 @@ export default async function NewDealPage({
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+      <Breadcrumbs items={[{ label: "Deals", href: "/deals" }, { label: "New" }]} />
       <h1 className="text-2xl font-semibold tracking-tight">New deal</h1>
       <DealForm
         action={createDealAction}

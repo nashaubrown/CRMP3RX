@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
+
 import { updateDealAction } from "@/app/(app)/deals/actions";
 import { DealForm } from "@/app/(app)/deals/deal-form";
 import { formatInTimeZone } from "date-fns-tz";
@@ -33,6 +35,13 @@ export default async function EditDealPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+      <Breadcrumbs
+        items={[
+          { label: "Deals", href: "/deals" },
+          { label: deal.title, href: `/deals/${deal.id}` },
+          { label: "Edit" },
+        ]}
+      />
       <h1 className="text-2xl font-semibold tracking-tight">Edit {deal.title}</h1>
       <DealForm
         action={updateDealAction.bind(null, deal.id)}

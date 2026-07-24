@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { updateMerchantAction } from "@/app/(app)/merchants/actions";
 import { MerchantForm } from "@/app/(app)/merchants/merchant-form";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { isAdmin, requireUser } from "@/lib/rbac";
 import { getMerchant } from "@/services/merchants";
 import { listOptions } from "@/services/option-sets";
@@ -32,6 +33,13 @@ export default async function EditMerchantPage({
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+      <Breadcrumbs
+        items={[
+          { label: "Merchants", href: "/merchants" },
+          { label: merchant.name, href: `/merchants/${merchant.id}` },
+          { label: "Edit" },
+        ]}
+      />
       <h1 className="text-2xl font-semibold tracking-tight">Edit {merchant.name}</h1>
       <MerchantForm
         action={updateMerchantAction.bind(null, merchant.id)}
