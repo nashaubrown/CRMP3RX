@@ -4,6 +4,7 @@ import { PlusIcon } from "lucide-react";
 
 import { DealsBoard } from "@/app/(app)/deals/board";
 import { ExportButton } from "@/components/csv/export-button";
+import { FlashToast } from "@/components/list/flash-toast";
 import { ParamSelect } from "@/components/list/param-select";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,6 +53,7 @@ export default async function DealsPage({
 
   return (
     <div className="flex flex-col gap-4">
+      <FlashToast message="Deal created" />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Deals</h1>

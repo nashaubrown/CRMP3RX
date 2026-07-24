@@ -56,16 +56,14 @@ export async function createLeadAction(
     return { error: "Please fix the highlighted fields", fieldErrors: toFieldErrors(parsed.error.issues) };
   }
 
-  let id: string;
   try {
-    const lead = await createLead(ctx, parsed.data);
-    id = lead.id;
+    await createLead(ctx, parsed.data);
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Something went wrong" };
   }
 
   revalidatePath("/leads");
-  redirect(`/leads/${id}`);
+  redirect(`/leads?created=1`);
 }
 
 export async function updateLeadAction(

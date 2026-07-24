@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { MerchantForm } from "@/app/(app)/merchants/merchant-form";
 import { createMerchantAction } from "@/app/(app)/merchants/actions";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { isAdmin, requireUser } from "@/lib/rbac";
 import { listOptions } from "@/services/option-sets";
 import { listAssignableUsers } from "@/services/users";
@@ -18,6 +19,7 @@ export default async function NewMerchantPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+      <Breadcrumbs items={[{ label: "Merchants", href: "/merchants" }, { label: "New" }]} />
       <h1 className="text-2xl font-semibold tracking-tight">New merchant</h1>
       <MerchantForm
         action={createMerchantAction}

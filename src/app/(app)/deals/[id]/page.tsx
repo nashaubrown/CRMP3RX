@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { BuildingIcon, CalendarIcon, PencilIcon, UserIcon } from "lucide-react";
 
 import { deleteDealAction } from "@/app/(app)/deals/actions";
@@ -29,6 +31,7 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
 
   return (
     <div className="flex flex-col gap-4">
+      <Breadcrumbs items={[{ label: "Deals", href: "/deals" }, { label: deal.title }]} />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">

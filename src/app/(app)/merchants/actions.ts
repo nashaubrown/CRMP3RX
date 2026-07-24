@@ -95,16 +95,15 @@ export async function createMerchantAction(
     };
   }
 
-  let id: string;
   try {
-    const merchant = await createMerchant(ctx, parsed.data);
-    id = merchant.id;
+    await createMerchant(ctx, parsed.data);
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Something went wrong" };
   }
 
   revalidatePath("/merchants");
-  redirect(`/merchants/${id}`);
+  // Back to the list (with a success flash) so reps can add several in a row.
+  redirect(`/merchants?created=1`);
 }
 
 export async function updateMerchantAction(

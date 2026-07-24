@@ -63,17 +63,15 @@ export async function createContactAction(
     };
   }
 
-  let id: string;
   try {
-    const contact = await createContact(ctx, parsed.data);
-    id = contact.id;
+    await createContact(ctx, parsed.data);
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Something went wrong" };
   }
 
   revalidatePath("/contacts");
   for (const mId of parsed.data.merchantIds) revalidatePath(`/merchants/${mId}`);
-  redirect(`/contacts/${id}`);
+  redirect(`/contacts?created=1`);
 }
 
 export async function updateContactAction(

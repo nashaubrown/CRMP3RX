@@ -47,16 +47,14 @@ export async function createDealAction(
     return { error: "Please fix the highlighted fields", fieldErrors: toFieldErrors(parsed.error.issues) };
   }
 
-  let id: string;
   try {
-    const deal = await createDeal(ctx, parsed.data);
-    id = deal.id;
+    await createDeal(ctx, parsed.data);
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Something went wrong" };
   }
 
   revalidatePath("/deals");
-  redirect(`/deals/${id}`);
+  redirect(`/deals?created=1`);
 }
 
 export async function updateDealAction(

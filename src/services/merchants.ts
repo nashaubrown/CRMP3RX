@@ -11,7 +11,7 @@ import {
 } from "@/services/merchant-access";
 import { audit, shallowDiff } from "@/services/audit";
 
-export const MERCHANTS_PAGE_SIZE = 10;
+export const MERCHANTS_PAGE_SIZE = 100;
 
 // Fields included in audit diffs (everything user-editable).
 const AUDITED_FIELDS = [

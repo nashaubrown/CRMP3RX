@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
+
 import { updateLeadAction } from "@/app/(app)/leads/actions";
 import { LeadForm } from "@/app/(app)/leads/lead-form";
 import { db } from "@/lib/db";
@@ -22,6 +24,12 @@ export default async function EditLeadPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+      <Breadcrumbs
+        items={[
+          { label: "Leads", href: "/leads" },
+          { label: "Edit", href: `/leads/${lead.id}` },
+        ]}
+      />
       <h1 className="text-2xl font-semibold tracking-tight">Edit lead</h1>
       <LeadForm
         action={updateLeadAction.bind(null, lead.id)}

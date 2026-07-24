@@ -15,6 +15,7 @@ import { deleteMerchantAction } from "@/app/(app)/merchants/actions";
 import { ShareDialog } from "@/app/(app)/merchants/share-dialog";
 import { ActivityTimeline } from "@/components/activity/activity-timeline";
 import { DeleteButton } from "@/components/delete-button";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { MerchantMiniMap } from "@/components/maps/merchant-mini-map";
 import { DealStageBadge, MerchantStatusBadge } from "@/components/status-badges";
 import { Badge } from "@/components/ui/badge";
@@ -75,6 +76,7 @@ export default async function MerchantDetailPage({
 
   return (
     <div className="flex flex-col gap-4">
+      <Breadcrumbs items={[{ label: "Merchants", href: "/merchants" }, { label: merchant.name }]} />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
