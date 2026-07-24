@@ -15,6 +15,7 @@ import { deleteMerchantAction } from "@/app/(app)/merchants/actions";
 import { ShareDialog } from "@/app/(app)/merchants/share-dialog";
 import { ActivityTimeline } from "@/components/activity/activity-timeline";
 import { DeleteButton } from "@/components/delete-button";
+import { MerchantMiniMap } from "@/components/maps/merchant-mini-map";
 import { DealStageBadge, MerchantStatusBadge } from "@/components/status-badges";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -247,6 +248,23 @@ export default async function MerchantDetailPage({
               </CardContent>
             </Card>
           </div>
+
+          {merchant.latitude != null && merchant.longitude != null ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Location</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <MerchantMiniMap
+                  lat={merchant.latitude}
+                  lng={merchant.longitude}
+                  name={merchant.name}
+                  onboarded={merchant.loyaltyLive}
+                  status={merchant.status}
+                />
+              </CardContent>
+            </Card>
+          ) : null}
 
           <Card>
             <CardHeader className="flex-row items-center justify-between">

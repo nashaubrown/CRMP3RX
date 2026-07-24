@@ -29,6 +29,8 @@ const AUDITED_FIELDS = [
   "subscriptionPlan",
   "branches",
   "beta",
+  "latitude",
+  "longitude",
   "ownerId",
 ] as const;
 
@@ -92,6 +94,55 @@ export async function listMerchants(ctx: SessionUser, params: MerchantListParams
     page: params.page,
     pageCount: Math.max(1, Math.ceil(total / MERCHANTS_PAGE_SIZE)),
   };
+}
+
+// All merchants matching the list filters that have coordinates, for the map
+// view. No pagination — the map shows every matching pin.
+export async function listMerchantsForMap(ctx: SessionUser, params: MerchantListParams) {
+  const scopeWhere: Prisma.MerchantWhereInput =
+    params.scope === "mine"
+      ? merchantMineWhere(ctx)
+      : params.scope === "shared"
+        ? merchantSharedWhere(ctx)
+        : {};
+
+  const merchants = await db.merchant.findMany({
+    where: {
+      ...scopeWhere,
+      ...(params.status ? { status: params.status } : {}),
+      latitude: { not: null },
+      longitude: { not: null },
+      ...(params.q
+        ? {
+            OR: [
+              { name: { contains: params.q, mode: "insensitive" } },
+              { category: { contains: params.q, mode: "insensitive" } },
+              { email: { contains: params.q, mode: "insensitive" } },
+              { address: { contains: params.q, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+    },
+    select: {
+      id: true,
+      name: true,
+      latitude: true,
+      longitude: true,
+      loyaltyLive: true,
+      status: true,
+      subscriptionPlan: true,
+    },
+  });
+
+  return merchants.map((m) => ({
+    id: m.id,
+    name: m.name,
+    lat: m.latitude!,
+    lng: m.longitude!,
+    onboarded: m.loyaltyLive,
+    status: m.status,
+    subscriptionPlan: m.subscriptionPlan,
+  }));
 }
 
 export async function getMerchant(ctx: SessionUser, id: string) {
@@ -160,6 +211,8 @@ export async function createMerchant(ctx: SessionUser, input: MerchantInput) {
       subscriptionPlan: input.subscriptionPlan ?? null,
       branches: input.branches ?? null,
       beta: input.beta,
+      latitude: input.latitude ?? null,
+      longitude: input.longitude ?? null,
       ownerId,
     },
   });
@@ -203,6 +256,8 @@ export async function updateMerchant(ctx: SessionUser, id: string, input: Mercha
       subscriptionPlan: input.subscriptionPlan ?? null,
       branches: input.branches ?? null,
       beta: input.beta,
+      latitude: input.latitude ?? null,
+      longitude: input.longitude ?? null,
       ownerId,
     },
   });

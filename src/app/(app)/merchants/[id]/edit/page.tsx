@@ -50,6 +50,8 @@ export default async function EditMerchantPage({
           subscriptionPlan: merchant.subscriptionPlan,
           branches: merchant.branches,
           beta: merchant.beta,
+          latitude: merchant.latitude,
+          longitude: merchant.longitude,
           ownerId: merchant.owner.id,
         }}
         owners={owners}

@@ -36,6 +36,8 @@ const MERCHANT_FIELDS = [
   "branches",
   "loyaltyLive",
   "beta",
+  "latitude",
+  "longitude",
   "ownerId",
 ];
 
@@ -64,6 +66,8 @@ function parseForm(formData: FormData) {
     subscriptionPlan: field(formData, "subscriptionPlan"),
     branches: field(formData, "branches"),
     beta: field(formData, "beta"),
+    latitude: field(formData, "latitude"),
+    longitude: field(formData, "longitude"),
     ownerId: field(formData, "ownerId"),
   });
 }

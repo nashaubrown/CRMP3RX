@@ -24,6 +24,8 @@ const baseInput = {
   phone: undefined,
   monthlyTxnVolume: undefined,
   branches: undefined,
+  latitude: undefined,
+  longitude: undefined,
 };
 
 beforeAll(async () => {

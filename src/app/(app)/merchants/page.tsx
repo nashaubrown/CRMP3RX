@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PlusIcon, StoreIcon } from "lucide-react";
+import { ListIcon, MapIcon, PlusIcon, StoreIcon } from "lucide-react";
 
 import { ExportButton } from "@/components/csv/export-button";
 import { ImportDialog } from "@/components/csv/import-dialog";
+import { MerchantsMap } from "@/components/maps/merchants-map";
 import { EmptyState } from "@/components/list/empty-state";
 import { Pagination } from "@/components/list/pagination";
 import { ParamSelect } from "@/components/list/param-select";
@@ -24,7 +25,7 @@ import {
 import { formatDate } from "@/lib/datetime";
 import { requireUser } from "@/lib/rbac";
 import { merchantListParamsSchema } from "@/lib/validators/merchant";
-import { listMerchants } from "@/services/merchants";
+import { listMerchants, listMerchantsForMap } from "@/services/merchants";
 
 export const metadata: Metadata = { title: "Merchants" };
 
@@ -38,7 +39,12 @@ export default async function MerchantsPage({
   const parsed = merchantListParamsSchema.safeParse(rawParams);
   const params = parsed.success ? parsed.data : merchantListParamsSchema.parse({});
 
-  const { items, total, page, pageCount } = await listMerchants(user, params);
+  const view = rawParams.view === "map" ? "map" : "table";
+  const [listResult, pins] = await Promise.all([
+    listMerchants(user, params),
+    view === "map" ? listMerchantsForMap(user, params) : Promise.resolve([]),
+  ]);
+  const { items, total, page, pageCount } = listResult;
 
   const tableParams = {
     q: params.q,
@@ -46,6 +52,17 @@ export default async function MerchantsPage({
     scope: params.scope === "all" ? undefined : params.scope,
     sort: params.sort,
     dir: params.dir,
+  };
+
+  // Preserve current filters when switching between table and map.
+  const viewHref = (v: "table" | "map") => {
+    const sp = new URLSearchParams();
+    if (params.q) sp.set("q", params.q);
+    if (params.status) sp.set("status", params.status);
+    if (tableParams.scope) sp.set("scope", tableParams.scope);
+    if (v === "map") sp.set("view", "map");
+    const qs = sp.toString();
+    return `/merchants${qs ? `?${qs}` : ""}`;
   };
 
   return (
@@ -96,9 +113,23 @@ export default async function MerchantsPage({
             { value: "CHURNED", label: "Churned" },
           ]}
         />
+        <div className="bg-muted ml-auto inline-flex rounded-md p-0.5 text-sm">
+          <Button asChild variant={view === "table" ? "secondary" : "ghost"} size="sm" className="h-7">
+            <Link href={viewHref("table")}>
+              <ListIcon /> List
+            </Link>
+          </Button>
+          <Button asChild variant={view === "map" ? "secondary" : "ghost"} size="sm" className="h-7">
+            <Link href={viewHref("map")}>
+              <MapIcon /> Map
+            </Link>
+          </Button>
+        </div>
       </div>
 
-      {items.length === 0 ? (
+      {view === "map" ? (
+        <MerchantsMap pins={pins} />
+      ) : items.length === 0 ? (
         <EmptyState
           icon={StoreIcon}
           title="No merchants found"

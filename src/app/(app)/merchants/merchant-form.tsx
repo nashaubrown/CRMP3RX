@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { LocationPicker } from "@/components/maps/location-picker";
 
 export type MerchantFormValues = {
   name?: string;
@@ -36,6 +37,8 @@ export type MerchantFormValues = {
   subscriptionPlan?: string | null;
   branches?: number | null;
   beta?: boolean;
+  latitude?: number | null;
+  longitude?: number | null;
   ownerId?: string;
 };
 
@@ -270,6 +273,17 @@ export function MerchantForm({
                 <Label htmlFor="beta">BETA merchant</Label>
               </div>
             </div>
+          </div>
+
+          <div className="border-t pt-5">
+            <p className="mb-1 text-sm font-medium">Location</p>
+            <p className="text-muted-foreground mb-4 text-xs">
+              Sets the merchant&apos;s pin on the map. Onboarded merchants show green.
+            </p>
+            <LocationPicker
+              defaultLat={defaultValues?.latitude}
+              defaultLng={defaultValues?.longitude}
+            />
           </div>
 
           <div className="flex flex-col gap-1.5">
