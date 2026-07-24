@@ -2,8 +2,18 @@
 
 import * as React from "react";
 
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
+
+// Quick scenarios that set new-merchants/month + churn. Avg-per-merchant is
+// left alone (it reflects the org's real plan mix).
+const PRESETS = [
+  { key: "Conservative", newPerMonth: 1, churn: 4 },
+  { key: "Base", newPerMonth: 3, churn: 2 },
+  { key: "Aggressive", newPerMonth: 6, churn: 1 },
+] as const;
 
 function money(n: number, currency: string) {
   return `${currency} ${Math.round(n).toLocaleString("en-US")}`;
@@ -62,8 +72,28 @@ export function MrrForecast({
   const area = `${line} L${pts[pts.length - 1][0].toFixed(1)},${H - padBottom} L${padX},${H - padBottom} Z`;
   const [lastX, lastY] = pts[pts.length - 1];
 
+  const activePreset = PRESETS.find((p) => p.newPerMonth === newPerMonth && p.churn === churn)?.key;
+
   return (
     <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-muted-foreground mr-1 text-xs">Scenario:</span>
+        {PRESETS.map((p) => (
+          <Button
+            key={p.key}
+            type="button"
+            variant={activePreset === p.key ? "secondary" : "outline"}
+            size="sm"
+            className={cn("h-7", activePreset === p.key && "ring-primary/40 ring-1")}
+            onClick={() => {
+              setNewPerMonth(p.newPerMonth);
+              setChurn(p.churn);
+            }}
+          >
+            {p.key}
+          </Button>
+        ))}
+      </div>
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1">
           <Label htmlFor="f-new" className="text-xs">
