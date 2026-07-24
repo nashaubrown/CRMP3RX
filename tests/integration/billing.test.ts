@@ -62,4 +62,16 @@ describe("billing (MRR)", () => {
     const starter = billing.lines.find((l) => l.plan === `Starter ${suffix}`)!;
     expect(starter.subtotalMvr).toBe(599);
   });
+
+  it("reports ARR and near-term pipeline upside", async () => {
+    const billing = await getBilling(admin);
+    // ARR = MRR × 12
+    expect(billing.arrMvr).toBe(4599 * 12);
+    // ARPA = 4599 / 3 billable, rounded
+    expect(billing.arpaMvr).toBe(Math.round(4599 / 3));
+    // Merchants D (active, loyalty off) and E (prospect, loyalty on) are on a
+    // plan but not billable and not churned → pipeline: 599 + 599.
+    expect(billing.pipelineCount).toBe(2);
+    expect(billing.pipelineMrr).toBe(1198);
+  });
 });

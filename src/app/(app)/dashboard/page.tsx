@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { MrrForecast } from "@/components/dashboard/mrr-forecast";
 import { StatTrendCard, type StatTrend } from "@/components/dashboard/stat-trend-card";
 import { formatDateTime, formatTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
@@ -128,6 +129,27 @@ export default async function DashboardPage() {
               / month · {billing.merchantCount} merchant{billing.merchantCount === 1 ? "" : "s"}
             </span>
           </div>
+
+          {/* Real headline figures derived from the data. */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <div className="bg-muted/40 rounded-lg border p-2">
+              <p className="text-muted-foreground text-xs">Annual run-rate</p>
+              <p className="font-semibold tabular-nums">{money(billing.arrMvr, "MVR")}</p>
+            </div>
+            <div className="bg-muted/40 rounded-lg border p-2">
+              <p className="text-muted-foreground text-xs">Avg / merchant</p>
+              <p className="font-semibold tabular-nums">{money(billing.arpaMvr, "MVR")}</p>
+            </div>
+            <div className="bg-muted/40 rounded-lg border p-2">
+              <p className="text-muted-foreground text-xs">
+                Pipeline upside · {billing.pipelineCount}
+              </p>
+              <p className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+                +{money(billing.pipelineMrr, "MVR")}/mo
+              </p>
+            </div>
+          </div>
+
           {billing.lines.length === 0 ? (
             <p className="text-muted-foreground text-sm">
               No billable merchants yet — set a merchant to Active with a plan and loyalty live.
@@ -149,6 +171,15 @@ export default async function DashboardPage() {
               ))}
             </div>
           )}
+
+          <div className="border-t pt-3">
+            <p className="mb-2 text-sm font-medium">12-month projection</p>
+            <MrrForecast
+              currentMrr={billing.totalMrr}
+              defaultArpa={billing.arpaMvr || billing.avgPlanPriceMvr}
+              currency={billing.currency}
+            />
+          </div>
         </CardContent>
       </Card>
 
