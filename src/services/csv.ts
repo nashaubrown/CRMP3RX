@@ -356,7 +356,7 @@ export async function importContactsCsv(
         title: lc("title"),
         email,
         phone: lc("phone"),
-        merchantId,
+        merchantIds: [merchantId],
         isPrimary: truthy(lc("isprimary")) ? true : undefined,
       });
       if (!parsed.success) {

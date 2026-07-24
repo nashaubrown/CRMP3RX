@@ -5,6 +5,12 @@ import { z } from "zod";
 
 import { db } from "@/lib/db";
 import { requireUserOrThrow } from "@/lib/rbac";
+import {
+  addOption,
+  OptionSetError,
+  renameOption,
+  setOptionArchived,
+} from "@/services/option-sets";
 import { createApiKey, revokeApiKey } from "@/services/api-keys";
 import {
   clearAiSettings,
@@ -118,6 +124,57 @@ export async function clearAiSettingsAction(): Promise<{ error: string | null }>
 export async function testAiConnectionAction(): Promise<{ ok: boolean; message: string }> {
   const ctx = await requireUserOrThrow();
   return testAiConnection(ctx);
+}
+
+function optionSetError(e: unknown): string {
+  if (e instanceof OptionSetError) return e.message;
+  if (e && typeof e === "object" && "issues" in e) {
+    const issues = (e as { issues?: Array<{ message?: string }> }).issues;
+    if (issues?.[0]?.message) return issues[0].message;
+  }
+  return "Something went wrong.";
+}
+
+export async function addOptionAction(
+  setKey: string,
+  label: string
+): Promise<{ error: string | null }> {
+  const ctx = await requireUserOrThrow();
+  try {
+    await addOption(ctx, setKey, label);
+  } catch (e) {
+    return { error: optionSetError(e) };
+  }
+  revalidatePath("/settings");
+  return { error: null };
+}
+
+export async function renameOptionAction(
+  id: string,
+  label: string
+): Promise<{ error: string | null }> {
+  const ctx = await requireUserOrThrow();
+  try {
+    await renameOption(ctx, id, label);
+  } catch (e) {
+    return { error: optionSetError(e) };
+  }
+  revalidatePath("/settings");
+  return { error: null };
+}
+
+export async function setOptionArchivedAction(
+  id: string,
+  archived: boolean
+): Promise<{ error: string | null }> {
+  const ctx = await requireUserOrThrow();
+  try {
+    await setOptionArchived(ctx, id, archived);
+  } catch (e) {
+    return { error: optionSetError(e) };
+  }
+  revalidatePath("/settings");
+  return { error: null };
 }
 
 export async function cancelMeetingAction(meetingId: string): Promise<{ error: string | null }> {

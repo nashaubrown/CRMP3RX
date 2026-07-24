@@ -24,7 +24,7 @@ function parseForm(formData: FormData) {
     title: field(formData, "title"),
     email: field(formData, "email"),
     phone: field(formData, "phone"),
-    merchantId: field(formData, "merchantId"),
+    merchantIds: formData.getAll("merchantIds").map(String),
     isPrimary: field(formData, "isPrimary"),
   });
 }
@@ -57,7 +57,7 @@ export async function createContactAction(
   }
 
   revalidatePath("/contacts");
-  revalidatePath(`/merchants/${parsed.data.merchantId}`);
+  for (const mId of parsed.data.merchantIds) revalidatePath(`/merchants/${mId}`);
   redirect(`/contacts/${id}`);
 }
 

@@ -210,6 +210,18 @@ export default async function MerchantDetailPage({
               </CardHeader>
               <CardContent className="flex flex-col gap-2 text-sm">
                 <p className="flex justify-between">
+                  <span className="text-muted-foreground">Category</span>
+                  <span>{merchant.category ?? "—"}</span>
+                </p>
+                <p className="flex justify-between">
+                  <span className="text-muted-foreground">Subscription plan</span>
+                  <span>{merchant.subscriptionPlan ?? "—"}</span>
+                </p>
+                <p className="flex justify-between">
+                  <span className="text-muted-foreground">Branches</span>
+                  <span>{merchant.branches ?? "—"}</span>
+                </p>
+                <p className="flex justify-between">
                   <span className="text-muted-foreground">POS system</span>
                   <span>{merchant.posSystem ?? "—"}</span>
                 </p>

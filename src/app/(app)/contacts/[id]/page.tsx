@@ -130,7 +130,24 @@ export default async function ContactDetailPage({
                 <Link href={`/merchants/${contact.merchant.id}`} className="hover:underline">
                   {contact.merchant.name}
                 </Link>
+                <Badge variant="outline" className="text-[10px]">
+                  Home
+                </Badge>
               </p>
+              {contact.merchantLinks.filter((l) => l.merchantId !== contact.merchantId).length > 0 ? (
+                <p className="flex flex-wrap items-center gap-1.5 pl-6">
+                  <span className="text-muted-foreground text-xs">Also tagged to:</span>
+                  {contact.merchantLinks
+                    .filter((l) => l.merchantId !== contact.merchantId)
+                    .map((l) => (
+                      <Link key={l.merchantId} href={`/merchants/${l.merchant.id}`}>
+                        <Badge variant="secondary" className="hover:bg-secondary/70">
+                          {l.merchant.name}
+                        </Badge>
+                      </Link>
+                    ))}
+                </p>
+              ) : null}
               {contact.email ? (
                 <p className="flex items-center gap-2">
                   <MailIcon className="text-muted-foreground size-4" />

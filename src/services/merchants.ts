@@ -26,6 +26,8 @@ const AUDITED_FIELDS = [
   "posSystem",
   "monthlyTxnVolume",
   "loyaltyLive",
+  "subscriptionPlan",
+  "branches",
   "ownerId",
 ] as const;
 
@@ -101,7 +103,6 @@ export async function getMerchant(ctx: SessionUser, id: string) {
         include: { user: { select: { id: true, name: true } } },
         orderBy: { createdAt: "asc" },
       },
-      contacts: { orderBy: [{ isPrimary: "desc" }, { firstName: "asc" }] },
       deals: {
         orderBy: { updatedAt: "desc" },
         select: { id: true, title: true, stage: true, value: true, currency: true },
@@ -110,8 +111,15 @@ export async function getMerchant(ctx: SessionUser, id: string) {
   });
   if (!merchant) return null;
 
+  // Contacts tagged to this merchant — home contacts plus any tagged via the
+  // many-to-many link table.
+  const contacts = await db.contact.findMany({
+    where: { merchantLinks: { some: { merchantId: id } } },
+    orderBy: [{ isPrimary: "desc" }, { firstName: "asc" }],
+  });
+
   const access = await getMerchantAccess(ctx, id);
-  return { ...merchant, access: access! };
+  return { ...merchant, contacts, access: access! };
 }
 
 // Merchants the current user can attach contacts to (edit rights required).
@@ -148,6 +156,8 @@ export async function createMerchant(ctx: SessionUser, input: MerchantInput) {
       posSystem: input.posSystem ?? null,
       monthlyTxnVolume: input.monthlyTxnVolume ?? null,
       loyaltyLive: input.loyaltyLive,
+      subscriptionPlan: input.subscriptionPlan ?? null,
+      branches: input.branches ?? null,
       ownerId,
     },
   });
@@ -188,6 +198,8 @@ export async function updateMerchant(ctx: SessionUser, id: string, input: Mercha
       posSystem: input.posSystem ?? null,
       monthlyTxnVolume: input.monthlyTxnVolume ?? null,
       loyaltyLive: input.loyaltyLive,
+      subscriptionPlan: input.subscriptionPlan ?? null,
+      branches: input.branches ?? null,
       ownerId,
     },
   });

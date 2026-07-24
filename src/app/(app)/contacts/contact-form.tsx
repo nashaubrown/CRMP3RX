@@ -3,22 +3,17 @@
 import * as React from "react";
 import { useActionState } from "react";
 import Link from "next/link";
-import { Loader2Icon } from "lucide-react";
+import { CheckIcon, ChevronsUpDownIcon, Loader2Icon, XIcon } from "lucide-react";
 
 import type { ContactFormState } from "@/app/(app)/contacts/actions";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 export type ContactFormValues = {
   firstName?: string;
@@ -26,7 +21,7 @@ export type ContactFormValues = {
   title?: string | null;
   email?: string | null;
   phone?: string | null;
-  merchantId?: string;
+  merchantIds?: string[];
   isPrimary?: boolean;
 };
 
@@ -35,6 +30,113 @@ const initialState: ContactFormState = { error: null };
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
   return <p className="text-destructive text-xs">{message}</p>;
+}
+
+// Multi-select over merchants. Selection order is preserved so the first one is
+// the contact's "home" merchant. Submits one hidden `merchantIds` input each.
+function MerchantMultiSelect({
+  merchants,
+  defaultSelected,
+}: {
+  merchants: { id: string; name: string }[];
+  defaultSelected: string[];
+}) {
+  const [selected, setSelected] = React.useState<string[]>(defaultSelected);
+  const [open, setOpen] = React.useState(false);
+  const [query, setQuery] = React.useState("");
+
+  const byId = React.useMemo(() => new Map(merchants.map((m) => [m.id, m.name])), [merchants]);
+  const filtered = merchants.filter((m) => m.name.toLowerCase().includes(query.toLowerCase()));
+
+  function toggle(id: string) {
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      {selected.map((id) => (
+        <input key={id} type="hidden" name="merchantIds" value={id} />
+      ))}
+
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className="h-auto min-h-9 w-full justify-between font-normal"
+          >
+            <span className="flex flex-wrap gap-1">
+              {selected.length === 0 ? (
+                <span className="text-muted-foreground">Select merchant(s)</span>
+              ) : (
+                selected.map((id, i) => (
+                  <Badge key={id} variant="secondary" className="gap-1">
+                    {i === 0 ? <span className="text-[10px] opacity-70">Home ·</span> : null}
+                    {byId.get(id) ?? id}
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Remove ${byId.get(id) ?? id}`}
+                      className="hover:text-destructive ml-0.5 cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggle(id);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.stopPropagation();
+                          toggle(id);
+                        }
+                      }}
+                    >
+                      <XIcon className="size-3" />
+                    </span>
+                  </Badge>
+                ))
+              )}
+            </span>
+            <ChevronsUpDownIcon className="size-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+          <div className="border-b p-2">
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search merchants…"
+              className="h-8"
+            />
+          </div>
+          <div className="max-h-64 overflow-y-auto p-1">
+            {filtered.length === 0 ? (
+              <p className="text-muted-foreground p-2 text-sm">No merchants found.</p>
+            ) : (
+              filtered.map((m) => {
+                const checked = selected.includes(m.id);
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => toggle(m.id)}
+                    className="hover:bg-muted flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm"
+                  >
+                    <Checkbox checked={checked} tabIndex={-1} className="pointer-events-none" />
+                    <span className="flex-1 truncate">{m.name}</span>
+                    {checked ? <CheckIcon className="size-4 opacity-60" /> : null}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </PopoverContent>
+      </Popover>
+      <p className="text-muted-foreground text-xs">
+        Tag this contact to one or more merchants. The first is their primary (home) account.
+      </p>
+    </div>
+  );
 }
 
 export function ContactForm({
@@ -97,20 +199,12 @@ export function ContactForm({
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="merchantId">Merchant *</Label>
-              <Select name="merchantId" defaultValue={defaultValues?.merchantId}>
-                <SelectTrigger id="merchantId" className="w-full">
-                  <SelectValue placeholder="Select a merchant" />
-                </SelectTrigger>
-                <SelectContent>
-                  {merchants.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {m.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FieldError message={errors.merchantId} />
+              <Label>Merchant(s) *</Label>
+              <MerchantMultiSelect
+                merchants={merchants}
+                defaultSelected={defaultValues?.merchantIds ?? []}
+              />
+              <FieldError message={errors.merchantIds} />
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -130,7 +224,7 @@ export function ContactForm({
                 id="phone"
                 name="phone"
                 placeholder="+960 777 1234"
-                defaultValue={defaultValues?.phone ?? ""}
+                defaultValue={defaultValues?.phone ?? "+960 "}
               />
               <FieldError message={errors.phone} />
             </div>
@@ -141,7 +235,7 @@ export function ContactForm({
                 name="isPrimary"
                 defaultChecked={defaultValues?.isPrimary ?? false}
               />
-              <Label htmlFor="isPrimary">Primary contact for this merchant</Label>
+              <Label htmlFor="isPrimary">Primary contact for the home merchant</Label>
             </div>
           </div>
 
