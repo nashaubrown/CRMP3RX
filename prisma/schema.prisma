@@ -197,6 +197,9 @@ model Merchant {
   branches         Int?
   // Flags this merchant as part of the BETA program
   beta             Boolean @default(false)
+  // Map location (set via the location picker on the merchant form)
+  latitude         Float?
+  longitude        Float?
 
   ownerId   String
   owner     User     @relation("MerchantOwner", fields: [ownerId], references: [id])

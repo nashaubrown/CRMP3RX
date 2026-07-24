@@ -129,6 +129,9 @@ async function main() {
         subscriptionPlan: plans[i % plans.length],
         branches: 1 + (i % 5),
         beta: i % 4 === 0,
+        // Spread demo pins around Malé so the map view has something to show.
+        latitude: 4.1755 + (i - merchantSeeds.length / 2) * 0.0045,
+        longitude: 73.5093 + (((i % 3) - 1) * 0.006),
         ownerId: m.owner,
         phone: m.phone,
         email: m.email,

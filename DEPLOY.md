@@ -31,6 +31,7 @@ Two things to know up front:
 | `NEXT_PUBLIC_APP_URL` | your Vercel URL, e.g. `https://perx-crm.vercel.app` | ✅ |
 | `ANTHROPIC_API_KEY` *(or `AI_PROVIDER` + a key)* | for Ask Perx / Canvas | optional |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google login + calendar | optional |
+| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | merchant map + location picker | optional |
 | `RESEND_API_KEY`, `EMAIL_FROM` | real email sending | optional |
 | `SMS_PROVIDER`, `TWILIO_*` | real SMS | optional |
 

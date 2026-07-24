@@ -53,6 +53,24 @@ export const merchantSchema = z.object({
     .union([z.literal("on"), z.literal("true"), z.boolean()])
     .optional()
     .transform((v) => v === "on" || v === "true" || v === true),
+  latitude: optionalTrimmed.transform((v, ctx) => {
+    if (v === undefined) return undefined;
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < -90 || n > 90) {
+      ctx.addIssue({ code: "custom", message: "Latitude must be between -90 and 90" });
+      return z.NEVER;
+    }
+    return n;
+  }),
+  longitude: optionalTrimmed.transform((v, ctx) => {
+    if (v === undefined) return undefined;
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < -180 || n > 180) {
+      ctx.addIssue({ code: "custom", message: "Longitude must be between -180 and 180" });
+      return z.NEVER;
+    }
+    return n;
+  }),
   // Only honored for admins; reps always own what they create.
   ownerId: optionalTrimmed,
 });
