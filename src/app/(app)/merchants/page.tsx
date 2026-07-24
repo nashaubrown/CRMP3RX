@@ -124,6 +124,7 @@ export default async function MerchantsPage({
                   <TableRow>
                     <SortableHead label="Name" sortKey="name" basePath="/merchants" searchParams={tableParams} className="pl-4" />
                     <SortableHead label="Category" sortKey="category" basePath="/merchants" searchParams={tableParams} />
+                    <TableHead>Plan</TableHead>
                     <SortableHead label="Status" sortKey="status" basePath="/merchants" searchParams={tableParams} />
                     <TableHead>Contacts</TableHead>
                     <TableHead>Deals</TableHead>
@@ -135,12 +136,22 @@ export default async function MerchantsPage({
                   {items.map((merchant) => (
                     <TableRow key={merchant.id}>
                       <TableCell className="pl-4 font-medium">
-                        <Link href={`/merchants/${merchant.id}`} className="hover:underline">
-                          {merchant.name}
-                        </Link>
+                        <span className="flex items-center gap-1.5">
+                          <Link href={`/merchants/${merchant.id}`} className="hover:underline">
+                            {merchant.name}
+                          </Link>
+                          {merchant.beta ? (
+                            <Badge className="border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-300">
+                              BETA
+                            </Badge>
+                          ) : null}
+                        </span>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {merchant.category ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {merchant.subscriptionPlan ?? "—"}
                       </TableCell>
                       <TableCell>
                         <MerchantStatusBadge status={merchant.status} />
