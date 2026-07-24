@@ -128,6 +128,7 @@ async function main() {
         loyaltyLive: m.loyaltyLive,
         subscriptionPlan: plans[i % plans.length],
         branches: 1 + (i % 5),
+        beta: i % 4 === 0,
         ownerId: m.owner,
         phone: m.phone,
         email: m.email,

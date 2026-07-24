@@ -155,6 +155,15 @@ export function ContactForm({
   const [state, formAction, pending] = useActionState(action, initialState);
   const errors = state.fieldErrors ?? {};
 
+  // React resets uncontrolled inputs after a form action; seed from the echoed
+  // values on a failed submit so typed text isn't wiped.
+  const submitted = state.values;
+  const seed = (name: keyof ContactFormValues, fallback = ""): string => {
+    if (submitted && name in submitted) return submitted[name as string] ?? fallback;
+    const dv = defaultValues?.[name];
+    return dv === null || dv === undefined ? fallback : String(dv);
+  };
+
   return (
     <form action={formAction}>
       <Card>
@@ -168,23 +177,13 @@ export function ContactForm({
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="firstName">First name *</Label>
-              <Input
-                id="firstName"
-                name="firstName"
-                defaultValue={defaultValues?.firstName ?? ""}
-                required
-              />
+              <Input id="firstName" name="firstName" defaultValue={seed("firstName")} required />
               <FieldError message={errors.firstName} />
             </div>
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="lastName">Last name *</Label>
-              <Input
-                id="lastName"
-                name="lastName"
-                defaultValue={defaultValues?.lastName ?? ""}
-                required
-              />
+              <Input id="lastName" name="lastName" defaultValue={seed("lastName")} required />
               <FieldError message={errors.lastName} />
             </div>
 
@@ -194,7 +193,7 @@ export function ContactForm({
                 id="title"
                 name="title"
                 placeholder="e.g. General Manager"
-                defaultValue={defaultValues?.title ?? ""}
+                defaultValue={seed("title")}
               />
             </div>
 
@@ -209,12 +208,7 @@ export function ContactForm({
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                defaultValue={defaultValues?.email ?? ""}
-              />
+              <Input id="email" name="email" type="email" defaultValue={seed("email")} />
               <FieldError message={errors.email} />
             </div>
 
@@ -224,7 +218,7 @@ export function ContactForm({
                 id="phone"
                 name="phone"
                 placeholder="+960 777 1234"
-                defaultValue={defaultValues?.phone ?? "+960 "}
+                defaultValue={seed("phone", "+960 ")}
               />
               <FieldError message={errors.phone} />
             </div>
@@ -233,7 +227,9 @@ export function ContactForm({
               <Checkbox
                 id="isPrimary"
                 name="isPrimary"
-                defaultChecked={defaultValues?.isPrimary ?? false}
+                defaultChecked={
+                  submitted ? submitted.isPrimary === "on" : (defaultValues?.isPrimary ?? false)
+                }
               />
               <Label htmlFor="isPrimary">Primary contact for the home merchant</Label>
             </div>

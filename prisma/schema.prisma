@@ -195,6 +195,8 @@ model Merchant {
   subscriptionPlan String?
   // Number of physical branches/outlets
   branches         Int?
+  // Flags this merchant as part of the BETA program
+  beta             Boolean @default(false)
 
   ownerId   String
   owner     User     @relation("MerchantOwner", fields: [ownerId], references: [id])

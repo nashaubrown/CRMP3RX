@@ -28,6 +28,7 @@ const AUDITED_FIELDS = [
   "loyaltyLive",
   "subscriptionPlan",
   "branches",
+  "beta",
   "ownerId",
 ] as const;
 
@@ -158,6 +159,7 @@ export async function createMerchant(ctx: SessionUser, input: MerchantInput) {
       loyaltyLive: input.loyaltyLive,
       subscriptionPlan: input.subscriptionPlan ?? null,
       branches: input.branches ?? null,
+      beta: input.beta,
       ownerId,
     },
   });
@@ -200,6 +202,7 @@ export async function updateMerchant(ctx: SessionUser, id: string, input: Mercha
       loyaltyLive: input.loyaltyLive,
       subscriptionPlan: input.subscriptionPlan ?? null,
       branches: input.branches ?? null,
+      beta: input.beta,
       ownerId,
     },
   });

@@ -49,6 +49,10 @@ export const merchantSchema = z.object({
     .union([z.literal("on"), z.literal("true"), z.boolean()])
     .optional()
     .transform((v) => v === "on" || v === "true" || v === true),
+  beta: z
+    .union([z.literal("on"), z.literal("true"), z.boolean()])
+    .optional()
+    .transform((v) => v === "on" || v === "true" || v === true),
   // Only honored for admins; reps always own what they create.
   ownerId: optionalTrimmed,
 });
