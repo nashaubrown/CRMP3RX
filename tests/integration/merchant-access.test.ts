@@ -20,6 +20,7 @@ const baseInput = {
   name: `Integration Test Merchant ${suffix}`,
   status: "PROSPECT" as const,
   loyaltyLive: false,
+  beta: false,
   phone: undefined,
   monthlyTxnVolume: undefined,
   branches: undefined,

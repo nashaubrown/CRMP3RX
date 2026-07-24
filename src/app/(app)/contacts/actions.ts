@@ -10,11 +10,22 @@ import { createContact, deleteContact, updateContact } from "@/services/contacts
 export type ContactFormState = {
   error: string | null;
   fieldErrors?: Record<string, string>;
+  // Echoed back on error so a failed submit keeps what the user typed.
+  values?: Record<string, string>;
 };
 
 // formData.get() returns null for absent fields; the schemas expect undefined.
 function field(formData: FormData, name: string) {
   return formData.get(name) ?? undefined;
+}
+
+function rawValues(formData: FormData) {
+  const out: Record<string, string> = {};
+  for (const k of ["firstName", "lastName", "title", "email", "phone", "isPrimary"]) {
+    const v = formData.get(k);
+    if (typeof v === "string") out[k] = v;
+  }
+  return out;
 }
 
 function parseForm(formData: FormData) {
@@ -45,7 +56,11 @@ export async function createContactAction(
   const ctx = await requireUserOrThrow();
   const parsed = parseForm(formData);
   if (!parsed.success) {
-    return { error: "Please fix the highlighted fields", fieldErrors: toFieldErrors(parsed.error.issues) };
+    return {
+      error: "Please fix the highlighted fields",
+      fieldErrors: toFieldErrors(parsed.error.issues),
+      values: rawValues(formData),
+    };
   }
 
   let id: string;
@@ -69,7 +84,11 @@ export async function updateContactAction(
   const ctx = await requireUserOrThrow();
   const parsed = parseForm(formData);
   if (!parsed.success) {
-    return { error: "Please fix the highlighted fields", fieldErrors: toFieldErrors(parsed.error.issues) };
+    return {
+      error: "Please fix the highlighted fields",
+      fieldErrors: toFieldErrors(parsed.error.issues),
+      values: rawValues(formData),
+    };
   }
 
   try {

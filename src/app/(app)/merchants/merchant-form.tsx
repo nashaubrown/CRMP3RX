@@ -35,6 +35,7 @@ export type MerchantFormValues = {
   loyaltyLive?: boolean;
   subscriptionPlan?: string | null;
   branches?: number | null;
+  beta?: boolean;
   ownerId?: string;
 };
 
@@ -106,6 +107,19 @@ export function MerchantForm({
   const [state, formAction, pending] = useActionState(action, initialState);
   const errors = state.fieldErrors ?? {};
 
+  // React resets uncontrolled inputs after a form action, so on a failed submit
+  // seed each field from the echoed values to preserve what the user typed.
+  const submitted = state.values;
+  const seed = (name: keyof MerchantFormValues, fallback = ""): string => {
+    if (submitted && name in submitted) return submitted[name as string] ?? fallback;
+    const dv = defaultValues?.[name];
+    return dv === null || dv === undefined ? fallback : String(dv);
+  };
+  const loyaltyDefault = submitted
+    ? submitted.loyaltyLive === "on"
+    : (defaultValues?.loyaltyLive ?? false);
+  const betaDefault = submitted ? submitted.beta === "on" : (defaultValues?.beta ?? false);
+
   return (
     <form action={formAction}>
       <Card>
@@ -119,7 +133,7 @@ export function MerchantForm({
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5 sm:col-span-2">
               <Label htmlFor="name">Name *</Label>
-              <Input id="name" name="name" defaultValue={defaultValues?.name ?? ""} required />
+              <Input id="name" name="name" defaultValue={seed("name")} required />
               <FieldError message={errors.name} />
             </div>
 
@@ -128,7 +142,7 @@ export function MerchantForm({
               <OptionSelect
                 name="category"
                 options={categoryOptions}
-                defaultValue={defaultValues?.category}
+                defaultValue={submitted?.category ?? defaultValues?.category}
                 placeholder="Select a category"
               />
             </div>
@@ -149,12 +163,7 @@ export function MerchantForm({
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                defaultValue={defaultValues?.email ?? ""}
-              />
+              <Input id="email" name="email" type="email" defaultValue={seed("email")} />
               <FieldError message={errors.email} />
             </div>
 
@@ -164,7 +173,7 @@ export function MerchantForm({
                 id="phone"
                 name="phone"
                 placeholder="+960 777 1234"
-                defaultValue={defaultValues?.phone ?? "+960 "}
+                defaultValue={seed("phone", "+960 ")}
               />
               <FieldError message={errors.phone} />
             </div>
@@ -175,14 +184,14 @@ export function MerchantForm({
                 id="website"
                 name="website"
                 placeholder="https://…"
-                defaultValue={defaultValues?.website ?? ""}
+                defaultValue={seed("website")}
               />
               <FieldError message={errors.website} />
             </div>
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="address">Address</Label>
-              <Input id="address" name="address" defaultValue={defaultValues?.address ?? ""} />
+              <Input id="address" name="address" defaultValue={seed("address")} />
             </div>
 
             {showOwnerSelect ? (
@@ -213,7 +222,7 @@ export function MerchantForm({
                   id="posSystem"
                   name="posSystem"
                   placeholder="e.g. Ewity"
-                  defaultValue={defaultValues?.posSystem ?? ""}
+                  defaultValue={seed("posSystem")}
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -223,7 +232,7 @@ export function MerchantForm({
                   name="monthlyTxnVolume"
                   type="number"
                   min={0}
-                  defaultValue={defaultValues?.monthlyTxnVolume ?? ""}
+                  defaultValue={seed("monthlyTxnVolume")}
                 />
                 <FieldError message={errors.monthlyTxnVolume} />
               </div>
@@ -232,7 +241,7 @@ export function MerchantForm({
                 <OptionSelect
                   name="subscriptionPlan"
                   options={planOptions}
-                  defaultValue={defaultValues?.subscriptionPlan}
+                  defaultValue={submitted?.subscriptionPlan ?? defaultValues?.subscriptionPlan}
                   placeholder="Select a plan"
                 />
               </div>
@@ -244,7 +253,7 @@ export function MerchantForm({
                   type="number"
                   min={0}
                   placeholder="e.g. 3"
-                  defaultValue={defaultValues?.branches ?? ""}
+                  defaultValue={seed("branches")}
                 />
                 <FieldError message={errors.branches} />
               </div>
@@ -252,16 +261,20 @@ export function MerchantForm({
                 <Switch
                   id="loyaltyLive"
                   name="loyaltyLive"
-                  defaultChecked={defaultValues?.loyaltyLive ?? false}
+                  defaultChecked={loyaltyDefault}
                 />
                 <Label htmlFor="loyaltyLive">Loyalty program live</Label>
+              </div>
+              <div className="flex items-center gap-3">
+                <Switch id="beta" name="beta" defaultChecked={betaDefault} />
+                <Label htmlFor="beta">BETA merchant</Label>
               </div>
             </div>
           </div>
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="notes">Notes</Label>
-            <Textarea id="notes" name="notes" rows={3} defaultValue={defaultValues?.notes ?? ""} />
+            <Textarea id="notes" name="notes" rows={3} defaultValue={seed("notes")} />
           </div>
 
           <div className="flex justify-end gap-2">

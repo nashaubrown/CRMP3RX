@@ -49,6 +49,7 @@ export default async function EditMerchantPage({
           loyaltyLive: merchant.loyaltyLive,
           subscriptionPlan: merchant.subscriptionPlan,
           branches: merchant.branches,
+          beta: merchant.beta,
           ownerId: merchant.owner.id,
         }}
         owners={owners}

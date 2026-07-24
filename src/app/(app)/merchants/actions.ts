@@ -11,11 +11,41 @@ import { createMerchant, deleteMerchant, updateMerchant } from "@/services/merch
 export type MerchantFormState = {
   error: string | null;
   fieldErrors?: Record<string, string>;
+  // Raw submitted values, echoed back on error so a failed submit doesn't wipe
+  // what the user typed (React resets uncontrolled inputs after a form action).
+  values?: Record<string, string>;
 };
 
 // formData.get() returns null for absent fields; the schemas expect undefined.
 function field(formData: FormData, name: string) {
   return formData.get(name) ?? undefined;
+}
+
+const MERCHANT_FIELDS = [
+  "name",
+  "category",
+  "status",
+  "website",
+  "phone",
+  "email",
+  "address",
+  "notes",
+  "posSystem",
+  "monthlyTxnVolume",
+  "subscriptionPlan",
+  "branches",
+  "loyaltyLive",
+  "beta",
+  "ownerId",
+];
+
+function rawValues(formData: FormData) {
+  const out: Record<string, string> = {};
+  for (const k of MERCHANT_FIELDS) {
+    const v = formData.get(k);
+    if (typeof v === "string") out[k] = v;
+  }
+  return out;
 }
 
 function parseForm(formData: FormData) {
@@ -33,6 +63,7 @@ function parseForm(formData: FormData) {
     loyaltyLive: field(formData, "loyaltyLive"),
     subscriptionPlan: field(formData, "subscriptionPlan"),
     branches: field(formData, "branches"),
+    beta: field(formData, "beta"),
     ownerId: field(formData, "ownerId"),
   });
 }
@@ -53,7 +84,11 @@ export async function createMerchantAction(
   const ctx = await requireUserOrThrow();
   const parsed = parseForm(formData);
   if (!parsed.success) {
-    return { error: "Please fix the highlighted fields", fieldErrors: toFieldErrors(parsed.error.issues) };
+    return {
+      error: "Please fix the highlighted fields",
+      fieldErrors: toFieldErrors(parsed.error.issues),
+      values: rawValues(formData),
+    };
   }
 
   let id: string;
@@ -76,7 +111,11 @@ export async function updateMerchantAction(
   const ctx = await requireUserOrThrow();
   const parsed = parseForm(formData);
   if (!parsed.success) {
-    return { error: "Please fix the highlighted fields", fieldErrors: toFieldErrors(parsed.error.issues) };
+    return {
+      error: "Please fix the highlighted fields",
+      fieldErrors: toFieldErrors(parsed.error.issues),
+      values: rawValues(formData),
+    };
   }
 
   try {
