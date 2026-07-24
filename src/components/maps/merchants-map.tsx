@@ -42,8 +42,15 @@ export function MerchantsMap({ pins }: { pins: MerchantPin[] }) {
 
   return (
     <div className="flex flex-col gap-2">
+      {pins.length === 0 ? (
+        <div className="bg-muted/60 text-muted-foreground rounded-lg border px-3 py-2 text-sm">
+          <span className="text-foreground font-medium">No merchants have a location yet.</span>{" "}
+          Open a merchant → Edit → Location to place it here. (The labels on the map below are
+          Google&apos;s own places, not your merchants.)
+        </div>
+      ) : null}
       <APIProvider apiKey={GOOGLE_MAPS_API_KEY}>
-        <div className="h-[68vh] w-full overflow-hidden rounded-lg border">
+        <div className="relative h-[68vh] w-full overflow-hidden rounded-lg border">
           <Map
             mapId={GOOGLE_MAPS_MAP_ID}
             defaultCenter={DEFAULT_CENTER}
