@@ -10,6 +10,7 @@ import {
   OptionSetError,
   renameOption,
   setOptionArchived,
+  setOptionPricing,
 } from "@/services/option-sets";
 import { createApiKey, revokeApiKey } from "@/services/api-keys";
 import {
@@ -170,6 +171,21 @@ export async function setOptionArchivedAction(
   const ctx = await requireUserOrThrow();
   try {
     await setOptionArchived(ctx, id, archived);
+  } catch (e) {
+    return { error: optionSetError(e) };
+  }
+  revalidatePath("/settings");
+  return { error: null };
+}
+
+export async function setOptionPricingAction(
+  id: string,
+  priceMvr: number | null,
+  perLocation: boolean
+): Promise<{ error: string | null }> {
+  const ctx = await requireUserOrThrow();
+  try {
+    await setOptionPricing(ctx, id, priceMvr, perLocation);
   } catch (e) {
     return { error: optionSetError(e) };
   }

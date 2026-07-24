@@ -15,6 +15,7 @@ import { db } from "@/lib/db";
 import { isAdmin, ownerScope, requireUser } from "@/lib/rbac";
 import { cn } from "@/lib/utils";
 import { listChangesToMyMerchants } from "@/services/audit-log";
+import { getBilling } from "@/services/billing";
 import { getDashboardTrends, type Trend } from "@/services/dashboard";
 import { getDealsBoard } from "@/services/deals";
 import { merchantMineWhere } from "@/services/merchant-access";
@@ -38,15 +39,17 @@ export default async function DashboardPage() {
   const scope = ownerScope(user);
   const mine = admin ? {} : merchantMineWhere(user);
 
-  const [merchantCount, leadCount, board, dueToday, recentComms, feed, trends] = await Promise.all([
-    db.merchant.count({ where: mine }),
-    db.lead.count({ where: { ...scope, status: { in: ["NEW", "CONTACTED"] } } }),
-    getDealsBoard(user, admin ? "all" : "mine"),
-    listDueToday(user),
-    listRecentComms(user),
-    listChangesToMyMerchants(user),
-    getDashboardTrends(user),
-  ]);
+  const [merchantCount, leadCount, board, dueToday, recentComms, feed, trends, billing] =
+    await Promise.all([
+      db.merchant.count({ where: mine }),
+      db.lead.count({ where: { ...scope, status: { in: ["NEW", "CONTACTED"] } } }),
+      getDealsBoard(user, admin ? "all" : "mine"),
+      listDueToday(user),
+      listRecentComms(user),
+      listChangesToMyMerchants(user),
+      getDashboardTrends(user),
+      getBilling(user),
+    ]);
 
   const open = board.summaries.filter((s) => OPEN_STAGES.includes(s.stage as never));
   const openMvr = open.reduce((sum, s) => sum + s.totalMvr, 0);
@@ -106,6 +109,48 @@ export default async function DashboardPage() {
           <StatTrendCard key={stat.label} stat={stat} />
         ))}
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">
+            Monthly billing (MRR){admin ? "" : " — your merchants"}
+          </CardTitle>
+          <CardDescription>
+            Recurring subscription revenue from Active, loyalty-live merchants.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0">
+            <span className="text-3xl font-semibold tracking-tight tabular-nums">
+              {money(billing.totalMrr, billing.currency)}
+            </span>
+            <span className="text-muted-foreground text-sm">
+              / month · {billing.merchantCount} merchant{billing.merchantCount === 1 ? "" : "s"}
+            </span>
+          </div>
+          {billing.lines.length === 0 ? (
+            <p className="text-muted-foreground text-sm">
+              No billable merchants yet — set a merchant to Active with a plan and loyalty live.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {billing.lines.map((l) => (
+                <div key={l.plan} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="flex items-center gap-2">
+                    <span className="font-medium">{l.plan}</span>
+                    <span className="text-muted-foreground text-xs">
+                      {money(l.unitPriceMvr, "MVR")}
+                      {l.perLocation ? " / location" : ""} · {l.count} merchant
+                      {l.count === 1 ? "" : "s"}
+                    </span>
+                  </span>
+                  <span className="tabular-nums">{money(l.subtotalMvr, "MVR")}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
