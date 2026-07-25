@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useActionState } from "react";
 import Link from "next/link";
-import { Loader2Icon } from "lucide-react";
+import { Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react";
 
 import type { MerchantFormState } from "@/app/(app)/merchants/actions";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { LocationPicker } from "@/components/maps/location-picker";
 
 export type MerchantFormValues = {
@@ -86,6 +87,112 @@ function OptionSelect({
   );
 }
 
+type ContactRow = {
+  firstName: string;
+  lastName: string;
+  title: string;
+  email: string;
+  phone: string;
+  isPrimary: boolean;
+};
+
+const emptyContact = (): ContactRow => ({
+  firstName: "",
+  lastName: "",
+  title: "",
+  email: "",
+  phone: "+960 ",
+  isPrimary: false,
+});
+
+// Optional repeatable contacts, created together with the merchant and tied to
+// it. Serializes non-empty rows (those with a name) into a hidden JSON input.
+function ContactsEditor() {
+  const [rows, setRows] = React.useState<ContactRow[]>([]);
+
+  const update = (i: number, patch: Partial<ContactRow>) =>
+    setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  const remove = (i: number) => setRows((rs) => rs.filter((_, idx) => idx !== i));
+
+  const nonEmpty = rows.filter((r) => r.firstName.trim() || r.lastName.trim());
+
+  return (
+    <div className="border-t pt-5">
+      <input type="hidden" name="contactsJson" value={JSON.stringify(nonEmpty)} />
+      <p className="mb-1 text-sm font-medium">Contacts</p>
+      <p className="text-muted-foreground mb-4 text-xs">
+        Optional — add people at this merchant and they&apos;ll be tied to it. First and last name
+        required for each.
+      </p>
+
+      <div className="flex flex-col gap-3">
+        {rows.map((r, i) => (
+          <div key={i} className="bg-muted/30 flex flex-col gap-3 rounded-lg border p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground text-xs">Contact {i + 1}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="text-destructive size-6"
+                aria-label={`Remove contact ${i + 1}`}
+                onClick={() => remove(i)}
+              >
+                <Trash2Icon className="size-3.5" />
+              </Button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input
+                placeholder="First name *"
+                value={r.firstName}
+                onChange={(e) => update(i, { firstName: e.target.value })}
+              />
+              <Input
+                placeholder="Last name *"
+                value={r.lastName}
+                onChange={(e) => update(i, { lastName: e.target.value })}
+              />
+              <Input
+                placeholder="Title (e.g. General Manager)"
+                value={r.title}
+                onChange={(e) => update(i, { title: e.target.value })}
+              />
+              <Input
+                type="email"
+                placeholder="Email"
+                value={r.email}
+                onChange={(e) => update(i, { email: e.target.value })}
+              />
+              <Input
+                placeholder="+960 777 1234"
+                value={r.phone}
+                onChange={(e) => update(i, { phone: e.target.value })}
+              />
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={r.isPrimary}
+                  onCheckedChange={(v) => update(i, { isPrimary: v === true })}
+                />
+                Primary contact
+              </label>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="mt-3"
+        onClick={() => setRows((rs) => [...rs, emptyContact()])}
+      >
+        <PlusIcon /> Add {rows.length > 0 ? "another" : "a"} contact
+      </Button>
+    </div>
+  );
+}
+
 export function MerchantForm({
   action,
   defaultValues,
@@ -94,6 +201,7 @@ export function MerchantForm({
   defaultOwnerId,
   categoryOptions,
   planOptions,
+  showContacts = false,
   cancelHref,
   submitLabel,
 }: {
@@ -104,6 +212,7 @@ export function MerchantForm({
   defaultOwnerId?: string;
   categoryOptions: string[];
   planOptions: string[];
+  showContacts?: boolean;
   cancelHref: string;
   submitLabel: string;
 }) {
@@ -290,6 +399,8 @@ export function MerchantForm({
             <Label htmlFor="notes">Notes</Label>
             <Textarea id="notes" name="notes" rows={3} defaultValue={seed("notes")} />
           </div>
+
+          {showContacts ? <ContactsEditor /> : null}
 
           <div className="flex justify-end gap-2">
             <Button variant="outline" asChild>

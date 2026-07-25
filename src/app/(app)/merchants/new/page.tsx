@@ -28,6 +28,7 @@ export default async function NewMerchantPage() {
         defaultOwnerId={user.id}
         categoryOptions={categoryOptions}
         planOptions={planOptions}
+        showContacts
         cancelHref="/merchants"
         submitLabel="Create merchant"
       />
