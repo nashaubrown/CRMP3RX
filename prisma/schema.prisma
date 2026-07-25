@@ -53,6 +53,7 @@ model User {
   auditLogs      AuditLog[]
   conversations  Conversation[]
   merchantShares MerchantShare[]
+  geofences      Geofence[]      @relation("GeofenceOwner")
   apiKeys        ApiKey[]
   canvasViews    CanvasView[]
 }
@@ -264,6 +265,38 @@ model ContactMerchant {
 enum OptionSetKey {
   MERCHANT_CATEGORY
   SUBSCRIPTION_PLAN
+}
+
+enum GeofenceType {
+  TERRITORY
+  CAMPAIGN
+}
+
+enum GeofenceShape {
+  POLYGON
+  CIRCLE
+}
+
+// A drawn zone on the map. POLYGON stores its vertices in `points`; CIRCLE
+// stores a single center point in `points` plus `radiusM`.
+model Geofence {
+  id        String        @id @default(cuid())
+  name      String
+  type      GeofenceType  @default(TERRITORY)
+  shape     GeofenceShape
+  color     String        @default("#16a34a")
+  // [{ lat, lng }, ...] — polygon vertices, or a single center for circles.
+  points    Json
+  radiusM   Int? // circle radius in meters
+  offer     String? // optional campaign offer/note
+  ownerId   String? // assigned rep
+  owner     User?         @relation("GeofenceOwner", fields: [ownerId], references: [id])
+  createdById String
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([type])
+  @@index([ownerId])
 }
 
 model OptionItem {
