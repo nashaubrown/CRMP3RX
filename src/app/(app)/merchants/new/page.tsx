@@ -29,6 +29,7 @@ export default async function NewMerchantPage() {
         categoryOptions={categoryOptions}
         planOptions={planOptions}
         showContacts
+        showDeal
         cancelHref="/merchants"
         submitLabel="Create merchant"
       />
