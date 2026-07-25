@@ -5,8 +5,10 @@ import { redirect } from "next/navigation";
 
 import { requireUserOrThrow } from "@/lib/rbac";
 import { contactSchema, type ContactInput } from "@/lib/validators/contact";
+import { dealSchema, type DealInput } from "@/lib/validators/deal";
 import { merchantSchema } from "@/lib/validators/merchant";
 import { createContact } from "@/services/contacts";
+import { createDeal } from "@/services/deals";
 import { removeMerchantShare, setMerchantShare } from "@/services/merchant-shares";
 import { createMerchant, deleteMerchant, updateMerchant } from "@/services/merchants";
 
@@ -120,6 +122,33 @@ function parseInlineContacts(formData: FormData): { data: ContactInput[]; error?
   return { data: out };
 }
 
+// Optional first deal submitted with a new merchant. Only present when a title
+// was entered; validated before the merchant is created.
+function parseInlineDeal(formData: FormData): { data: DealInput | null; error?: string } {
+  const raw = formData.get("dealJson");
+  if (typeof raw !== "string" || !raw) return { data: null };
+  let obj: unknown;
+  try {
+    obj = JSON.parse(raw);
+  } catch {
+    return { data: null };
+  }
+  const r = (obj ?? {}) as Record<string, unknown>;
+  if (typeof r.title !== "string" || !r.title.trim()) return { data: null };
+
+  const parsed = dealSchema.safeParse({
+    title: r.title,
+    merchantId: "_", // placeholder; replaced with the new merchant id
+    value: typeof r.value === "string" ? r.value : "",
+    currency: r.currency ?? "MVR",
+    expectedCloseDate: r.expectedCloseDate,
+  });
+  if (!parsed.success) {
+    return { data: null, error: `Deal: ${parsed.error.issues[0]?.message ?? "invalid"}` };
+  }
+  return { data: parsed.data };
+}
+
 export async function createMerchantAction(
   _prev: MerchantFormState,
   formData: FormData
@@ -134,10 +163,14 @@ export async function createMerchantAction(
     };
   }
 
-  // Validate any inline contacts before creating anything.
+  // Validate any inline contacts + first deal before creating anything.
   const contacts = parseInlineContacts(formData);
   if (contacts.error) {
     return { error: contacts.error, values: rawValues(formData) };
+  }
+  const deal = parseInlineDeal(formData);
+  if (deal.error) {
+    return { error: deal.error, values: rawValues(formData) };
   }
 
   try {
@@ -145,12 +178,16 @@ export async function createMerchantAction(
     for (const c of contacts.data) {
       await createContact(ctx, { ...c, merchantIds: [merchant.id] });
     }
+    if (deal.data) {
+      await createDeal(ctx, { ...deal.data, merchantId: merchant.id });
+    }
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Something went wrong" };
   }
 
   revalidatePath("/merchants");
   revalidatePath("/contacts");
+  revalidatePath("/deals");
   // Back to the list (with a success flash) so reps can add several in a row.
   redirect(`/merchants?created=1`);
 }

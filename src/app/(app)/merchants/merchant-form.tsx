@@ -193,6 +193,73 @@ function ContactsEditor() {
   );
 }
 
+// Optional first deal, created with the merchant and opened in the New stage.
+// Only submitted when a title is filled in.
+function DealEditor() {
+  const [title, setTitle] = React.useState("");
+  const [value, setValue] = React.useState("");
+  const [currency, setCurrency] = React.useState("MVR");
+  const [closeDate, setCloseDate] = React.useState("");
+
+  const payload = title.trim()
+    ? JSON.stringify({ title, value, currency, expectedCloseDate: closeDate })
+    : "";
+
+  return (
+    <div className="border-t pt-5">
+      <input type="hidden" name="dealJson" value={payload} />
+      <p className="mb-1 text-sm font-medium">First deal</p>
+      <p className="text-muted-foreground mb-4 text-xs">
+        Optional — start a deal for this merchant (opens in the New stage). Title and value required
+        if you add one.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="flex flex-col gap-1.5 sm:col-span-2">
+          <Label htmlFor="deal-title">Title</Label>
+          <Input
+            id="deal-title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="e.g. Loyalty program rollout"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="deal-value">Value</Label>
+          <Input
+            id="deal-value"
+            type="number"
+            min={0}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="e.g. 25000"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="deal-currency">Currency</Label>
+          <Select value={currency} onValueChange={setCurrency}>
+            <SelectTrigger id="deal-currency" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="MVR">MVR</SelectItem>
+              <SelectItem value="USD">USD</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="deal-close">Expected close</Label>
+          <Input
+            id="deal-close"
+            type="date"
+            value={closeDate}
+            onChange={(e) => setCloseDate(e.target.value)}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function MerchantForm({
   action,
   defaultValues,
@@ -202,6 +269,7 @@ export function MerchantForm({
   categoryOptions,
   planOptions,
   showContacts = false,
+  showDeal = false,
   cancelHref,
   submitLabel,
 }: {
@@ -213,6 +281,7 @@ export function MerchantForm({
   categoryOptions: string[];
   planOptions: string[];
   showContacts?: boolean;
+  showDeal?: boolean;
   cancelHref: string;
   submitLabel: string;
 }) {
@@ -401,6 +470,7 @@ export function MerchantForm({
           </div>
 
           {showContacts ? <ContactsEditor /> : null}
+          {showDeal ? <DealEditor /> : null}
 
           <div className="flex justify-end gap-2">
             <Button variant="outline" asChild>
