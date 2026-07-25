@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireUserOrThrow } from "@/lib/rbac";
+import { contactSchema, type ContactInput } from "@/lib/validators/contact";
 import { merchantSchema } from "@/lib/validators/merchant";
+import { createContact } from "@/services/contacts";
 import { removeMerchantShare, setMerchantShare } from "@/services/merchant-shares";
 import { createMerchant, deleteMerchant, updateMerchant } from "@/services/merchants";
 
@@ -81,6 +83,43 @@ function toFieldErrors(issues: { path: PropertyKey[]; message: string }[]) {
   return fieldErrors;
 }
 
+// Optional inline contacts submitted with a new merchant (JSON from the form).
+// Validated up front so a bad contact never leaves an orphaned merchant. The
+// merchant id is injected at creation time.
+function parseInlineContacts(formData: FormData): { data: ContactInput[]; error?: string } {
+  const raw = formData.get("contactsJson");
+  if (typeof raw !== "string" || !raw) return { data: [] };
+  let rows: unknown;
+  try {
+    rows = JSON.parse(raw);
+  } catch {
+    return { data: [] };
+  }
+  if (!Array.isArray(rows)) return { data: [] };
+
+  const out: ContactInput[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    const r = (rows[i] ?? {}) as Record<string, unknown>;
+    // A bare "+960" prefix with no number counts as no phone.
+    const phone =
+      typeof r.phone === "string" && r.phone.replace(/\s/g, "") === "+960" ? "" : r.phone;
+    const parsed = contactSchema.safeParse({
+      firstName: r.firstName,
+      lastName: r.lastName,
+      title: r.title,
+      email: r.email,
+      phone,
+      merchantIds: ["_"], // placeholder; replaced with the new merchant id
+      isPrimary: r.isPrimary,
+    });
+    if (!parsed.success) {
+      return { data: [], error: `Contact ${i + 1}: ${parsed.error.issues[0]?.message ?? "invalid"}` };
+    }
+    out.push(parsed.data);
+  }
+  return { data: out };
+}
+
 export async function createMerchantAction(
   _prev: MerchantFormState,
   formData: FormData
@@ -95,13 +134,23 @@ export async function createMerchantAction(
     };
   }
 
+  // Validate any inline contacts before creating anything.
+  const contacts = parseInlineContacts(formData);
+  if (contacts.error) {
+    return { error: contacts.error, values: rawValues(formData) };
+  }
+
   try {
-    await createMerchant(ctx, parsed.data);
+    const merchant = await createMerchant(ctx, parsed.data);
+    for (const c of contacts.data) {
+      await createContact(ctx, { ...c, merchantIds: [merchant.id] });
+    }
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Something went wrong" };
   }
 
   revalidatePath("/merchants");
+  revalidatePath("/contacts");
   // Back to the list (with a success flash) so reps can add several in a row.
   redirect(`/merchants?created=1`);
 }
