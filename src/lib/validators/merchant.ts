@@ -14,7 +14,8 @@ export const merchantSchema = z.object({
   status: z.enum(["PROSPECT", "ACTIVE", "CHURNED"]),
   website: optionalTrimmed.pipe(z.string().url("Enter a valid URL (https://…)").optional()),
   phone: optionalTrimmed.transform((v, ctx) => {
-    if (v === undefined) return undefined;
+    // A bare "+960" prefix (the prefilled default) counts as no phone.
+    if (v === undefined || v.replace(/\s/g, "") === "+960") return undefined;
     const e164 = toE164(v);
     if (!e164) {
       ctx.addIssue({ code: "custom", message: "Enter a valid phone number (e.g. +960 777 1234)" });
