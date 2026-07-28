@@ -16,11 +16,13 @@ import { ShareDialog } from "@/app/(app)/merchants/share-dialog";
 import { ActivityTimeline } from "@/components/activity/activity-timeline";
 import { DeleteButton } from "@/components/delete-button";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
-import { MerchantMiniMap } from "@/components/maps/merchant-mini-map";
+import { OutletsManager } from "@/components/maps/outlets-manager";
+import { pinColors } from "@/lib/maps";
+import { listOutlets } from "@/services/outlets";
 import { DealStageBadge, MerchantStatusBadge } from "@/components/status-badges";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatMoney } from "@/lib/format";
 import { formatPhone } from "@/lib/phone";
 import { isAdmin, requireUser } from "@/lib/rbac";
@@ -50,7 +52,7 @@ export default async function MerchantDetailPage({
   const merchant = await getMerchant(user, id);
   if (!merchant) notFound();
 
-  const [activities, team, history, comms, templates, mergeVars, calendarConnected] =
+  const [activities, team, history, comms, templates, mergeVars, calendarConnected, outlets] =
     await Promise.all([
       listActivitiesForEntity(user, "MERCHANT", id),
       merchant.access.canManageShares ? listTeamMembers() : Promise.resolve([]),
@@ -59,6 +61,7 @@ export default async function MerchantDetailPage({
       merchant.access.canEdit ? listTemplates() : Promise.resolve([]),
       merchant.access.canEdit ? buildMergeVars(user, "MERCHANT", id) : Promise.resolve({}),
       merchant.access.canEdit ? hasCalendarConnected(user.id) : Promise.resolve(false),
+      listOutlets(id),
     ]);
 
   const emailRecipients = [
@@ -251,22 +254,30 @@ export default async function MerchantDetailPage({
             </Card>
           </div>
 
-          {merchant.latitude != null && merchant.longitude != null ? (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Location</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <MerchantMiniMap
-                  lat={merchant.latitude}
-                  lng={merchant.longitude}
-                  name={merchant.name}
-                  onboarded={merchant.loyaltyLive}
-                  status={merchant.status}
-                />
-              </CardContent>
-            </Card>
-          ) : null}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Outlets ({outlets.length})</CardTitle>
+              <CardDescription>
+                Physical branches of this merchant. Branch count and per-location billing come from
+                this list.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <OutletsManager
+                merchantId={merchant.id}
+                outlets={outlets.map((o) => ({
+                  id: o.id,
+                  name: o.name,
+                  address: o.address,
+                  latitude: o.latitude,
+                  longitude: o.longitude,
+                  isPrimary: o.isPrimary,
+                }))}
+                canEdit={merchant.access.canEdit}
+                pinColor={pinColors({ onboarded: merchant.loyaltyLive, status: merchant.status })}
+              />
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader className="flex-row items-center justify-between">

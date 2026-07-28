@@ -79,11 +79,17 @@ export function MerchantsMap({ pins }: { pins: MerchantPin[] }) {
               >
                 <div className="flex flex-col gap-0.5 pr-2">
                   <span className="text-sm font-semibold text-neutral-900">{active.name}</span>
+                  {active.outletName && active.outletName !== active.name ? (
+                    <span className="text-xs text-neutral-500">{active.outletName}</span>
+                  ) : null}
                   <span className="text-xs text-neutral-600">
                     {active.onboarded ? "Onboarded" : active.status}
                     {active.subscriptionPlan ? ` · ${active.subscriptionPlan}` : ""}
                   </span>
-                  <a href={`/merchants/${active.id}`} className="text-xs font-medium text-green-700 underline">
+                  <a
+                    href={`/merchants/${active.merchantId}`}
+                    className="text-xs font-medium text-green-700 underline"
+                  >
                     Open merchant →
                   </a>
                 </div>

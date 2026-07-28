@@ -106,42 +106,45 @@ export async function listMerchantsForMap(ctx: SessionUser, params: MerchantList
         ? merchantSharedWhere(ctx)
         : {};
 
-  const merchants = await db.merchant.findMany({
-    where: {
-      ...scopeWhere,
-      ...(params.status ? { status: params.status } : {}),
-      latitude: { not: null },
-      longitude: { not: null },
-      ...(params.q
-        ? {
-            OR: [
-              { name: { contains: params.q, mode: "insensitive" } },
-              { category: { contains: params.q, mode: "insensitive" } },
-              { email: { contains: params.q, mode: "insensitive" } },
-              { address: { contains: params.q, mode: "insensitive" } },
-            ],
-          }
-        : {}),
-    },
+  const merchantWhere: Prisma.MerchantWhereInput = {
+    ...scopeWhere,
+    ...(params.status ? { status: params.status } : {}),
+    ...(params.q
+      ? {
+          OR: [
+            { name: { contains: params.q, mode: "insensitive" } },
+            { category: { contains: params.q, mode: "insensitive" } },
+            { email: { contains: params.q, mode: "insensitive" } },
+            { address: { contains: params.q, mode: "insensitive" } },
+          ],
+        }
+      : {}),
+  };
+
+  // One pin per located outlet, so multi-outlet merchants show every branch.
+  const outlets = await db.outlet.findMany({
+    where: { latitude: { not: null }, longitude: { not: null }, merchant: merchantWhere },
     select: {
       id: true,
       name: true,
       latitude: true,
       longitude: true,
-      loyaltyLive: true,
-      status: true,
-      subscriptionPlan: true,
+      merchant: {
+        select: { id: true, name: true, loyaltyLive: true, status: true, subscriptionPlan: true },
+      },
     },
   });
 
-  return merchants.map((m) => ({
-    id: m.id,
-    name: m.name,
-    lat: m.latitude!,
-    lng: m.longitude!,
-    onboarded: m.loyaltyLive,
-    status: m.status,
-    subscriptionPlan: m.subscriptionPlan,
+  return outlets.map((o) => ({
+    id: o.id,
+    merchantId: o.merchant.id,
+    name: o.merchant.name,
+    outletName: o.name,
+    lat: o.latitude!,
+    lng: o.longitude!,
+    onboarded: o.merchant.loyaltyLive,
+    status: o.merchant.status,
+    subscriptionPlan: o.merchant.subscriptionPlan,
   }));
 }
 
@@ -254,10 +257,9 @@ export async function updateMerchant(ctx: SessionUser, id: string, input: Mercha
       monthlyTxnVolume: input.monthlyTxnVolume ?? null,
       loyaltyLive: input.loyaltyLive,
       subscriptionPlan: input.subscriptionPlan ?? null,
-      branches: input.branches ?? null,
       beta: input.beta,
-      latitude: input.latitude ?? null,
-      longitude: input.longitude ?? null,
+      // branches, latitude, longitude are derived from the merchant's outlets —
+      // the edit form doesn't touch them, so they're left as-is here.
       ownerId,
     },
   });

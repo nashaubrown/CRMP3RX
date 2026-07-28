@@ -118,6 +118,9 @@ async function main() {
   const plans = ["Starter", "Growth", "Enterprise"];
   const merchants = [] as { id: string; name: string; ownerId: string }[];
   for (const [i, m] of merchantSeeds.entries()) {
+    // Spread demo pins around Malé so the map view has something to show.
+    const lat = 4.1755 + (i - merchantSeeds.length / 2) * 0.0045;
+    const lng = 73.5093 + ((i % 3) - 1) * 0.006;
     const created = await db.merchant.create({
       data: {
         name: m.name,
@@ -127,11 +130,9 @@ async function main() {
         monthlyTxnVolume: m.monthlyTxnVolume,
         loyaltyLive: m.loyaltyLive,
         subscriptionPlan: plans[i % plans.length],
-        branches: 1 + (i % 5),
         beta: i % 4 === 0,
-        // Spread demo pins around Malé so the map view has something to show.
-        latitude: 4.1755 + (i - merchantSeeds.length / 2) * 0.0045,
-        longitude: 73.5093 + (((i % 3) - 1) * 0.006),
+        latitude: lat,
+        longitude: lng,
         ownerId: m.owner,
         phone: m.phone,
         email: m.email,
@@ -140,6 +141,19 @@ async function main() {
         createdAt: spreadDate(i, merchantSeeds.length, 63),
       },
     });
+
+    // Outlets drive branch count + the map. One merchant gets 3 to demo the
+    // multi-outlet case; the rest have a single primary outlet.
+    const outlets = [{ name: m.name, address: m.address, latitude: lat, longitude: lng, isPrimary: true }];
+    if (i === 2) {
+      outlets.push(
+        { name: `${m.name} — Hulhumalé`, address: "Hulhumalé", latitude: lat + 0.03, longitude: lng + 0.012, isPrimary: false },
+        { name: `${m.name} — Villimalé`, address: "Villimalé", latitude: lat - 0.02, longitude: lng - 0.01, isPrimary: false }
+      );
+    }
+    for (const o of outlets) await db.outlet.create({ data: { merchantId: created.id, ...o } });
+    await db.merchant.update({ where: { id: created.id }, data: { branches: outlets.length } });
+
     merchants.push({ id: created.id, name: created.name, ownerId: created.ownerId });
   }
 

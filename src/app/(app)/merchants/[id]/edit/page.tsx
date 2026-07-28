@@ -66,6 +66,7 @@ export default async function EditMerchantPage({
         showOwnerSelect={isAdmin(user)}
         categoryOptions={categoryOptions}
         planOptions={planOptions}
+        showLocation={false}
         cancelHref={`/merchants/${merchant.id}`}
         submitLabel="Save changes"
       />
