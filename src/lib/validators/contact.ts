@@ -14,7 +14,8 @@ export const contactSchema = z.object({
   title: optionalTrimmed,
   email: optionalTrimmed.pipe(z.string().email("Enter a valid email").optional()),
   phone: optionalTrimmed.transform((v, ctx) => {
-    if (v === undefined) return undefined;
+    // A bare "+960" prefix (the prefilled default) counts as no phone.
+    if (v === undefined || v.replace(/\s/g, "") === "+960") return undefined;
     const e164 = toE164(v);
     if (!e164) {
       ctx.addIssue({ code: "custom", message: "Enter a valid phone number (e.g. +960 777 1234)" });
