@@ -270,6 +270,7 @@ export function MerchantForm({
   planOptions,
   showContacts = false,
   showDeal = false,
+  showLocation = true,
   cancelHref,
   submitLabel,
 }: {
@@ -282,6 +283,7 @@ export function MerchantForm({
   planOptions: string[];
   showContacts?: boolean;
   showDeal?: boolean;
+  showLocation?: boolean;
   cancelHref: string;
   submitLabel: string;
 }) {
@@ -426,18 +428,6 @@ export function MerchantForm({
                   placeholder="Select a plan"
                 />
               </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="branches">Number of branches</Label>
-                <Input
-                  id="branches"
-                  name="branches"
-                  type="number"
-                  min={0}
-                  placeholder="e.g. 3"
-                  defaultValue={seed("branches")}
-                />
-                <FieldError message={errors.branches} />
-              </div>
               <div className="flex items-center gap-3">
                 <Switch
                   id="loyaltyLive"
@@ -453,16 +443,19 @@ export function MerchantForm({
             </div>
           </div>
 
-          <div className="border-t pt-5">
-            <p className="mb-1 text-sm font-medium">Location</p>
-            <p className="text-muted-foreground mb-4 text-xs">
-              Sets the merchant&apos;s pin on the map. Onboarded merchants show green.
-            </p>
-            <LocationPicker
-              defaultLat={defaultValues?.latitude}
-              defaultLng={defaultValues?.longitude}
-            />
-          </div>
+          {showLocation ? (
+            <div className="border-t pt-5">
+              <p className="mb-1 text-sm font-medium">Primary location</p>
+              <p className="text-muted-foreground mb-4 text-xs">
+                Becomes the merchant&apos;s first outlet (its pin on the map). Add more outlets on the
+                merchant page after saving.
+              </p>
+              <LocationPicker
+                defaultLat={defaultValues?.latitude}
+                defaultLng={defaultValues?.longitude}
+              />
+            </div>
+          ) : null}
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="notes">Notes</Label>

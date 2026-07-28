@@ -9,6 +9,7 @@ import { dealSchema, type DealInput } from "@/lib/validators/deal";
 import { merchantSchema } from "@/lib/validators/merchant";
 import { createContact } from "@/services/contacts";
 import { createDeal } from "@/services/deals";
+import { createPrimaryOutlet } from "@/services/outlets";
 import { removeMerchantShare, setMerchantShare } from "@/services/merchant-shares";
 import { createMerchant, deleteMerchant, updateMerchant } from "@/services/merchants";
 
@@ -180,6 +181,15 @@ export async function createMerchantAction(
     }
     if (deal.data) {
       await createDeal(ctx, { ...deal.data, merchantId: merchant.id });
+    }
+    // Turn the primary location into the merchant's first outlet.
+    if (parsed.data.latitude != null && parsed.data.longitude != null) {
+      await createPrimaryOutlet(merchant.id, {
+        name: parsed.data.name,
+        address: parsed.data.address ?? null,
+        latitude: parsed.data.latitude,
+        longitude: parsed.data.longitude,
+      });
     }
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Something went wrong" };

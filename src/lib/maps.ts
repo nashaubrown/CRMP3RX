@@ -17,8 +17,10 @@ export const DEFAULT_CENTER = { lat: 4.1755, lng: 73.5093 };
 export const DEFAULT_ZOOM = 12;
 
 export type MerchantPin = {
-  id: string;
-  name: string;
+  id: string; // unique per pin (outlet id)
+  merchantId: string; // for links back to the merchant
+  name: string; // merchant/brand name
+  outletName?: string | null; // outlet label, when the pin is a specific outlet
   lat: number;
   lng: number;
   onboarded: boolean; // loyalty program live

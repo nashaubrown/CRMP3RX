@@ -209,6 +209,7 @@ model Merchant {
 
   contacts     Contact[]
   contactLinks ContactMerchant[]
+  outlets      Outlet[]
   leads        Lead[]
   deals        Deal[]
   shares       MerchantShare[]
@@ -216,6 +217,23 @@ model Merchant {
   @@index([ownerId])
   @@index([status])
   @@index([name])
+}
+
+// A physical outlet/branch of a merchant. A merchant can have many; branch
+// count and per-location billing derive from these.
+model Outlet {
+  id         String   @id @default(cuid())
+  name       String
+  address    String?
+  latitude   Float?
+  longitude  Float?
+  isPrimary  Boolean  @default(false)
+  merchantId String
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([merchantId])
 }
 
 model Contact {
