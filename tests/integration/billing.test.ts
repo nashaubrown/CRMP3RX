@@ -8,13 +8,15 @@ import { getBilling } from "@/services/billing";
 // and per-location plans multiply by branch count.
 
 const suffix = `bill-${Math.random().toString(36).slice(2, 8)}`;
-let admin: SessionUser;
+// A rep so getBilling is scoped to only this test's merchants (owned by the
+// rep), independent of any other data in the shared DB.
+let rep: SessionUser;
 
 beforeAll(async () => {
-  const adminUser = await db.user.create({
-    data: { name: "Bill Admin", email: `admin-${suffix}@t.mv`, role: "ADMIN" },
+  const repUser = await db.user.create({
+    data: { name: "Bill Rep", email: `rep-${suffix}@t.mv`, role: "SALES_REP" },
   });
-  admin = { id: adminUser.id, role: "ADMIN", name: adminUser.name };
+  rep = { id: repUser.id, role: "SALES_REP", name: repUser.name };
 
   // Priced plans scoped to this test (unique labels).
   await db.optionItem.createMany({
@@ -27,15 +29,15 @@ beforeAll(async () => {
   await db.merchant.createMany({
     data: [
       // Billable: Starter, active + loyalty live → 599
-      { name: `A ${suffix}`, ownerId: adminUser.id, status: "ACTIVE", loyaltyLive: true, subscriptionPlan: `Starter ${suffix}` },
+      { name: `A ${suffix}`, ownerId: repUser.id, status: "ACTIVE", loyaltyLive: true, subscriptionPlan: `Starter ${suffix}` },
       // Billable: Enterprise, 3 branches → 3000
-      { name: `B ${suffix}`, ownerId: adminUser.id, status: "ACTIVE", loyaltyLive: true, subscriptionPlan: `Ent ${suffix}`, branches: 3 },
+      { name: `B ${suffix}`, ownerId: repUser.id, status: "ACTIVE", loyaltyLive: true, subscriptionPlan: `Ent ${suffix}`, branches: 3 },
       // Enterprise, no branch count → counts as 1 → 1000
-      { name: `C ${suffix}`, ownerId: adminUser.id, status: "ACTIVE", loyaltyLive: true, subscriptionPlan: `Ent ${suffix}` },
+      { name: `C ${suffix}`, ownerId: repUser.id, status: "ACTIVE", loyaltyLive: true, subscriptionPlan: `Ent ${suffix}` },
       // Excluded: active but loyalty not live
-      { name: `D ${suffix}`, ownerId: adminUser.id, status: "ACTIVE", loyaltyLive: false, subscriptionPlan: `Starter ${suffix}` },
+      { name: `D ${suffix}`, ownerId: repUser.id, status: "ACTIVE", loyaltyLive: false, subscriptionPlan: `Starter ${suffix}` },
       // Excluded: loyalty live but not active
-      { name: `E ${suffix}`, ownerId: adminUser.id, status: "PROSPECT", loyaltyLive: true, subscriptionPlan: `Starter ${suffix}` },
+      { name: `E ${suffix}`, ownerId: repUser.id, status: "PROSPECT", loyaltyLive: true, subscriptionPlan: `Starter ${suffix}` },
     ],
   });
 });
@@ -49,7 +51,7 @@ afterAll(async () => {
 
 describe("billing (MRR)", () => {
   it("sums only billable merchants, multiplying per-location plans by branches", async () => {
-    const billing = await getBilling(admin);
+    const billing = await getBilling(rep);
     // 599 (Starter) + 3000 (Ent×3) + 1000 (Ent×1) = 4599
     expect(billing.totalMrr).toBe(4599);
     expect(billing.merchantCount).toBe(3);
@@ -64,7 +66,7 @@ describe("billing (MRR)", () => {
   });
 
   it("reports ARR and near-term pipeline upside", async () => {
-    const billing = await getBilling(admin);
+    const billing = await getBilling(rep);
     // ARR = MRR × 12
     expect(billing.arrMvr).toBe(4599 * 12);
     // ARPA = 4599 / 3 billable, rounded
