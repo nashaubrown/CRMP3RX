@@ -25,7 +25,8 @@ beforeAll(async () => {
     data: { setKey: "SUBSCRIPTION_PLAN", label: `Growth ${suffix}`, priceMvr: 799, perLocation: false },
   });
 
-  // One onboarded merchant inside the test square, one far outside.
+  // Remote coords (far from any seeded Malé data) so the zone counts are
+  // isolated. One onboarded merchant inside the test square, one far outside.
   await db.merchant.createMany({
     data: [
       {
@@ -34,8 +35,8 @@ beforeAll(async () => {
         status: "ACTIVE",
         loyaltyLive: true,
         subscriptionPlan: `Growth ${suffix}`,
-        latitude: 4.175,
-        longitude: 73.505,
+        latitude: 45.005,
+        longitude: -100.005,
       },
       {
         name: `Outside ${suffix}`,
@@ -43,8 +44,8 @@ beforeAll(async () => {
         status: "ACTIVE",
         loyaltyLive: true,
         subscriptionPlan: `Growth ${suffix}`,
-        latitude: 4.3,
-        longitude: 73.7,
+        latitude: 46.5,
+        longitude: -99.0,
       },
     ],
   });
@@ -66,10 +67,10 @@ describe("geofences", () => {
       shape: "POLYGON",
       color: "#16a34a",
       points: [
-        { lat: 4.17, lng: 73.5 },
-        { lat: 4.18, lng: 73.5 },
-        { lat: 4.18, lng: 73.51 },
-        { lat: 4.17, lng: 73.51 },
+        { lat: 45.0, lng: -100.01 },
+        { lat: 45.01, lng: -100.01 },
+        { lat: 45.01, lng: -100.0 },
+        { lat: 45.0, lng: -100.0 },
       ],
       radiusM: null,
       offer: null,

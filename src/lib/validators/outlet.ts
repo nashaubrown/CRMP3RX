@@ -27,7 +27,9 @@ export const outletSchema = z.object({
   longitude: coord(-180, 180, "Longitude"),
   isPrimary: z
     .union([z.literal("on"), z.literal("true"), z.boolean()])
-    .optional()
+    // nullish (not just optional): an unchecked checkbox submits nothing, which
+    // arrives as null — treat that as false rather than a validation error.
+    .nullish()
     .transform((v) => v === "on" || v === "true" || v === true),
 });
 
