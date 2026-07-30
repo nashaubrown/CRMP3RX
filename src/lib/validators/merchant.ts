@@ -85,8 +85,11 @@ export const merchantListParamsSchema = z.object({
   status: z.enum(["PROSPECT", "ACTIVE", "CHURNED"]).optional(),
   owner: z.string().trim().min(1).optional(),
   affiliate: z.string().trim().min(1).optional(),
+  pos: z.string().trim().min(1).optional(),
   scope: z.enum(["all", "mine", "shared"]).default("all"),
-  sort: z.enum(["name", "status", "category", "updatedAt", "createdAt"]).default("updatedAt"),
+  sort: z
+    .enum(["name", "status", "category", "posSystem", "updatedAt", "createdAt"])
+    .default("updatedAt"),
   dir: z.enum(["asc", "desc"]).default("desc"),
   page: z.coerce.number().int().min(1).default(1),
 });

@@ -26,7 +26,7 @@ import {
 import { formatDate } from "@/lib/datetime";
 import { requireUser } from "@/lib/rbac";
 import { merchantListParamsSchema } from "@/lib/validators/merchant";
-import { listMerchants, listMerchantsForMap } from "@/services/merchants";
+import { listMerchants, listMerchantsForMap, listPosSystems } from "@/services/merchants";
 import { listAffiliateOptions } from "@/services/affiliates";
 import { listTeamMembers } from "@/services/users";
 
@@ -43,11 +43,12 @@ export default async function MerchantsPage({
   const params = parsed.success ? parsed.data : merchantListParamsSchema.parse({});
 
   const view = rawParams.view === "map" ? "map" : "table";
-  const [listResult, pins, owners, affiliates] = await Promise.all([
+  const [listResult, pins, owners, affiliates, posSystems] = await Promise.all([
     listMerchants(user, params),
     view === "map" ? listMerchantsForMap(user, params) : Promise.resolve([]),
     listTeamMembers(),
     listAffiliateOptions(params.affiliate),
+    listPosSystems(),
   ]);
   const { items, total, page, pageCount } = listResult;
 
@@ -56,6 +57,7 @@ export default async function MerchantsPage({
     status: params.status,
     owner: params.owner,
     affiliate: params.affiliate,
+    pos: params.pos,
     scope: params.scope === "all" ? undefined : params.scope,
     sort: params.sort,
     dir: params.dir,
@@ -68,6 +70,7 @@ export default async function MerchantsPage({
     if (params.status) sp.set("status", params.status);
     if (params.owner) sp.set("owner", params.owner);
     if (params.affiliate) sp.set("affiliate", params.affiliate);
+    if (params.pos) sp.set("pos", params.pos);
     if (tableParams.scope) sp.set("scope", tableParams.scope);
     if (v === "map") sp.set("view", "map");
     const qs = sp.toString();
@@ -92,6 +95,7 @@ export default async function MerchantsPage({
               status: params.status,
               owner: params.owner,
               affiliate: params.affiliate,
+              pos: params.pos,
               scope: tableParams.scope,
             }}
           />
@@ -143,6 +147,14 @@ export default async function MerchantsPage({
             options={affiliates.map((a) => ({ value: a.id, label: a.name }))}
           />
         ) : null}
+        {posSystems.length > 0 ? (
+          <ParamSelect
+            param="pos"
+            placeholder="All POS types"
+            className="w-40"
+            options={posSystems.map((p) => ({ value: p, label: p }))}
+          />
+        ) : null}
         <div className="bg-muted ml-auto inline-flex rounded-md p-0.5 text-sm">
           <Button asChild variant={view === "table" ? "secondary" : "ghost"} size="sm" className="h-7">
             <Link href={viewHref("table")}>
@@ -185,6 +197,7 @@ export default async function MerchantsPage({
                   <TableRow>
                     <SortableHead label="Name" sortKey="name" basePath="/merchants" searchParams={tableParams} className="pl-4" />
                     <SortableHead label="Category" sortKey="category" basePath="/merchants" searchParams={tableParams} />
+                    <SortableHead label="POS" sortKey="posSystem" basePath="/merchants" searchParams={tableParams} />
                     <TableHead>Plan</TableHead>
                     <SortableHead label="Status" sortKey="status" basePath="/merchants" searchParams={tableParams} />
                     <TableHead>Contacts</TableHead>
@@ -211,6 +224,9 @@ export default async function MerchantsPage({
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {merchant.category ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {merchant.posSystem ?? "—"}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {merchant.subscriptionPlan ?? "—"}

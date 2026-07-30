@@ -23,6 +23,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ entity: 
     merchantId: url.searchParams.get("merchantId") ?? undefined,
     owner: url.searchParams.get("owner") ?? undefined,
     affiliate: url.searchParams.get("affiliate") ?? undefined,
+    pos: url.searchParams.get("pos") ?? undefined,
     from: url.searchParams.get("from") ?? undefined,
     to: url.searchParams.get("to") ?? undefined,
   };
