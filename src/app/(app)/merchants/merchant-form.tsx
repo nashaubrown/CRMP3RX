@@ -41,6 +41,7 @@ export type MerchantFormValues = {
   latitude?: number | null;
   longitude?: number | null;
   ownerId?: string;
+  affiliateId?: string | null;
 };
 
 const initialState: MerchantFormState = { error: null };
@@ -79,6 +80,40 @@ function OptionSelect({
           {options.map((o) => (
             <SelectItem key={o} value={o}>
               {o}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </>
+  );
+}
+
+// Like OptionSelect but the option value is an id (distinct from its label),
+// used for the referring affiliate.
+function IdSelect({
+  name,
+  options,
+  defaultValue,
+  placeholder,
+}: {
+  name: string;
+  options: { id: string; name: string }[];
+  defaultValue?: string | null;
+  placeholder: string;
+}) {
+  const [value, setValue] = React.useState(defaultValue ?? "");
+  return (
+    <>
+      <input type="hidden" name={name} value={value} />
+      <Select value={value === "" ? undefined : value} onValueChange={(v) => setValue(v === NONE ? "" : v)}>
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NONE}>— None —</SelectItem>
+          {options.map((o) => (
+            <SelectItem key={o.id} value={o.id}>
+              {o.name}
             </SelectItem>
           ))}
         </SelectContent>
@@ -268,6 +303,7 @@ export function MerchantForm({
   defaultOwnerId,
   categoryOptions,
   planOptions,
+  affiliateOptions,
   showContacts = false,
   showDeal = false,
   showLocation = true,
@@ -281,6 +317,7 @@ export function MerchantForm({
   defaultOwnerId?: string;
   categoryOptions: string[];
   planOptions: string[];
+  affiliateOptions: { id: string; name: string }[];
   showContacts?: boolean;
   showDeal?: boolean;
   showLocation?: boolean;
@@ -426,6 +463,17 @@ export function MerchantForm({
                   options={planOptions}
                   defaultValue={submitted?.subscriptionPlan ?? defaultValues?.subscriptionPlan}
                   placeholder="Select a plan"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="affiliateId">Referred by (affiliate)</Label>
+                <IdSelect
+                  name="affiliateId"
+                  options={affiliateOptions}
+                  defaultValue={submitted?.affiliateId ?? defaultValues?.affiliateId}
+                  placeholder={
+                    affiliateOptions.length ? "Select an affiliate" : "No affiliates yet"
+                  }
                 />
               </div>
               <div className="flex items-center gap-3">

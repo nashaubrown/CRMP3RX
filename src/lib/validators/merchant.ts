@@ -74,6 +74,8 @@ export const merchantSchema = z.object({
   }),
   // Only honored for admins; reps always own what they create.
   ownerId: optionalTrimmed,
+  // Referring affiliate (id). Optional — most merchants have none.
+  affiliateId: optionalTrimmed,
 });
 
 export type MerchantInput = z.infer<typeof merchantSchema>;

@@ -32,6 +32,7 @@ const AUDITED_FIELDS = [
   "latitude",
   "longitude",
   "ownerId",
+  "affiliateId",
 ] as const;
 
 function pickAudited(record: Record<string, unknown>) {
@@ -156,6 +157,7 @@ export async function getMerchant(ctx: SessionUser, id: string) {
     where: { id },
     include: {
       owner: { select: { id: true, name: true } },
+      affiliate: { select: { id: true, name: true, commissionRate: true } },
       shares: {
         include: { user: { select: { id: true, name: true } } },
         orderBy: { createdAt: "asc" },
@@ -218,6 +220,7 @@ export async function createMerchant(ctx: SessionUser, input: MerchantInput) {
       beta: input.beta,
       latitude: input.latitude ?? null,
       longitude: input.longitude ?? null,
+      affiliateId: input.affiliateId ?? null,
       ownerId,
     },
   });
@@ -260,6 +263,7 @@ export async function updateMerchant(ctx: SessionUser, id: string, input: Mercha
       loyaltyLive: input.loyaltyLive,
       subscriptionPlan: input.subscriptionPlan ?? null,
       beta: input.beta,
+      affiliateId: input.affiliateId ?? null,
       // branches, latitude, longitude are derived from the merchant's outlets —
       // the edit form doesn't touch them, so they're left as-is here.
       ownerId,

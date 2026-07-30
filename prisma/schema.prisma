@@ -202,6 +202,10 @@ model Merchant {
   latitude         Float?
   longitude        Float?
 
+  // Affiliate/referral: who brought this merchant in (earns a commission).
+  affiliateId String?
+  affiliate   Affiliate? @relation(fields: [affiliateId], references: [id], onDelete: SetNull)
+
   ownerId   String
   owner     User     @relation("MerchantOwner", fields: [ownerId], references: [id])
   createdAt DateTime @default(now())
@@ -217,6 +221,26 @@ model Merchant {
   @@index([ownerId])
   @@index([status])
   @@index([name])
+  @@index([affiliateId])
+}
+
+// A referral partner. For every merchant an affiliate brings, they earn a
+// commission (a percentage of that merchant's MRR). Managed by admins in
+// Settings; selected on the merchant form.
+model Affiliate {
+  id             String   @id @default(cuid())
+  name           String
+  email          String?
+  phone          String? // E.164, default region +960
+  // Commission as a percentage of the referred merchant's monthly MRR.
+  commissionRate Float    @default(0)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  merchants Merchant[]
+
+  @@index([active])
 }
 
 // A physical outlet/branch of a merchant. A merchant can have many; branch

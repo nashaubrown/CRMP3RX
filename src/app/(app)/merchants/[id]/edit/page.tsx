@@ -7,6 +7,7 @@ import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { isAdmin, requireUser } from "@/lib/rbac";
 import { getMerchant } from "@/services/merchants";
 import { listOptions } from "@/services/option-sets";
+import { listAffiliateOptions } from "@/services/affiliates";
 import { listAssignableUsers } from "@/services/users";
 
 export const metadata: Metadata = { title: "Edit merchant" };
@@ -24,11 +25,12 @@ export default async function EditMerchantPage({
   // View-only users can see the record but not this form.
   if (!merchant.access.canEdit) redirect(`/merchants/${id}`);
 
-  const [owners, categoryOptions, planOptions] = await Promise.all([
+  const [owners, categoryOptions, planOptions, affiliateOptions] = await Promise.all([
     listAssignableUsers(user),
     // Keep the current value selectable even if it was later archived.
     listOptions("MERCHANT_CATEGORY", merchant.category),
     listOptions("SUBSCRIPTION_PLAN", merchant.subscriptionPlan),
+    listAffiliateOptions(merchant.affiliateId),
   ]);
 
   return (
@@ -61,11 +63,13 @@ export default async function EditMerchantPage({
           latitude: merchant.latitude,
           longitude: merchant.longitude,
           ownerId: merchant.owner.id,
+          affiliateId: merchant.affiliateId,
         }}
         owners={owners}
         showOwnerSelect={isAdmin(user)}
         categoryOptions={categoryOptions}
         planOptions={planOptions}
+        affiliateOptions={affiliateOptions}
         showLocation={false}
         cancelHref={`/merchants/${merchant.id}`}
         submitLabel="Save changes"
