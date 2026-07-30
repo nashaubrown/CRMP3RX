@@ -10,16 +10,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { MrrForecast } from "@/components/dashboard/mrr-forecast";
+import { OwnerBreakdownTable } from "@/components/dashboard/owner-breakdown-table";
 import { StatTrendCard, type StatTrend } from "@/components/dashboard/stat-trend-card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableFooter,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { formatDateTime, formatTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { isAdmin, ownerScope, requireUser } from "@/lib/rbac";
@@ -197,106 +189,19 @@ export default async function DashboardPage() {
         <CardHeader>
           <CardTitle className="text-base">Merchants by owner</CardTitle>
           <CardDescription>
-            How each rep&apos;s book breaks down by status. Tap a number to open that list.
+            How each rep&apos;s book breaks down by status. Tap a number to open that list, or a
+            column header to re-sort.
           </CardDescription>
         </CardHeader>
         <CardContent className="px-0">
           {ownerBreakdown.rows.length === 0 ? (
             <p className="text-muted-foreground px-6 text-sm">No merchants yet.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="pl-6">Owner</TableHead>
-                    <TableHead className="text-right text-blue-700 dark:text-blue-300">
-                      Prospect
-                    </TableHead>
-                    <TableHead className="text-right text-emerald-700 dark:text-emerald-300">
-                      Active
-                    </TableHead>
-                    <TableHead className="text-right text-red-700 dark:text-red-300">
-                      Churned
-                    </TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead className="text-right">Onboarded</TableHead>
-                    <TableHead className="pr-6 text-right">MRR</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {ownerBreakdown.rows.map((row) => {
-                    const link = (status: string) =>
-                      `/merchants?owner=${row.ownerId}&status=${status}`;
-                    const cell = (n: number, status: string, className?: string) => (
-                      <TableCell className={cn("text-right tabular-nums", className)}>
-                        {n > 0 ? (
-                          <Link href={link(status)} className="hover:underline">
-                            {n}
-                          </Link>
-                        ) : (
-                          <span className="text-muted-foreground">0</span>
-                        )}
-                      </TableCell>
-                    );
-                    return (
-                      <TableRow key={row.ownerId}>
-                        <TableCell className="pl-6 font-medium">
-                          <Link
-                            href={`/merchants?owner=${row.ownerId}`}
-                            className="hover:underline"
-                          >
-                            {row.ownerName}
-                          </Link>
-                        </TableCell>
-                        {cell(row.prospect, "PROSPECT")}
-                        {cell(row.active, "ACTIVE")}
-                        {cell(row.churned, "CHURNED")}
-                        <TableCell className="text-right font-medium tabular-nums">
-                          {row.total}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {row.onboarded > 0 ? (
-                            <span className="text-emerald-700 dark:text-emerald-300">
-                              {row.onboarded}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">0</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="pr-6 text-right tabular-nums">
-                          {row.mrrMvr > 0 ? money(row.mrrMvr, ownerBreakdown.currency) : "—"}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-                {ownerBreakdown.rows.length > 1 ? (
-                  <TableFooter>
-                    <TableRow>
-                      <TableCell className="pl-6 font-medium">Team</TableCell>
-                      <TableCell className="text-right font-medium tabular-nums">
-                        {ownerBreakdown.totals.prospect}
-                      </TableCell>
-                      <TableCell className="text-right font-medium tabular-nums">
-                        {ownerBreakdown.totals.active}
-                      </TableCell>
-                      <TableCell className="text-right font-medium tabular-nums">
-                        {ownerBreakdown.totals.churned}
-                      </TableCell>
-                      <TableCell className="text-right font-medium tabular-nums">
-                        {ownerBreakdown.totals.total}
-                      </TableCell>
-                      <TableCell className="text-right font-medium tabular-nums">
-                        {ownerBreakdown.totals.onboarded}
-                      </TableCell>
-                      <TableCell className="pr-6 text-right font-medium tabular-nums">
-                        {money(ownerBreakdown.totals.mrrMvr, ownerBreakdown.currency)}
-                      </TableCell>
-                    </TableRow>
-                  </TableFooter>
-                ) : null}
-              </Table>
-            </div>
+            <OwnerBreakdownTable
+              rows={ownerBreakdown.rows}
+              totals={ownerBreakdown.totals}
+              currency={ownerBreakdown.currency}
+            />
           )}
         </CardContent>
       </Card>
