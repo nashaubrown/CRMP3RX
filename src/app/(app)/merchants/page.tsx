@@ -27,6 +27,7 @@ import { formatDate } from "@/lib/datetime";
 import { requireUser } from "@/lib/rbac";
 import { merchantListParamsSchema } from "@/lib/validators/merchant";
 import { listMerchants, listMerchantsForMap } from "@/services/merchants";
+import { listTeamMembers } from "@/services/users";
 
 export const metadata: Metadata = { title: "Merchants" };
 
@@ -41,15 +42,17 @@ export default async function MerchantsPage({
   const params = parsed.success ? parsed.data : merchantListParamsSchema.parse({});
 
   const view = rawParams.view === "map" ? "map" : "table";
-  const [listResult, pins] = await Promise.all([
+  const [listResult, pins, owners] = await Promise.all([
     listMerchants(user, params),
     view === "map" ? listMerchantsForMap(user, params) : Promise.resolve([]),
+    listTeamMembers(),
   ]);
   const { items, total, page, pageCount } = listResult;
 
   const tableParams = {
     q: params.q,
     status: params.status,
+    owner: params.owner,
     scope: params.scope === "all" ? undefined : params.scope,
     sort: params.sort,
     dir: params.dir,
@@ -60,6 +63,7 @@ export default async function MerchantsPage({
     const sp = new URLSearchParams();
     if (params.q) sp.set("q", params.q);
     if (params.status) sp.set("status", params.status);
+    if (params.owner) sp.set("owner", params.owner);
     if (tableParams.scope) sp.set("scope", tableParams.scope);
     if (v === "map") sp.set("view", "map");
     const qs = sp.toString();
@@ -79,7 +83,7 @@ export default async function MerchantsPage({
         <div className="flex flex-wrap gap-2">
           <ExportButton
             entity="merchants"
-            filters={{ q: params.q, status: params.status, scope: tableParams.scope }}
+            filters={{ q: params.q, status: params.status, owner: params.owner, scope: tableParams.scope }}
           />
           <ImportDialog
             entity="merchants"
@@ -114,6 +118,12 @@ export default async function MerchantsPage({
             { value: "ACTIVE", label: "Active" },
             { value: "CHURNED", label: "Churned" },
           ]}
+        />
+        <ParamSelect
+          param="owner"
+          placeholder="All owners"
+          className="w-44"
+          options={owners.map((o) => ({ value: o.id, label: o.name }))}
         />
         <div className="bg-muted ml-auto inline-flex rounded-md p-0.5 text-sm">
           <Button asChild variant={view === "table" ? "secondary" : "ghost"} size="sm" className="h-7">

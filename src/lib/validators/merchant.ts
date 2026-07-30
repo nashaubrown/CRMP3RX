@@ -81,6 +81,7 @@ export type MerchantInput = z.infer<typeof merchantSchema>;
 export const merchantListParamsSchema = z.object({
   q: z.string().trim().max(200).optional(),
   status: z.enum(["PROSPECT", "ACTIVE", "CHURNED"]).optional(),
+  owner: z.string().trim().min(1).optional(),
   scope: z.enum(["all", "mine", "shared"]).default("all"),
   sort: z.enum(["name", "status", "category", "updatedAt", "createdAt"]).default("updatedAt"),
   dir: z.enum(["asc", "desc"]).default("desc"),
