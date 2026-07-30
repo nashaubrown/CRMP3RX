@@ -1,7 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db } from "@/lib/db";
-import { getAffiliateReport, monthsInRange } from "@/services/affiliates";
+import type { SessionUser } from "@/lib/rbac";
+import {
+  getAffiliateReport,
+  getCommissionLedger,
+  monthsInRange,
+  recordCommissionsForPeriod,
+  setCommissionStatus,
+} from "@/services/affiliates";
 
 // Verifies affiliate commission: recurring % of each referred *billable*
 // (Active + loyalty-live, priced) merchant's MRR, and the range total =
@@ -9,14 +16,20 @@ import { getAffiliateReport, monthsInRange } from "@/services/affiliates";
 // we assert against the affiliate we create here (robust to seeded data).
 
 const suffix = `aff-${Math.random().toString(36).slice(2, 8)}`;
+const period = "2099-03"; // far-future period, unique to this test run
 let repId: string;
 let affId: string;
+let admin: SessionUser;
 
 beforeAll(async () => {
   const rep = await db.user.create({
     data: { name: `Aff Rep ${suffix}`, email: `rep-${suffix}@t.mv`, role: "SALES_REP" },
   });
   repId = rep.id;
+  const adminUser = await db.user.create({
+    data: { name: `Aff Admin ${suffix}`, email: `admin-${suffix}@t.mv`, role: "ADMIN" },
+  });
+  admin = { id: adminUser.id, role: "ADMIN", name: adminUser.name };
 
   await db.optionItem.createMany({
     data: [
@@ -43,6 +56,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await db.affiliateCommission.deleteMany({ where: { affiliateId: affId } });
   await db.merchant.deleteMany({ where: { name: { contains: suffix } } });
   await db.affiliate.deleteMany({ where: { id: affId } });
   await db.optionItem.deleteMany({ where: { label: { contains: suffix } } });
@@ -78,5 +92,38 @@ describe("affiliate commission report", () => {
     const report = await getAffiliateReport(6);
     const row = report.rows.find((r) => r.affiliateId === affId)!;
     expect(row.rangeCommissionMvr).toBe(260 * 6);
+  });
+});
+
+describe("commission ledger", () => {
+  it("records a snapshot, marks it paid, and preserves paid on re-record", async () => {
+    // Record the period — snapshots the current monthly commission (260).
+    const rec = await recordCommissionsForPeriod(admin, period);
+    expect(rec.recorded).toBeGreaterThanOrEqual(1);
+
+    let ledger = await getCommissionLedger(period);
+    const entry = ledger.entries.find((e) => e.affiliateId === affId)!;
+    expect(entry).toBeDefined();
+    expect(entry.amountMvr).toBe(260);
+    expect(entry.status).toBe("PENDING");
+    expect(ledger.pendingMvr).toBeGreaterThanOrEqual(260);
+
+    // Mark it paid.
+    await setCommissionStatus(admin, entry.id, "PAID");
+    ledger = await getCommissionLedger(period);
+    const paid = ledger.entries.find((e) => e.affiliateId === affId)!;
+    expect(paid.status).toBe("PAID");
+    expect(paid.paidAt).not.toBeNull();
+
+    // Re-recording must not overwrite an already-paid entry.
+    const rec2 = await recordCommissionsForPeriod(admin, period);
+    expect(rec2.skippedPaid).toBeGreaterThanOrEqual(1);
+    ledger = await getCommissionLedger(period);
+    expect(ledger.entries.find((e) => e.affiliateId === affId)!.status).toBe("PAID");
+  });
+
+  it("rejects recording by a non-admin", async () => {
+    const rep: SessionUser = { id: repId, role: "SALES_REP", name: "rep" };
+    await expect(recordCommissionsForPeriod(rep, period)).rejects.toThrow();
   });
 });

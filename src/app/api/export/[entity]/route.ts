@@ -1,5 +1,6 @@
 import { getSessionUser } from "@/lib/rbac";
 import {
+  exportAffiliatesCsv,
   exportContactsCsv,
   exportDealsCsv,
   exportLeadsCsv,
@@ -20,6 +21,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ entity: 
     scope: url.searchParams.get("scope") ?? undefined,
     stage: url.searchParams.get("stage") ?? undefined,
     merchantId: url.searchParams.get("merchantId") ?? undefined,
+    owner: url.searchParams.get("owner") ?? undefined,
+    affiliate: url.searchParams.get("affiliate") ?? undefined,
+    from: url.searchParams.get("from") ?? undefined,
+    to: url.searchParams.get("to") ?? undefined,
   };
 
   let csv: string;
@@ -35,6 +40,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ entity: 
       break;
     case "leads":
       csv = await exportLeadsCsv(user, f);
+      break;
+    case "affiliates":
+      csv = await exportAffiliatesCsv(user, f);
       break;
     default:
       return new Response("Unknown export", { status: 404 });
