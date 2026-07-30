@@ -262,7 +262,57 @@ export async function moveDealStage(
     },
   });
 
+  // Keep the merchant's status in step with its won deals.
+  await syncMerchantStatusOnStageChange(ctx, existing.merchantId, existing.stage, stage, dealId);
+
   return updated;
+}
+
+// Winning a deal activates its merchant (Prospect or Churned → Active). Moving
+// a deal back out of Won drops the merchant to Prospect, but only if it's
+// currently Active and has no other won deals — so we undo our own automation
+// without stomping a status a user set for another reason.
+async function syncMerchantStatusOnStageChange(
+  ctx: SessionUser,
+  merchantId: string,
+  from: DealStage,
+  to: DealStage,
+  dealId: string
+) {
+  const enteringWon = to === "WON" && from !== "WON";
+  const leavingWon = from === "WON" && to !== "WON";
+  if (!enteringWon && !leavingWon) return;
+
+  const merchant = await db.merchant.findUnique({
+    where: { id: merchantId },
+    select: { status: true },
+  });
+  if (!merchant) return;
+
+  let next: "ACTIVE" | "PROSPECT" | null = null;
+  if (enteringWon && merchant.status !== "ACTIVE") {
+    next = "ACTIVE";
+  } else if (leavingWon && merchant.status === "ACTIVE") {
+    const otherWon = await db.deal.count({
+      where: { merchantId, stage: "WON", id: { not: dealId } },
+    });
+    if (otherWon === 0) next = "PROSPECT";
+  }
+  if (!next) return;
+
+  await db.merchant.update({ where: { id: merchantId }, data: { status: next } });
+
+  await audit({
+    actorId: ctx.id,
+    action: "merchant.update",
+    entityType: "MERCHANT",
+    entityId: merchantId,
+    merchantId,
+    diff: {
+      status: { from: merchant.status, to: next },
+      reason: enteringWon ? "deal won" : "deal reopened",
+    },
+  });
 }
 
 export async function deleteDeal(ctx: SessionUser, id: string) {
