@@ -120,13 +120,20 @@ export function monthsInRange(fromYm: string, toYm: string): number {
   return Math.max(1, diff);
 }
 
-// Per-affiliate commission owed. Commission is a recurring % of each referred
-// merchant's current MRR; the range total multiplies the monthly figure by the
-// number of months selected. This is an estimate based on *current* status and
-// pricing (we don't store historical MRR or activation dates).
-export async function getAffiliateReport(months: number): Promise<AffiliateReport> {
-  const span = Math.max(1, Math.round(months));
+// Current monthly commission figures for every affiliate, derived from live
+// merchant status and plan pricing. Shared by the projected report and the
+// ledger snapshot.
+type MonthlyFigure = {
+  affiliateId: string;
+  name: string;
+  commissionRate: number;
+  merchantsBrought: number;
+  onboarded: number;
+  monthlyMrrMvr: number;
+  monthlyCommissionMvr: number;
+};
 
+async function computeMonthlyByAffiliate(): Promise<MonthlyFigure[]> {
   const [affiliates, plans] = await Promise.all([
     db.affiliate.findMany({
       orderBy: { name: "asc" },
@@ -147,7 +154,7 @@ export async function getAffiliateReport(months: number): Promise<AffiliateRepor
 
   const priceByPlan = new Map(plans.map((p) => [p.label, p]));
 
-  const rows: AffiliateReportRow[] = affiliates.map((a) => {
+  return affiliates.map((a) => {
     let onboarded = 0;
     let monthlyMrr = 0;
     for (const m of a.merchants) {
@@ -160,7 +167,6 @@ export async function getAffiliateReport(months: number): Promise<AffiliateRepor
         ? price.priceMvr * Math.max(1, m.branches ?? 1)
         : price.priceMvr;
     }
-    const monthlyCommission = Math.round((monthlyMrr * a.commissionRate) / 100);
     return {
       affiliateId: a.id,
       name: a.name,
@@ -168,10 +174,29 @@ export async function getAffiliateReport(months: number): Promise<AffiliateRepor
       merchantsBrought: a.merchants.length,
       onboarded,
       monthlyMrrMvr: monthlyMrr,
-      monthlyCommissionMvr: monthlyCommission,
-      rangeCommissionMvr: monthlyCommission * span,
+      monthlyCommissionMvr: Math.round((monthlyMrr * a.commissionRate) / 100),
     };
   });
+}
+
+// Per-affiliate commission owed. Commission is a recurring % of each referred
+// merchant's current MRR; the range total multiplies the monthly figure by the
+// number of months selected. This is an estimate based on *current* status and
+// pricing (we don't store historical MRR or activation dates).
+export async function getAffiliateReport(months: number): Promise<AffiliateReport> {
+  const span = Math.max(1, Math.round(months));
+  const figures = await computeMonthlyByAffiliate();
+
+  const rows: AffiliateReportRow[] = figures.map((f) => ({
+    affiliateId: f.affiliateId,
+    name: f.name,
+    commissionRate: f.commissionRate,
+    merchantsBrought: f.merchantsBrought,
+    onboarded: f.onboarded,
+    monthlyMrrMvr: f.monthlyMrrMvr,
+    monthlyCommissionMvr: f.monthlyCommissionMvr,
+    rangeCommissionMvr: f.monthlyCommissionMvr * span,
+  }));
 
   const totals = rows.reduce(
     (acc, r) => ({
@@ -187,4 +212,152 @@ export async function getAffiliateReport(months: number): Promise<AffiliateRepor
   rows.sort((a, b) => b.rangeCommissionMvr - a.rangeCommissionMvr || a.name.localeCompare(b.name));
 
   return { currency: "MVR", months: span, rows, totals };
+}
+
+// ----- Payout ledger -----
+
+const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+export type CommissionEntry = {
+  id: string;
+  affiliateId: string;
+  affiliateName: string;
+  period: string;
+  amountMvr: number;
+  commissionRate: number;
+  merchantCount: number;
+  status: "PENDING" | "PAID";
+  paidAt: Date | null;
+  paidByName: string | null;
+};
+
+export type CommissionLedger = {
+  currency: "MVR";
+  period: string;
+  entries: CommissionEntry[];
+  pendingMvr: number;
+  paidMvr: number;
+  totalMvr: number;
+};
+
+// Freeze the current monthly commission for every earning affiliate into the
+// ledger for `period`. Re-recording refreshes still-pending amounts but never
+// touches entries already marked paid (payout history stays intact).
+export async function recordCommissionsForPeriod(
+  ctx: SessionUser,
+  period: string
+): Promise<{ recorded: number; updated: number; skippedPaid: number }> {
+  assertAdmin(ctx);
+  if (!PERIOD_RE.test(period)) throw new AffiliateError("Pick a valid month.");
+
+  const figures = await computeMonthlyByAffiliate();
+  const earners = figures.filter((f) => f.monthlyCommissionMvr > 0);
+
+  const existing = await db.affiliateCommission.findMany({
+    where: { period },
+    select: { id: true, affiliateId: true, status: true },
+  });
+  const byAffiliate = new Map(existing.map((e) => [e.affiliateId, e]));
+
+  let recorded = 0;
+  let updated = 0;
+  let skippedPaid = 0;
+
+  for (const f of earners) {
+    const prior = byAffiliate.get(f.affiliateId);
+    if (!prior) {
+      await db.affiliateCommission.create({
+        data: {
+          affiliateId: f.affiliateId,
+          period,
+          amountMvr: f.monthlyCommissionMvr,
+          commissionRate: f.commissionRate,
+          merchantCount: f.onboarded,
+          recordedById: ctx.id,
+        },
+      });
+      recorded += 1;
+    } else if (prior.status === "PAID") {
+      skippedPaid += 1;
+    } else {
+      await db.affiliateCommission.update({
+        where: { id: prior.id },
+        data: {
+          amountMvr: f.monthlyCommissionMvr,
+          commissionRate: f.commissionRate,
+          merchantCount: f.onboarded,
+          recordedById: ctx.id,
+        },
+      });
+      updated += 1;
+    }
+  }
+
+  return { recorded, updated, skippedPaid };
+}
+
+export async function getCommissionLedger(period: string): Promise<CommissionLedger> {
+  const safePeriod = PERIOD_RE.test(period) ? period : "";
+  const rows = safePeriod
+    ? await db.affiliateCommission.findMany({
+        where: { period: safePeriod },
+        orderBy: { amountMvr: "desc" },
+        include: {
+          affiliate: { select: { name: true } },
+          paidBy: { select: { name: true } },
+        },
+      })
+    : [];
+
+  const entries: CommissionEntry[] = rows.map((r) => ({
+    id: r.id,
+    affiliateId: r.affiliateId,
+    affiliateName: r.affiliate.name,
+    period: r.period,
+    amountMvr: r.amountMvr,
+    commissionRate: r.commissionRate,
+    merchantCount: r.merchantCount,
+    status: r.status,
+    paidAt: r.paidAt,
+    paidByName: r.paidBy?.name ?? null,
+  }));
+
+  const pendingMvr = entries.filter((e) => e.status === "PENDING").reduce((s, e) => s + e.amountMvr, 0);
+  const paidMvr = entries.filter((e) => e.status === "PAID").reduce((s, e) => s + e.amountMvr, 0);
+
+  return {
+    currency: "MVR",
+    period: safePeriod,
+    entries,
+    pendingMvr,
+    paidMvr,
+    totalMvr: pendingMvr + paidMvr,
+  };
+}
+
+export async function setCommissionStatus(
+  ctx: SessionUser,
+  id: string,
+  status: "PENDING" | "PAID"
+): Promise<void> {
+  assertAdmin(ctx);
+  const entry = await db.affiliateCommission.findUnique({ where: { id }, select: { id: true } });
+  if (!entry) throw new AffiliateError("Commission entry not found.");
+  await db.affiliateCommission.update({
+    where: { id },
+    data:
+      status === "PAID"
+        ? { status: "PAID", paidAt: new Date(), paidById: ctx.id }
+        : { status: "PENDING", paidAt: null, paidById: null },
+  });
+}
+
+// Months that already have recorded ledger entries, most recent first.
+export async function listRecordedPeriods(): Promise<string[]> {
+  const rows = await db.affiliateCommission.findMany({
+    distinct: ["period"],
+    orderBy: { period: "desc" },
+    select: { period: true },
+  });
+  return rows.map((r) => r.period);
 }

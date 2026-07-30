@@ -27,6 +27,7 @@ import { formatDate } from "@/lib/datetime";
 import { requireUser } from "@/lib/rbac";
 import { merchantListParamsSchema } from "@/lib/validators/merchant";
 import { listMerchants, listMerchantsForMap } from "@/services/merchants";
+import { listAffiliateOptions } from "@/services/affiliates";
 import { listTeamMembers } from "@/services/users";
 
 export const metadata: Metadata = { title: "Merchants" };
@@ -42,10 +43,11 @@ export default async function MerchantsPage({
   const params = parsed.success ? parsed.data : merchantListParamsSchema.parse({});
 
   const view = rawParams.view === "map" ? "map" : "table";
-  const [listResult, pins, owners] = await Promise.all([
+  const [listResult, pins, owners, affiliates] = await Promise.all([
     listMerchants(user, params),
     view === "map" ? listMerchantsForMap(user, params) : Promise.resolve([]),
     listTeamMembers(),
+    listAffiliateOptions(params.affiliate),
   ]);
   const { items, total, page, pageCount } = listResult;
 
@@ -53,6 +55,7 @@ export default async function MerchantsPage({
     q: params.q,
     status: params.status,
     owner: params.owner,
+    affiliate: params.affiliate,
     scope: params.scope === "all" ? undefined : params.scope,
     sort: params.sort,
     dir: params.dir,
@@ -64,6 +67,7 @@ export default async function MerchantsPage({
     if (params.q) sp.set("q", params.q);
     if (params.status) sp.set("status", params.status);
     if (params.owner) sp.set("owner", params.owner);
+    if (params.affiliate) sp.set("affiliate", params.affiliate);
     if (tableParams.scope) sp.set("scope", tableParams.scope);
     if (v === "map") sp.set("view", "map");
     const qs = sp.toString();
@@ -83,7 +87,13 @@ export default async function MerchantsPage({
         <div className="flex flex-wrap gap-2">
           <ExportButton
             entity="merchants"
-            filters={{ q: params.q, status: params.status, owner: params.owner, scope: tableParams.scope }}
+            filters={{
+              q: params.q,
+              status: params.status,
+              owner: params.owner,
+              affiliate: params.affiliate,
+              scope: tableParams.scope,
+            }}
           />
           <ImportDialog
             entity="merchants"
@@ -125,6 +135,14 @@ export default async function MerchantsPage({
           className="w-44"
           options={owners.map((o) => ({ value: o.id, label: o.name }))}
         />
+        {affiliates.length > 0 ? (
+          <ParamSelect
+            param="affiliate"
+            placeholder="All affiliates"
+            className="w-44"
+            options={affiliates.map((a) => ({ value: a.id, label: a.name }))}
+          />
+        ) : null}
         <div className="bg-muted ml-auto inline-flex rounded-md p-0.5 text-sm">
           <Button asChild variant={view === "table" ? "secondary" : "ghost"} size="sm" className="h-7">
             <Link href={viewHref("table")}>
@@ -172,6 +190,7 @@ export default async function MerchantsPage({
                     <TableHead>Contacts</TableHead>
                     <TableHead>Deals</TableHead>
                     <TableHead>Owner</TableHead>
+                    <TableHead>Affiliate</TableHead>
                     <SortableHead label="Updated" sortKey="updatedAt" basePath="/merchants" searchParams={tableParams} />
                   </TableRow>
                 </TableHeader>
@@ -215,6 +234,18 @@ export default async function MerchantsPage({
                           </span>
                         ) : (
                           merchant.owner.name
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {merchant.affiliate ? (
+                          <Link
+                            href={`/merchants?affiliate=${merchant.affiliate.id}`}
+                            className="hover:underline"
+                          >
+                            {merchant.affiliate.name}
+                          </Link>
+                        ) : (
+                          "—"
                         )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">

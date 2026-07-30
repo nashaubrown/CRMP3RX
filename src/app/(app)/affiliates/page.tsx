@@ -4,6 +4,7 @@ import { BadgePercentIcon } from "lucide-react";
 
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { RangePicker } from "@/components/affiliates/range-picker";
+import { CommissionLedger } from "@/components/affiliates/commission-ledger";
 import { EmptyState } from "@/components/list/empty-state";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,8 +23,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { requireUser } from "@/lib/rbac";
-import { getAffiliateReport, monthsInRange } from "@/services/affiliates";
+import { DownloadIcon } from "lucide-react";
+import { formatDate } from "@/lib/datetime";
+import { isAdmin, requireUser } from "@/lib/rbac";
+import { getAffiliateReport, getCommissionLedger, monthsInRange } from "@/services/affiliates";
 
 export const metadata: Metadata = { title: "Affiliates" };
 
@@ -42,9 +45,10 @@ const YM = /^\d{4}-(0[1-9]|1[0-2])$/;
 export default async function AffiliatesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; ledger?: string }>;
 }) {
-  await requireUser();
+  const user = await requireUser();
+  const admin = isAdmin(user);
   const sp = await searchParams;
 
   const thisMonth = currentMonth();
@@ -52,9 +56,13 @@ export default async function AffiliatesPage({
   const toRaw = sp.to && YM.test(sp.to) ? sp.to : thisMonth;
   // Keep the range ordered.
   const to = toRaw < from ? from : toRaw;
+  const ledgerPeriod = sp.ledger && YM.test(sp.ledger) ? sp.ledger : thisMonth;
 
   const months = monthsInRange(from, to);
-  const report = await getAffiliateReport(months);
+  const [report, ledger] = await Promise.all([
+    getAffiliateReport(months),
+    getCommissionLedger(ledgerPeriod),
+  ]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -84,13 +92,20 @@ export default async function AffiliatesPage({
           <CardHeader className="gap-4">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <CardTitle className="text-base">Commission report</CardTitle>
+                <CardTitle className="text-base">Projected commission</CardTitle>
                 <CardDescription>
                   {months} month{months === 1 ? "" : "s"} ({from} → {to}). Recurring commission is a
                   % of each referred live merchant&apos;s MRR.
                 </CardDescription>
               </div>
-              <RangePicker from={from} to={to} />
+              <div className="flex flex-wrap items-end gap-3">
+                <RangePicker from={from} to={to} />
+                <Button variant="outline" size="sm" asChild>
+                  <a href={`/api/export/affiliates?from=${from}&to=${to}`} download>
+                    <DownloadIcon /> Export CSV
+                  </a>
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="px-0">
@@ -170,6 +185,38 @@ export default async function AffiliatesPage({
           </CardContent>
         </Card>
       )}
+
+      {report.rows.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Payout ledger</CardTitle>
+            <CardDescription>
+              Record a month to freeze the commission owed, then mark each affiliate paid. Recorded
+              amounts don&apos;t change if merchants or pricing change later.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="px-0">
+            <CommissionLedger
+              period={ledger.period || currentMonth()}
+              currency={ledger.currency}
+              pendingMvr={ledger.pendingMvr}
+              paidMvr={ledger.paidMvr}
+              totalMvr={ledger.totalMvr}
+              isAdmin={admin}
+              entries={ledger.entries.map((e) => ({
+                id: e.id,
+                affiliateName: e.affiliateName,
+                amountMvr: e.amountMvr,
+                commissionRate: e.commissionRate,
+                merchantCount: e.merchantCount,
+                status: e.status,
+                paidAtLabel: e.paidAt ? formatDate(e.paidAt) : null,
+                paidByName: e.paidByName,
+              }))}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

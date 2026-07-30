@@ -10,6 +10,7 @@ import { audit } from "@/services/audit";
 import { createContact } from "@/services/contacts";
 import { merchantMineWhere, merchantSharedWhere } from "@/services/merchant-access";
 import { createMerchant } from "@/services/merchants";
+import { getAffiliateReport, monthsInRange } from "@/services/affiliates";
 
 // CSV export/import. Exports honor the same scope/status/search filters as
 // the list pages (all matching rows, not just one page). Imports run every
@@ -21,7 +22,7 @@ export const IMPORT_ROW_CAP = 1000;
 
 // ---------- Export ----------
 
-type ExportFilters = { q?: string; status?: string; scope?: string; owner?: string };
+type ExportFilters = { q?: string; status?: string; scope?: string; owner?: string; affiliate?: string };
 
 export async function exportMerchantsCsv(ctx: SessionUser, f: ExportFilters) {
   const where: Prisma.MerchantWhereInput = {
@@ -34,6 +35,7 @@ export async function exportMerchantsCsv(ctx: SessionUser, f: ExportFilters) {
       ? { status: f.status as "PROSPECT" | "ACTIVE" | "CHURNED" }
       : {}),
     ...(f.owner ? { ownerId: f.owner } : {}),
+    ...(f.affiliate ? { affiliateId: f.affiliate } : {}),
     ...(f.q
       ? {
           OR: [
@@ -51,6 +53,7 @@ export async function exportMerchantsCsv(ctx: SessionUser, f: ExportFilters) {
     take: EXPORT_CAP,
     include: {
       owner: { select: { name: true, email: true } },
+      affiliate: { select: { name: true } },
       _count: { select: { contacts: true, deals: true } },
     },
   });
@@ -68,6 +71,7 @@ export async function exportMerchantsCsv(ctx: SessionUser, f: ExportFilters) {
     { header: "notes", value: (m) => m.notes },
     { header: "ownerEmail", value: (m) => m.owner.email },
     { header: "ownerName", value: (m) => m.owner.name },
+    { header: "affiliate", value: (m) => m.affiliate?.name ?? "" },
     { header: "contacts", value: (m) => m._count.contacts },
     { header: "deals", value: (m) => m._count.deals },
     { header: "id", value: (m) => m.id },
@@ -186,6 +190,27 @@ export async function exportLeadsCsv(ctx: SessionUser, f: { q?: string; status?:
     { header: "merchant", value: (l) => l.merchant?.name },
     { header: "id", value: (l) => l.id },
     { header: "createdAt", value: (l) => l.createdAt },
+  ]);
+}
+
+// Projected affiliate commission over a month range (mirrors the Affiliates
+// page table). No per-user scope — the commission report is team-wide.
+export async function exportAffiliatesCsv(_ctx: SessionUser, f: { from?: string; to?: string }) {
+  const YM = /^\d{4}-(0[1-9]|1[0-2])$/;
+  const from = f.from && YM.test(f.from) ? f.from : "";
+  const to = f.to && YM.test(f.to) && (!from || f.to >= from) ? f.to : from;
+  const months = from && to ? monthsInRange(from, to) : 1;
+  const report = await getAffiliateReport(months);
+  return toCsv(report.rows, [
+    { header: "affiliate", value: (r) => r.name },
+    { header: "commissionRate", value: (r) => r.commissionRate },
+    { header: "merchantsBrought", value: (r) => r.merchantsBrought },
+    { header: "onboarded", value: (r) => r.onboarded },
+    { header: "monthlyMrrMvr", value: (r) => r.monthlyMrrMvr },
+    { header: "monthlyCommissionMvr", value: (r) => r.monthlyCommissionMvr },
+    { header: "months", value: () => report.months },
+    { header: "rangeCommissionMvr", value: (r) => r.rangeCommissionMvr },
+    { header: "affiliateId", value: (r) => r.affiliateId },
   ]);
 }
 

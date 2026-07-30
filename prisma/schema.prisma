@@ -56,6 +56,7 @@ model User {
   geofences      Geofence[]      @relation("GeofenceOwner")
   apiKeys        ApiKey[]
   canvasViews    CanvasView[]
+  commissionsPaid AffiliateCommission[] @relation("CommissionPaidBy")
 }
 
 // Personal access tokens for the REST API and the MCP endpoint. Only a
@@ -238,9 +239,39 @@ model Affiliate {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  merchants Merchant[]
+  merchants   Merchant[]
+  commissions AffiliateCommission[]
 
   @@index([active])
+}
+
+enum CommissionStatus {
+  PENDING
+  PAID
+}
+
+// A recorded monthly commission snapshot for an affiliate — the payout ledger.
+// Recording a period freezes the computed amount so past months stay accurate
+// even as merchants/pricing change. One row per affiliate per period.
+model AffiliateCommission {
+  id             String           @id @default(cuid())
+  affiliateId    String
+  affiliate      Affiliate        @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  period         String // "YYYY-MM"
+  amountMvr      Int
+  commissionRate Float // rate at snapshot time
+  merchantCount  Int // billable merchants counted at snapshot time
+  status         CommissionStatus @default(PENDING)
+  paidAt         DateTime?
+  paidById       String?
+  paidBy         User?            @relation("CommissionPaidBy", fields: [paidById], references: [id], onDelete: SetNull)
+  recordedById   String
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([affiliateId, period])
+  @@index([period])
+  @@index([status])
 }
 
 // A physical outlet/branch of a merchant. A merchant can have many; branch

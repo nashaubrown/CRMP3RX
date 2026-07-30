@@ -52,6 +52,7 @@ export async function listMerchants(ctx: SessionUser, params: MerchantListParams
     ...scopeWhere,
     ...(params.status ? { status: params.status } : {}),
     ...(params.owner ? { ownerId: params.owner } : {}),
+    ...(params.affiliate ? { affiliateId: params.affiliate } : {}),
     ...(params.q
       ? {
           OR: [
@@ -84,6 +85,7 @@ export async function listMerchants(ctx: SessionUser, params: MerchantListParams
       take: MERCHANTS_PAGE_SIZE,
       include: {
         owner: { select: { id: true, name: true } },
+        affiliate: { select: { id: true, name: true } },
         shares: { select: { userId: true, permission: true } },
         _count: { select: { contacts: true, deals: true } },
       },
@@ -112,6 +114,7 @@ export async function listMerchantsForMap(ctx: SessionUser, params: MerchantList
     ...scopeWhere,
     ...(params.status ? { status: params.status } : {}),
     ...(params.owner ? { ownerId: params.owner } : {}),
+    ...(params.affiliate ? { affiliateId: params.affiliate } : {}),
     ...(params.q
       ? {
           OR: [
