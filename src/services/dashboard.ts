@@ -3,6 +3,98 @@ import type { SessionUser } from "@/lib/authz";
 import { isAdmin, ownerScope } from "@/lib/authz";
 import { merchantMineWhere } from "@/services/merchant-access";
 
+export type OwnerBreakdownRow = {
+  ownerId: string;
+  ownerName: string;
+  prospect: number;
+  active: number;
+  churned: number;
+  total: number;
+  onboarded: number; // Active + loyalty live
+  mrrMvr: number; // recurring revenue from this owner's billable merchants
+};
+
+export type OwnerBreakdown = {
+  currency: "MVR";
+  rows: OwnerBreakdownRow[];
+  totals: Omit<OwnerBreakdownRow, "ownerId" | "ownerName">;
+};
+
+// Per-owner merchant counts by status, plus onboarded count and MRR. Team-wide:
+// every user sees every owner's row (matches the hybrid "everyone sees all
+// merchants" model). MRR reuses the subscription price-map logic from billing.
+export async function getOwnerBreakdown(): Promise<OwnerBreakdown> {
+  const [merchants, plans] = await Promise.all([
+    db.merchant.findMany({
+      select: {
+        status: true,
+        loyaltyLive: true,
+        subscriptionPlan: true,
+        branches: true,
+        owner: { select: { id: true, name: true } },
+      },
+    }),
+    db.optionItem.findMany({
+      where: { setKey: "SUBSCRIPTION_PLAN" },
+      select: { label: true, priceMvr: true, perLocation: true },
+    }),
+  ]);
+
+  const priceByPlan = new Map(plans.map((p) => [p.label, p]));
+  const byOwner = new Map<string, OwnerBreakdownRow>();
+
+  for (const m of merchants) {
+    const row =
+      byOwner.get(m.owner.id) ??
+      ({
+        ownerId: m.owner.id,
+        ownerName: m.owner.name ?? "Unassigned",
+        prospect: 0,
+        active: 0,
+        churned: 0,
+        total: 0,
+        onboarded: 0,
+        mrrMvr: 0,
+      } satisfies OwnerBreakdownRow);
+
+    row.total += 1;
+    if (m.status === "PROSPECT") row.prospect += 1;
+    else if (m.status === "ACTIVE") row.active += 1;
+    else if (m.status === "CHURNED") row.churned += 1;
+
+    const billable = m.status === "ACTIVE" && m.loyaltyLive;
+    if (billable) {
+      row.onboarded += 1;
+      const price = m.subscriptionPlan ? priceByPlan.get(m.subscriptionPlan) : undefined;
+      if (price && price.priceMvr != null) {
+        row.mrrMvr += price.perLocation
+          ? price.priceMvr * Math.max(1, m.branches ?? 1)
+          : price.priceMvr;
+      }
+    }
+
+    byOwner.set(m.owner.id, row);
+  }
+
+  const rows = [...byOwner.values()].sort(
+    (a, b) => b.total - a.total || a.ownerName.localeCompare(b.ownerName)
+  );
+
+  const totals = rows.reduce(
+    (acc, r) => ({
+      prospect: acc.prospect + r.prospect,
+      active: acc.active + r.active,
+      churned: acc.churned + r.churned,
+      total: acc.total + r.total,
+      onboarded: acc.onboarded + r.onboarded,
+      mrrMvr: acc.mrrMvr + r.mrrMvr,
+    }),
+    { prospect: 0, active: 0, churned: 0, total: 0, onboarded: 0, mrrMvr: 0 }
+  );
+
+  return { currency: "MVR", rows, totals };
+}
+
 // Real week-over-week trends for the dashboard KPI cards: how many records of
 // each type were created per week over the last 8 weeks, plus this-week vs
 // last-week. No snapshots are stored, so trends are derived from createdAt.
