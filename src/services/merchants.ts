@@ -53,6 +53,7 @@ export async function listMerchants(ctx: SessionUser, params: MerchantListParams
     ...(params.status ? { status: params.status } : {}),
     ...(params.owner ? { ownerId: params.owner } : {}),
     ...(params.affiliate ? { affiliateId: params.affiliate } : {}),
+    ...(params.pos ? { posSystem: params.pos } : {}),
     ...(params.q
       ? {
           OR: [
@@ -72,9 +73,11 @@ export async function listMerchants(ctx: SessionUser, params: MerchantListParams
         ? { status: params.dir }
         : params.sort === "category"
           ? { category: params.dir }
-          : params.sort === "createdAt"
-            ? { createdAt: params.dir }
-            : { updatedAt: params.dir };
+          : params.sort === "posSystem"
+            ? { posSystem: params.dir }
+            : params.sort === "createdAt"
+              ? { createdAt: params.dir }
+              : { updatedAt: params.dir };
 
   const [total, items] = await Promise.all([
     db.merchant.count({ where }),
@@ -115,6 +118,7 @@ export async function listMerchantsForMap(ctx: SessionUser, params: MerchantList
     ...(params.status ? { status: params.status } : {}),
     ...(params.owner ? { ownerId: params.owner } : {}),
     ...(params.affiliate ? { affiliateId: params.affiliate } : {}),
+    ...(params.pos ? { posSystem: params.pos } : {}),
     ...(params.q
       ? {
           OR: [
@@ -152,6 +156,18 @@ export async function listMerchantsForMap(ctx: SessionUser, params: MerchantList
     status: o.merchant.status,
     subscriptionPlan: o.merchant.subscriptionPlan,
   }));
+}
+
+// Distinct POS systems currently in use, for the merchants-list filter. Free
+// text, so we surface the values that actually exist.
+export async function listPosSystems(): Promise<string[]> {
+  const rows = await db.merchant.findMany({
+    where: { posSystem: { not: null } },
+    distinct: ["posSystem"],
+    orderBy: { posSystem: "asc" },
+    select: { posSystem: true },
+  });
+  return rows.map((r) => r.posSystem!).filter((v) => v.trim() !== "");
 }
 
 export async function getMerchant(ctx: SessionUser, id: string) {
