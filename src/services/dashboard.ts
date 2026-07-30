@@ -12,12 +12,22 @@ export type OwnerBreakdownRow = {
   total: number;
   onboarded: number; // Active + loyalty live
   mrrMvr: number; // recurring revenue from this owner's billable merchants
+  series: number[]; // new merchants per week, oldest → current (length WEEKS)
+};
+
+export type OwnerBreakdownTotals = {
+  prospect: number;
+  active: number;
+  churned: number;
+  total: number;
+  onboarded: number;
+  mrrMvr: number;
 };
 
 export type OwnerBreakdown = {
   currency: "MVR";
   rows: OwnerBreakdownRow[];
-  totals: Omit<OwnerBreakdownRow, "ownerId" | "ownerName">;
+  totals: OwnerBreakdownTotals;
 };
 
 // Per-owner merchant counts by status, plus onboarded count and MRR. Team-wide:
@@ -31,6 +41,7 @@ export async function getOwnerBreakdown(): Promise<OwnerBreakdown> {
         loyaltyLive: true,
         subscriptionPlan: true,
         branches: true,
+        createdAt: true,
         owner: { select: { id: true, name: true } },
       },
     }),
@@ -42,6 +53,7 @@ export async function getOwnerBreakdown(): Promise<OwnerBreakdown> {
 
   const priceByPlan = new Map(plans.map((p) => [p.label, p]));
   const byOwner = new Map<string, OwnerBreakdownRow>();
+  const now = Date.now();
 
   for (const m of merchants) {
     const row =
@@ -55,12 +67,17 @@ export async function getOwnerBreakdown(): Promise<OwnerBreakdown> {
         total: 0,
         onboarded: 0,
         mrrMvr: 0,
+        series: new Array<number>(WEEKS).fill(0),
       } satisfies OwnerBreakdownRow);
 
     row.total += 1;
     if (m.status === "PROSPECT") row.prospect += 1;
     else if (m.status === "ACTIVE") row.active += 1;
     else if (m.status === "CHURNED") row.churned += 1;
+
+    // New-merchants-per-week sparkline (last WEEKS weeks by createdAt).
+    const idx = WEEKS - 1 - Math.floor((now - m.createdAt.getTime()) / WEEK_MS);
+    if (idx >= 0 && idx < WEEKS) row.series[idx] += 1;
 
     const billable = m.status === "ACTIVE" && m.loyaltyLive;
     if (billable) {
