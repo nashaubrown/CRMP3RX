@@ -6,6 +6,7 @@ import { disconnectCalendarAction } from "@/app/(app)/settings/actions";
 import { AiProviderCard } from "@/app/(app)/settings/ai-provider-card";
 import { ApiKeysCard } from "@/app/(app)/settings/api-keys-card";
 import { OptionSetsCard } from "@/app/(app)/settings/option-sets-card";
+import { AffiliatesCard } from "@/app/(app)/settings/affiliates-card";
 import { AvailabilityForm } from "@/app/(app)/settings/availability-form";
 import { MeetingList } from "@/app/(app)/settings/meeting-list";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -25,6 +26,7 @@ import { AI_PROVIDER_OPTIONS, getAiSettings } from "@/services/ai-settings";
 import { listApiKeys } from "@/services/api-keys";
 import { isAdmin } from "@/lib/authz";
 import { listManagedOptions, OPTION_SETS } from "@/services/option-sets";
+import { listAffiliates } from "@/services/affiliates";
 import { listUpcomingMeetings } from "@/services/scheduling";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -46,7 +48,7 @@ export default async function SettingsPage({
   const { calendar: calendarMsg } = await searchParams;
 
   const admin = isAdmin(user);
-  const [profile, meetings, apiKeys, aiSettings, optionSets] = await Promise.all([
+  const [profile, meetings, apiKeys, aiSettings, optionSets, affiliates] = await Promise.all([
     db.user.findUnique({
       where: { id: user.id },
       select: {
@@ -75,6 +77,7 @@ export default async function SettingsPage({
           }))
         )
       : Promise.resolve([]),
+    admin ? listAffiliates(user) : Promise.resolve([]),
   ]);
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -187,6 +190,8 @@ export default async function SettingsPage({
       </Card>
 
       {admin ? <OptionSetsCard sets={optionSets} /> : null}
+
+      {admin ? <AffiliatesCard affiliates={affiliates} /> : null}
 
       {aiSettings.isAdmin ? (
         <AiProviderCard

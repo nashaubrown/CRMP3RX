@@ -44,6 +44,7 @@ const MERCHANT_FIELDS = [
   "latitude",
   "longitude",
   "ownerId",
+  "affiliateId",
 ];
 
 function rawValues(formData: FormData) {
@@ -74,6 +75,7 @@ function parseForm(formData: FormData) {
     latitude: field(formData, "latitude"),
     longitude: field(formData, "longitude"),
     ownerId: field(formData, "ownerId"),
+    affiliateId: field(formData, "affiliateId"),
   });
 }
 

@@ -5,16 +5,18 @@ import { createMerchantAction } from "@/app/(app)/merchants/actions";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { isAdmin, requireUser } from "@/lib/rbac";
 import { listOptions } from "@/services/option-sets";
+import { listAffiliateOptions } from "@/services/affiliates";
 import { listAssignableUsers } from "@/services/users";
 
 export const metadata: Metadata = { title: "New merchant" };
 
 export default async function NewMerchantPage() {
   const user = await requireUser();
-  const [owners, categoryOptions, planOptions] = await Promise.all([
+  const [owners, categoryOptions, planOptions, affiliateOptions] = await Promise.all([
     listAssignableUsers(user),
     listOptions("MERCHANT_CATEGORY"),
     listOptions("SUBSCRIPTION_PLAN"),
+    listAffiliateOptions(),
   ]);
 
   return (
@@ -28,6 +30,7 @@ export default async function NewMerchantPage() {
         defaultOwnerId={user.id}
         categoryOptions={categoryOptions}
         planOptions={planOptions}
+        affiliateOptions={affiliateOptions}
         showContacts
         showDeal
         cancelHref="/merchants"

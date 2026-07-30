@@ -250,6 +250,22 @@ export default async function MerchantDetailPage({
                     <Badge variant="secondary">Not live</Badge>
                   )}
                 </p>
+                <p className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Referred by</span>
+                  {merchant.affiliate ? (
+                    <Link href="/affiliates" className="flex items-center gap-1.5 hover:underline">
+                      {merchant.affiliate.name}
+                      <Badge
+                        variant="outline"
+                        className="border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                      >
+                        {merchant.affiliate.commissionRate}%
+                      </Badge>
+                    </Link>
+                  ) : (
+                    <span>—</span>
+                  )}
+                </p>
               </CardContent>
             </Card>
           </div>
