@@ -21,7 +21,7 @@ export const IMPORT_ROW_CAP = 1000;
 
 // ---------- Export ----------
 
-type ExportFilters = { q?: string; status?: string; scope?: string };
+type ExportFilters = { q?: string; status?: string; scope?: string; owner?: string };
 
 export async function exportMerchantsCsv(ctx: SessionUser, f: ExportFilters) {
   const where: Prisma.MerchantWhereInput = {
@@ -33,6 +33,7 @@ export async function exportMerchantsCsv(ctx: SessionUser, f: ExportFilters) {
     ...(f.status && ["PROSPECT", "ACTIVE", "CHURNED"].includes(f.status)
       ? { status: f.status as "PROSPECT" | "ACTIVE" | "CHURNED" }
       : {}),
+    ...(f.owner ? { ownerId: f.owner } : {}),
     ...(f.q
       ? {
           OR: [

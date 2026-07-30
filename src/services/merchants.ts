@@ -50,6 +50,7 @@ export async function listMerchants(ctx: SessionUser, params: MerchantListParams
   const where: Prisma.MerchantWhereInput = {
     ...scopeWhere,
     ...(params.status ? { status: params.status } : {}),
+    ...(params.owner ? { ownerId: params.owner } : {}),
     ...(params.q
       ? {
           OR: [
@@ -109,6 +110,7 @@ export async function listMerchantsForMap(ctx: SessionUser, params: MerchantList
   const merchantWhere: Prisma.MerchantWhereInput = {
     ...scopeWhere,
     ...(params.status ? { status: params.status } : {}),
+    ...(params.owner ? { ownerId: params.owner } : {}),
     ...(params.q
       ? {
           OR: [
