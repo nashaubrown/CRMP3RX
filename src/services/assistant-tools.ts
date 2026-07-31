@@ -72,6 +72,33 @@ export const assistantToolDefinitions: Anthropic.Tool[] = [
     },
   },
   {
+    name: "list_merchants",
+    description:
+      "List or COUNT merchants, optionally filtered by status and/or owner. Use this for merchant questions like 'how many prospects does X own', 'my active merchants', 'how many churned merchants'. Returns a total count, a per-owner breakdown, and the matching merchants. NOTE: prospect / active / churned are MERCHANT statuses — do NOT use list_deals for these.",
+    input_schema: {
+      type: "object",
+      properties: {
+        status: {
+          type: "string",
+          enum: ["PROSPECT", "ACTIVE", "CHURNED"],
+          description: "Filter to one merchant status",
+        },
+        owner_name: {
+          type: "string",
+          description:
+            "Filter to merchants owned by a person, matched by name (e.g. 'Hizaam'). Omit for no owner filter.",
+        },
+        scope: {
+          type: "string",
+          enum: ["mine", "all"],
+          description:
+            "'all' = whole team (default), 'mine' = only your merchants. Ignored when owner_name is given.",
+        },
+      },
+      required: [],
+    },
+  },
+  {
     name: "pipeline_summary",
     description:
       "Count and value of deals per stage (MVR and USD separately). Use for 'summarize my pipeline' questions.",
@@ -287,6 +314,54 @@ async function listDealsTool(
   };
 }
 
+async function listMerchantsTool(
+  ctx: SessionUser,
+  input: { status?: string; owner_name?: string; scope?: string }
+) {
+  const status = input.status?.toUpperCase();
+  const validStatus =
+    status === "PROSPECT" || status === "ACTIVE" || status === "CHURNED" ? status : undefined;
+
+  // Owner filter: an explicit name (matched fuzzily) wins; otherwise honor the
+  // scope, defaulting to the whole team.
+  let ownerWhere: Record<string, unknown> = {};
+  if (input.owner_name?.trim()) {
+    const owners = await db.user.findMany({
+      where: { name: { contains: input.owner_name.trim(), mode: "insensitive" } },
+      select: { id: true },
+    });
+    ownerWhere = { ownerId: { in: owners.map((o) => o.id) } };
+  } else if (input.scope === "mine") {
+    ownerWhere = { ownerId: ctx.id };
+  }
+
+  const merchants = await db.merchant.findMany({
+    where: { ...(validStatus ? { status: validStatus } : {}), ...ownerWhere },
+    select: { id: true, name: true, status: true, owner: { select: { name: true } } },
+    orderBy: { name: "asc" },
+    take: 300,
+  });
+
+  const byOwner: Record<string, number> = {};
+  for (const m of merchants) {
+    const owner = m.owner?.name ?? "Unassigned";
+    byOwner[owner] = (byOwner[owner] ?? 0) + 1;
+  }
+
+  return {
+    filter: { status: validStatus ?? "any", owner_name: input.owner_name ?? null },
+    count: merchants.length,
+    by_owner: byOwner,
+    merchants: merchants.slice(0, 50).map((m) => ({
+      merchant_id: m.id,
+      name: m.name,
+      status: m.status,
+      owner: m.owner?.name ?? null,
+    })),
+    truncated: merchants.length > 50,
+  };
+}
+
 async function pipelineSummaryTool(ctx: SessionUser, input: { scope?: string }) {
   const scope = input.scope === "all" ? "all" : "mine";
   const { summaries } = await getDealsBoard(ctx, scope);
@@ -402,6 +477,8 @@ export async function executeAssistantTool(
         return JSON.stringify(await getContactTool(ctx, String(input.contact_id ?? "")));
       case "list_deals":
         return JSON.stringify(await listDealsTool(ctx, input));
+      case "list_merchants":
+        return JSON.stringify(await listMerchantsTool(ctx, input));
       case "pipeline_summary":
         return JSON.stringify(await pipelineSummaryTool(ctx, input));
       case "list_activities_due":
