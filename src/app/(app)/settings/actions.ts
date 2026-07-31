@@ -230,6 +230,7 @@ export async function cancelMeetingAction(meetingId: string): Promise<{ error: s
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Something went wrong" };
   }
+  revalidatePath("/meetings");
   revalidatePath("/settings");
   return { error: null };
 }

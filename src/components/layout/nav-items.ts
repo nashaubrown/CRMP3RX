@@ -1,5 +1,6 @@
 import {
   BadgePercent,
+  CalendarDays,
   CheckSquare,
   FileText,
   KanbanSquare,
@@ -32,6 +33,7 @@ export const navItems: NavItem[] = [
   { title: "Affiliates", href: "/affiliates", icon: BadgePercent },
   { title: "Zones", href: "/zones", icon: MapPinned },
   { title: "Tasks", href: "/tasks", icon: CheckSquare },
+  { title: "Meetings", href: "/meetings", icon: CalendarDays },
   { title: "Templates", href: "/templates", icon: FileText },
   { title: "Ask Perx", href: "/assistant", icon: Sparkles },
   { title: "Team", href: "/team", icon: UserCog, adminOnly: true },
