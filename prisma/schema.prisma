@@ -764,6 +764,32 @@ enum TelegramPendingStatus {
 enum TelegramActionKind {
   MERCHANT
   CONTACT
+  DEAL
+  TASK
+}
+
+// The default merchant for a Telegram chat, so create commands can attach
+// without re-naming it (set with /use).
+model TelegramChatDefault {
+  chatId       String   @id
+  merchantId   String
+  merchantName String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// An in-progress guided command flow for one user in one chat. Each subsequent
+// plain message advances the flow until it has enough to build a pending action.
+model TelegramConvoState {
+  chatId    String
+  userId    String
+  flow      String
+  step      Int      @default(0)
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@id([chatId, userId])
 }
 
 // A create-record action (merchant or contact) parsed from a Telegram post,

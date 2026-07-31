@@ -3,19 +3,24 @@ import {
   answerCallbackQuery,
   editMessageText,
   sendMessage,
+  setMyCommands,
 } from "@/integrations/telegram/client";
 import type { SessionUser } from "@/lib/authz";
 import { formatDateTime, parseMvLocal } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { escapeHtml as escape } from "@/lib/html";
 import { contactSchema, type ContactInput } from "@/lib/validators/contact";
+import { dealSchema, type DealInput } from "@/lib/validators/deal";
 import { merchantSchema, type MerchantInput } from "@/lib/validators/merchant";
+import { taskSchema, type TaskInput } from "@/lib/validators/task";
 import { createContact } from "@/services/contacts";
+import { createDeal } from "@/services/deals";
 import { createMerchant } from "@/services/merchants";
 import { createSharedMeeting, getTelegramMeetingHost } from "@/services/scheduling";
+import { createTask } from "@/services/tasks";
 
 // ---- Telegram update shapes (only the fields we use) ----
-type TgUser = { first_name?: string; username?: string; is_bot?: boolean };
+type TgUser = { id?: number; first_name?: string; username?: string; is_bot?: boolean };
 type TgMessage = {
   message_id: number;
   chat: { id: number };
@@ -33,54 +38,45 @@ export type TelegramUpdate = {
   callback_query?: TgCallbackQuery;
 };
 
-// Only bother the LLM when a message plausibly asks to schedule a meeting or add
-// a record — keeps us from calling the model on every line of group chatter.
 const ACTION_HINT =
   /\b(meeting|meet|meet-up|meetup|call|visit|demo|appointment|schedule|scheduled|catch\s?up|sync|session|add|new|create|onboard|register|sign\s?up|merchant|contact|client|lead)\b/i;
 
 const CB_MEETING = "tgm"; // meeting confirmations
-const CB_ACTION = "tga"; // merchant/contact confirmations
+const CB_ACTION = "tga"; // merchant/contact/deal/task confirmations
 
 const appUrl = () => process.env.NEXT_PUBLIC_APP_URL ?? "";
 
-// ---- AI extraction ----
+// The bot's command menu (the "Menu" button). Registered via
+// registerTelegramCommands() from /api/telegram/set-webhook.
+export const COMMAND_MENU: { command: string; description: string }[] = [
+  { command: "new_merchant", description: "Add a merchant" },
+  { command: "new_contact", description: "Add a contact (to a merchant)" },
+  { command: "new_deal", description: "Add a deal" },
+  { command: "new_task", description: "Add a task" },
+  { command: "schedule", description: "Schedule a meeting with a merchant" },
+  { command: "use", description: "Set the default merchant for this chat" },
+  { command: "current", description: "Show the current default merchant" },
+  { command: "cancel", description: "Cancel the current command" },
+  { command: "help", description: "What can this bot do?" },
+];
+
+export async function registerTelegramCommands() {
+  await setMyCommands(COMMAND_MENU);
+}
+
+// ---- AI extraction (free-text capture) ----
 
 type Extracted =
-  | {
-      intent: "meeting";
-      merchantName: string;
-      startLocal: string;
-      durationMins: number;
-      title: string;
-    }
-  | {
-      intent: "merchant";
-      name: string;
-      category?: string | null;
-      phone?: string | null;
-      email?: string | null;
-      address?: string | null;
-    }
-  | {
-      intent: "contact";
-      firstName: string;
-      lastName: string;
-      merchantName: string;
-      title?: string | null;
-      phone?: string | null;
-      email?: string | null;
-    }
+  | { intent: "meeting"; merchantName: string; startLocal: string; durationMins: number; title: string }
+  | { intent: "merchant"; name: string; category?: string | null; phone?: string | null; email?: string | null; address?: string | null }
+  | { intent: "contact"; firstName: string; lastName: string; merchantName: string; title?: string | null; phone?: string | null; email?: string | null }
   | { intent: "none" };
 
 async function runCompletion(system: string, user: string): Promise<string | null> {
   const provider = await getAiProvider();
   if (!provider) return null;
   let text = "";
-  for await (const ev of provider.streamTurn({
-    system,
-    messages: [{ role: "user", content: user }],
-    tools: [],
-  })) {
+  for await (const ev of provider.streamTurn({ system, messages: [{ role: "user", content: user }], tools: [] })) {
     if (ev.type === "final") text = ev.text;
   }
   return text.trim();
@@ -109,10 +105,8 @@ async function extractIntent(text: string): Promise<Extracted | null> {
     `{"intent":"merchant","name":string,"category":string|null,"phone":string|null,"email":string|null,"address":string|null}\n` +
     `{"intent":"contact","firstName":string,"lastName":string,"merchantName":string,"title":string|null,"phone":string|null,"email":string|null}\n` +
     `{"intent":"none"}\n` +
-    `Rules: startLocal is Maldives local 24-hour time; resolve relative dates ("tomorrow","Tue 3pm") against today. Meeting durationMins defaults to 30, title to "Meeting with <merchantName>". ` +
-    `"merchant" = onboarding/adding a business. "contact" = adding a person (needs the merchant/business they belong to). ` +
-    `Keep phone numbers as written. If the message is chit-chat or none of these, return {"intent":"none"}.`;
-
+    `Rules: startLocal is Maldives local 24-hour time; resolve relative dates against today. Meeting durationMins defaults to 30. ` +
+    `If the message is chit-chat or none of these, return {"intent":"none"}.`;
   const parsed = parseJson<Extracted>(await runCompletion(system, text));
   if (!parsed || !parsed.intent) return null;
   return parsed;
@@ -133,9 +127,6 @@ export async function matchMerchant(name: string): Promise<MerchantMatch> {
   });
   if (matches.length === 0) return { status: "none" };
   if (matches.length === 1) return { status: "one", merchant: matches[0] };
-
-  // Prefer a single exact (case-insensitive) name match when the fuzzy set is
-  // broad.
   const exact = matches.filter((m) => m.name.toLowerCase() === name.toLowerCase());
   if (exact.length === 1) return { status: "one", merchant: exact[0] };
   return { status: "ambiguous", candidates: matches };
@@ -146,9 +137,7 @@ function personName(from?: TgUser): string | null {
   return from.first_name ?? from.username ?? null;
 }
 
-// Bot-created records are owned by a shared "Sales" system account (created on
-// demand, admin so it can attach contacts to any merchant, no password so it
-// can't log in). A rep can reassign ownership later in the CRM.
+// Bot-created records are owned by a shared "Sales" system account.
 export async function getBotOwner(): Promise<SessionUser> {
   let user = await db.user.findFirst({
     where: { name: { equals: "Sales", mode: "insensitive" } },
@@ -163,8 +152,6 @@ export async function getBotOwner(): Promise<SessionUser> {
   return { id: user.id, role: user.role, name: user.name, email: user.email };
 }
 
-// ---- Confirmation cards ----
-
 function confirmButtons(prefix: string, id: string) {
   return [
     [
@@ -174,17 +161,333 @@ function confirmButtons(prefix: string, id: string) {
   ];
 }
 
-// ---- Message handling ----
+type ActionKind = "MERCHANT" | "CONTACT" | "DEAL" | "TASK";
+
+// Stores a pending create and posts a Confirm/Cancel card.
+async function proposeAction(
+  chatId: number,
+  kind: ActionKind,
+  payload: unknown,
+  summary: string,
+  by: string | null
+) {
+  const pending = await db.telegramPendingAction.create({
+    data: {
+      chatId: String(chatId),
+      kind,
+      payload: JSON.parse(JSON.stringify(payload)),
+      summary,
+      createdByName: by,
+    },
+  });
+  const sent = await sendMessage(chatId, summary, confirmButtons(CB_ACTION, pending.id));
+  await db.telegramPendingAction.update({
+    where: { id: pending.id },
+    data: { confirmationMessageId: String(sent.message_id) },
+  });
+}
+
+// ---- Default merchant (/use) ----
+
+async function getChatDefault(chatId: string) {
+  return db.telegramChatDefault.findUnique({ where: { chatId } });
+}
+
+// ---- Money parsing ----
+
+export function parseMoney(s: string): { value: string; currency: "MVR" | "USD" } | null {
+  const num = s.replace(/,/g, "").match(/(\d+(?:\.\d+)?)/);
+  if (!num) return null;
+  const currency = /\b(usd|\$|dollar)/i.test(s) ? "USD" : "MVR";
+  return { value: num[1], currency };
+}
+
+// ---- Guided command flows ----
+
+type FlowName = "new_merchant" | "new_contact" | "new_deal" | "new_task";
+
+const FLOW_STEPS: Record<FlowName, { key: string; prompt: string }[]> = {
+  new_merchant: [{ key: "name", prompt: "What's the merchant's name?" }],
+  new_contact: [
+    { key: "name", prompt: "Contact's full name?" },
+    { key: "merchant", prompt: "Which merchant do they belong to? (exact name)" },
+  ],
+  new_deal: [
+    { key: "merchant", prompt: "Which merchant is this deal for? (exact name)" },
+    { key: "title", prompt: "Deal title? (e.g. POS rollout)" },
+    { key: "value", prompt: "Deal value? (e.g. 5000 or 300 USD)" },
+  ],
+  new_task: [{ key: "title", prompt: "What's the task?" }],
+};
+
+function seedArgs(flow: FlowName, argStr: string, data: Record<string, string>) {
+  const arg = argStr.trim();
+  if (!arg) return;
+  if (flow === "new_merchant") data.name = arg;
+  else if (flow === "new_task") data.title = arg;
+  else if (flow === "new_contact") {
+    const parts = arg.split(/[@|]/).map((s) => s.trim()).filter(Boolean);
+    if (parts[0]) data.name = parts[0];
+    if (parts[1]) data.merchant = parts[1];
+  } else if (flow === "new_deal") {
+    const parts = arg.split("|").map((s) => s.trim()).filter(Boolean);
+    const missing = FLOW_STEPS.new_deal.map((s) => s.key).filter((k) => !data[k]);
+    parts.forEach((p, i) => {
+      if (missing[i]) data[missing[i]] = p;
+    });
+  }
+}
+
+async function resolveMerchant(
+  data: Record<string, string>
+): Promise<{ id: string; name: string } | { error: string }> {
+  if (data.merchantId && data.merchant) return { id: data.merchantId, name: data.merchant };
+  const match = await matchMerchant(data.merchant ?? "");
+  if (match.status === "one") return match.merchant;
+  if (match.status === "none")
+    return { error: `I couldn't find a merchant named "${data.merchant}". Add it first, or use the exact name.` };
+  return {
+    error: `Several merchants match "${data.merchant}": ${match.candidates
+      .map((c) => c.name)
+      .join(", ")}. Use the exact name.`,
+  };
+}
+
+// Builds the pending action from a completed flow's data. Returns an error
+// string to relay, or null on success (a confirm card was posted).
+async function finalizeFlow(
+  flow: FlowName,
+  chatId: number,
+  data: Record<string, string>,
+  by: string | null
+): Promise<string | null> {
+  if (flow === "new_merchant") {
+    const r = merchantSchema.safeParse({ name: data.name, status: "PROSPECT" });
+    if (!r.success) return r.error.issues[0]?.message ?? "Invalid merchant";
+    await proposeAction(chatId, "MERCHANT", r.data, `🏪 Add this merchant?\n<b>${escape(r.data.name)}</b>\nStatus: Prospect`, by);
+    return null;
+  }
+
+  if (flow === "new_task") {
+    const r = taskSchema.safeParse({ title: data.title });
+    if (!r.success) return r.error.issues[0]?.message ?? "Invalid task";
+    await proposeAction(chatId, "TASK", r.data, `✅ Add this task?\n<b>${escape(r.data.title)}</b>`, by);
+    return null;
+  }
+
+  if (flow === "new_contact") {
+    const merchant = await resolveMerchant(data);
+    if ("error" in merchant) return merchant.error;
+    const [firstName, ...rest] = (data.name ?? "").trim().split(/\s+/);
+    const lastName = rest.join(" ") || "—";
+    const r = contactSchema.safeParse({ firstName, lastName, merchantIds: [merchant.id] });
+    if (!r.success) return r.error.issues[0]?.message ?? "Invalid contact";
+    await proposeAction(
+      chatId,
+      "CONTACT",
+      r.data,
+      `👤 Add this contact?\n<b>${escape(firstName)} ${escape(lastName)}</b>\nMerchant: ${escape(merchant.name)}`,
+      by
+    );
+    return null;
+  }
+
+  // new_deal
+  const merchant = await resolveMerchant(data);
+  if ("error" in merchant) return merchant.error;
+  const money = parseMoney(data.value ?? "");
+  if (!money) return "I couldn't read the deal value — try a number like 5000 or 300 USD.";
+  const r = dealSchema.safeParse({
+    title: data.title,
+    merchantId: merchant.id,
+    value: money.value,
+    currency: money.currency,
+  });
+  if (!r.success) return r.error.issues[0]?.message ?? "Invalid deal";
+  await proposeAction(
+    chatId,
+    "DEAL",
+    r.data,
+    `💼 Add this deal?\n<b>${escape(r.data.title)}</b>\nMerchant: ${escape(merchant.name)}\nValue: ${money.currency} ${Number(money.value).toLocaleString("en-US")}\nStage: New`,
+    by
+  );
+  return null;
+}
+
+// Advances a flow: asks for the first still-missing field, or finalizes.
+async function advanceFlow(
+  flow: FlowName,
+  chatId: number,
+  userId: string,
+  data: Record<string, string>,
+  by: string | null
+) {
+  const missing = FLOW_STEPS[flow].find((s) => !data[s.key]);
+  if (missing) {
+    await db.telegramConvoState.upsert({
+      where: { chatId_userId: { chatId: String(chatId), userId } },
+      create: { chatId: String(chatId), userId, flow, data: JSON.parse(JSON.stringify(data)) },
+      update: { flow, data: JSON.parse(JSON.stringify(data)) },
+    });
+    await sendMessage(chatId, `${missing.prompt}\n<i>(or /cancel)</i>`);
+    return;
+  }
+  // Complete → clear state, finalize.
+  await db.telegramConvoState.deleteMany({ where: { chatId: String(chatId), userId } });
+  const err = await finalizeFlow(flow, chatId, data, by);
+  if (err) await sendMessage(chatId, `🤔 ${escape(err)}`);
+}
+
+async function startFlow(flow: FlowName, msg: TgMessage, argStr: string, by: string | null, userId: string) {
+  const data: Record<string, string> = {};
+  seedArgs(flow, argStr, data);
+  if ((flow === "new_contact" || flow === "new_deal") && !data.merchant) {
+    const def = await getChatDefault(String(msg.chat.id));
+    if (def) {
+      data.merchant = def.merchantName;
+      data.merchantId = def.merchantId;
+    }
+  }
+  await advanceFlow(flow, msg.chat.id, userId, data, by);
+}
+
+// ---- Command routing ----
+
+function parseCommand(text: string): { cmd: string; args: string } | null {
+  const m = text.match(/^\/([a-z_]+)(?:@\w+)?\s*([\s\S]*)$/i);
+  if (!m) return null;
+  return { cmd: m[1].toLowerCase(), args: m[2].trim() };
+}
+
+const HELP = [
+  "<b>Perx CRM bot</b> — I turn group posts into CRM records (with a confirm tap).",
+  "",
+  "<b>Create</b>",
+  "/new_merchant Ocean Bubbles",
+  "/new_contact Ali Rasheed @ Ocean Bubbles",
+  "/new_deal Ocean Bubbles | POS rollout | 5000 MVR",
+  "/new_task Follow up with Ocean Bubbles",
+  "/schedule Ocean Bubbles tomorrow 3pm",
+  "",
+  "<b>Context</b>",
+  "/use Ocean Bubbles — set a default merchant for this chat",
+  "/current — show it",
+  "",
+  "You can also just type naturally, e.g. <i>“Meeting with Ocean Bubbles tomorrow 3pm”</i>.",
+  "Run a create command with no details and I'll ask step by step.",
+].join("\n");
+
+async function handleCommand(msg: TgMessage, cmd: string, args: string, by: string | null, userId: string) {
+  const chatId = msg.chat.id;
+
+  switch (cmd) {
+    case "start":
+    case "help":
+    case "hello":
+      await sendMessage(chatId, HELP);
+      return;
+    case "bye":
+      await sendMessage(chatId, "👋 Until next time!");
+      return;
+    case "cancel":
+      await db.telegramConvoState.deleteMany({ where: { chatId: String(chatId), userId } });
+      await sendMessage(chatId, "Cancelled.");
+      return;
+    case "current": {
+      const def = await getChatDefault(String(chatId));
+      await sendMessage(
+        chatId,
+        def ? `📌 Default merchant: <b>${escape(def.merchantName)}</b>` : "No default merchant set. Use /use <name>."
+      );
+      return;
+    }
+    case "use": {
+      if (!args) {
+        await sendMessage(chatId, "Usage: /use <merchant name>");
+        return;
+      }
+      const match = await matchMerchant(args);
+      if (match.status === "none") {
+        await sendMessage(chatId, `🤔 No merchant named "${escape(args)}".`);
+        return;
+      }
+      if (match.status === "ambiguous") {
+        await sendMessage(chatId, `🤔 Several match: ${match.candidates.map((c) => escape(c.name)).join(", ")}. Be exact.`);
+        return;
+      }
+      await db.telegramChatDefault.upsert({
+        where: { chatId: String(chatId) },
+        create: { chatId: String(chatId), merchantId: match.merchant.id, merchantName: match.merchant.name },
+        update: { merchantId: match.merchant.id, merchantName: match.merchant.name },
+      });
+      await sendMessage(chatId, `📌 Default merchant set to <b>${escape(match.merchant.name)}</b>.`);
+      return;
+    }
+    case "new_merchant":
+    case "new_contact":
+    case "new_deal":
+    case "new_task":
+      await startFlow(cmd, msg, args, by, userId);
+      return;
+    case "schedule": {
+      if (!args) {
+        await db.telegramConvoState.deleteMany({ where: { chatId: String(chatId), userId } });
+        await sendMessage(chatId, "Who and when? e.g. <i>Ocean Bubbles tomorrow 3pm</i>\n<i>(or /cancel)</i>");
+        await db.telegramConvoState.create({
+          data: { chatId: String(chatId), userId, flow: "schedule", data: {} },
+        });
+        return;
+      }
+      await handleScheduleText(msg, args, by);
+      return;
+    }
+    default:
+      await sendMessage(chatId, "Unknown command. Try /help.");
+  }
+}
+
+async function handleScheduleText(msg: TgMessage, text: string, by: string | null) {
+  const extracted = await extractIntent(`Schedule a meeting: ${text}`);
+  if (!extracted || extracted.intent !== "meeting") {
+    await sendMessage(msg.chat.id, "🤔 I couldn't read a merchant + time from that. Try e.g. <i>Ocean Bubbles tomorrow 3pm</i>.");
+    return;
+  }
+  await handleMeetingIntent(msg, extracted, by);
+}
+
+// ---- Free-text message handling ----
 
 async function handleMessage(msg: TgMessage) {
   const text = msg.text?.trim();
-  if (!text || text.startsWith("/") || msg.from?.is_bot) return;
-  if (!ACTION_HINT.test(text)) return;
+  if (!text || msg.from?.is_bot) return;
+  const userId = msg.from?.id ? String(msg.from.id) : "unknown";
+  const by = personName(msg.from);
 
+  // 1) Slash command?
+  const command = parseCommand(text);
+  if (command) return handleCommand(msg, command.cmd, command.args, by, userId);
+
+  // 2) Continuing a guided flow?
+  const state = await db.telegramConvoState.findUnique({
+    where: { chatId_userId: { chatId: String(msg.chat.id), userId } },
+  });
+  if (state) {
+    if (state.flow === "schedule") {
+      await db.telegramConvoState.deleteMany({ where: { chatId: String(msg.chat.id), userId } });
+      await handleScheduleText(msg, text, by);
+      return;
+    }
+    const data = (state.data as Record<string, string>) ?? {};
+    const nextKey = FLOW_STEPS[state.flow as FlowName].find((s) => !data[s.key]);
+    if (nextKey) data[nextKey.key] = text;
+    await advanceFlow(state.flow as FlowName, msg.chat.id, userId, data, by);
+    return;
+  }
+
+  // 3) Natural-language capture.
+  if (!ACTION_HINT.test(text)) return;
   const extracted = await extractIntent(text);
   if (!extracted || extracted.intent === "none") return;
-
-  const by = personName(msg.from);
   if (extracted.intent === "meeting") return handleMeetingIntent(msg, extracted, by);
   if (extracted.intent === "merchant") return handleMerchantIntent(msg, extracted, by);
   if (extracted.intent === "contact") return handleContactIntent(msg, extracted, by);
@@ -197,29 +500,25 @@ async function handleMeetingIntent(
 ) {
   const startAt = parseMvLocal(parsed.startLocal);
   if (Number.isNaN(startAt.getTime())) {
-    await sendMessage(msg.chat.id, "🤔 I spotted a meeting but couldn't pin down the date/time. Try including a day and time, e.g. <i>Tue 3pm</i>.");
+    await sendMessage(msg.chat.id, "🤔 I couldn't pin down the date/time. Try including a day and time, e.g. <i>Tue 3pm</i>.");
     return;
   }
   if (startAt.getTime() < Date.now()) {
-    await sendMessage(msg.chat.id, "🤔 That meeting time looks like it's in the past — please include a future date/time.");
+    await sendMessage(msg.chat.id, "🤔 That time looks like it's in the past — please include a future date/time.");
     return;
   }
-
   const match = await matchMerchant(parsed.merchantName);
   if (match.status === "none") {
-    await sendMessage(msg.chat.id, `🤔 I couldn't find a merchant named <b>${escape(parsed.merchantName)}</b>. Add it first, or repost with the exact name.`);
+    await sendMessage(msg.chat.id, `🤔 I couldn't find a merchant named <b>${escape(parsed.merchantName)}</b>. Add it first, or use the exact name.`);
     return;
   }
   if (match.status === "ambiguous") {
-    const names = match.candidates.map((c) => `• ${escape(c.name)}`).join("\n");
-    await sendMessage(msg.chat.id, `🤔 Several merchants match <b>${escape(parsed.merchantName)}</b>:\n${names}\nRepost with the exact name.`);
+    await sendMessage(msg.chat.id, `🤔 Several merchants match <b>${escape(parsed.merchantName)}</b>: ${match.candidates.map((c) => escape(c.name)).join(", ")}. Use the exact name.`);
     return;
   }
 
   const durationMins =
-    typeof parsed.durationMins === "number" && parsed.durationMins > 0
-      ? Math.min(parsed.durationMins, 480)
-      : 30;
+    typeof parsed.durationMins === "number" && parsed.durationMins > 0 ? Math.min(parsed.durationMins, 480) : 30;
   const title = parsed.title?.trim() || `Meeting with ${match.merchant.name}`;
 
   const pending = await db.telegramPendingMeeting.create({
@@ -233,11 +532,9 @@ async function handleMeetingIntent(
       createdByName: by,
     },
   });
-
-  const when = formatDateTime(startAt);
   const sent = await sendMessage(
     msg.chat.id,
-    `📅 Create this meeting?\n<b>${escape(title)}</b>\nMerchant: ${escape(match.merchant.name)}\nWhen: ${when} (MV time)\nDuration: ${durationMins} min`,
+    `📅 Create this meeting?\n<b>${escape(title)}</b>\nMerchant: ${escape(match.merchant.name)}\nWhen: ${formatDateTime(startAt)} (MV time)\nDuration: ${durationMins} min`,
     confirmButtons(CB_MEETING, pending.id)
   );
   await db.telegramPendingMeeting.update({
@@ -263,30 +560,14 @@ async function handleMerchantIntent(
     await sendMessage(msg.chat.id, `🤔 I couldn't add that merchant: ${escape(result.error.issues[0]?.message ?? "invalid details")}.`);
     return;
   }
-
   const lines = [
-    `Status: Prospect`,
+    "Status: Prospect",
     result.data.category ? `Category: ${escape(result.data.category)}` : null,
     result.data.phone ? `Phone: ${escape(result.data.phone)}` : null,
     result.data.email ? `Email: ${escape(result.data.email)}` : null,
     result.data.address ? `Address: ${escape(result.data.address)}` : null,
   ].filter(Boolean);
-  const summary = `🏪 Add this merchant?\n<b>${escape(result.data.name)}</b>\n${lines.join("\n")}`;
-
-  const pending = await db.telegramPendingAction.create({
-    data: {
-      chatId: String(msg.chat.id),
-      kind: "MERCHANT",
-      payload: JSON.parse(JSON.stringify(result.data)),
-      summary,
-      createdByName: by,
-    },
-  });
-  const sent = await sendMessage(msg.chat.id, summary, confirmButtons(CB_ACTION, pending.id));
-  await db.telegramPendingAction.update({
-    where: { id: pending.id },
-    data: { confirmationMessageId: String(sent.message_id) },
-  });
+  await proposeAction(msg.chat.id, "MERCHANT", result.data, `🏪 Add this merchant?\n<b>${escape(result.data.name)}</b>\n${lines.join("\n")}`, by);
 }
 
 async function handleContactIntent(
@@ -296,15 +577,13 @@ async function handleContactIntent(
 ) {
   const match = await matchMerchant(parsed.merchantName);
   if (match.status === "none") {
-    await sendMessage(msg.chat.id, `🤔 I couldn't find a merchant named <b>${escape(parsed.merchantName)}</b> to attach this contact to. Add the merchant first, or use its exact name.`);
+    await sendMessage(msg.chat.id, `🤔 I couldn't find a merchant named <b>${escape(parsed.merchantName)}</b> to attach this contact to. Add the merchant first.`);
     return;
   }
   if (match.status === "ambiguous") {
-    const names = match.candidates.map((c) => `• ${escape(c.name)}`).join("\n");
-    await sendMessage(msg.chat.id, `🤔 Several merchants match <b>${escape(parsed.merchantName)}</b>:\n${names}\nRepost with the exact name.`);
+    await sendMessage(msg.chat.id, `🤔 Several merchants match <b>${escape(parsed.merchantName)}</b>: ${match.candidates.map((c) => escape(c.name)).join(", ")}. Use the exact name.`);
     return;
   }
-
   const result = contactSchema.safeParse({
     firstName: parsed.firstName,
     lastName: parsed.lastName,
@@ -317,29 +596,13 @@ async function handleContactIntent(
     await sendMessage(msg.chat.id, `🤔 I couldn't add that contact: ${escape(result.error.issues[0]?.message ?? "invalid details")}.`);
     return;
   }
-
   const lines = [
     `Merchant: ${escape(match.merchant.name)}`,
     result.data.title ? `Title: ${escape(result.data.title)}` : null,
     result.data.phone ? `Phone: ${escape(result.data.phone)}` : null,
     result.data.email ? `Email: ${escape(result.data.email)}` : null,
   ].filter(Boolean);
-  const summary = `👤 Add this contact?\n<b>${escape(result.data.firstName)} ${escape(result.data.lastName)}</b>\n${lines.join("\n")}`;
-
-  const pending = await db.telegramPendingAction.create({
-    data: {
-      chatId: String(msg.chat.id),
-      kind: "CONTACT",
-      payload: JSON.parse(JSON.stringify(result.data)),
-      summary,
-      createdByName: by,
-    },
-  });
-  const sent = await sendMessage(msg.chat.id, summary, confirmButtons(CB_ACTION, pending.id));
-  await db.telegramPendingAction.update({
-    where: { id: pending.id },
-    data: { confirmationMessageId: String(sent.message_id) },
-  });
+  await proposeAction(msg.chat.id, "CONTACT", result.data, `👤 Add this contact?\n<b>${escape(result.data.firstName)} ${escape(result.data.lastName)}</b>\n${lines.join("\n")}`, by);
 }
 
 // ---- Callback (Confirm / Cancel) handling ----
@@ -351,14 +614,12 @@ async function handleMeetingCallback(cb: TgCallbackQuery, action: string, id: st
     await answerCallbackQuery(cb.id, "Already handled.");
     return;
   }
-
   if (action === "cancel") {
     await db.telegramPendingMeeting.update({ where: { id }, data: { status: "CANCELLED" } });
     if (chatId && pending.confirmationMessageId) await editMessageText(chatId, pending.confirmationMessageId, "❌ Cancelled.");
     await answerCallbackQuery(cb.id, "Cancelled");
     return;
   }
-
   const host = await getTelegramMeetingHost();
   if (!host) {
     await answerCallbackQuery(cb.id, "No meeting host is configured in the CRM.");
@@ -374,9 +635,12 @@ async function handleMeetingCallback(cb: TgCallbackQuery, action: string, id: st
     source: "Telegram",
   });
   await db.telegramPendingMeeting.update({ where: { id }, data: { status: "CONFIRMED" } });
-  const when = formatDateTime(pending.startAt);
   if (chatId && pending.confirmationMessageId) {
-    await editMessageText(chatId, pending.confirmationMessageId, `✅ Added to the CRM: <b>${escape(pending.title)}</b> with ${escape(pending.merchantName)} on ${when} (MV time). Synced to the team calendar${host.name ? ` (${escape(host.name)})` : ""}.`);
+    await editMessageText(
+      chatId,
+      pending.confirmationMessageId,
+      `✅ Added: <b>${escape(pending.title)}</b> with ${escape(pending.merchantName)} on ${formatDateTime(pending.startAt)} (MV time). Synced to the team calendar${host.name ? ` (${escape(host.name)})` : ""}.`
+    );
   }
   await answerCallbackQuery(cb.id, "Meeting created");
 }
@@ -388,7 +652,6 @@ async function handleActionCallback(cb: TgCallbackQuery, action: string, id: str
     await answerCallbackQuery(cb.id, "Already handled.");
     return;
   }
-
   if (action === "cancel") {
     await db.telegramPendingAction.update({ where: { id }, data: { status: "CANCELLED" } });
     if (chatId && pending.confirmationMessageId) await editMessageText(chatId, pending.confirmationMessageId, "❌ Cancelled.");
@@ -398,23 +661,36 @@ async function handleActionCallback(cb: TgCallbackQuery, action: string, id: str
 
   const ctx = await getBotOwner();
   try {
+    let label: string;
+    let path: string;
+    let recordId: string;
     if (pending.kind === "MERCHANT") {
-      const merchant = await createMerchant(ctx, pending.payload as unknown as MerchantInput);
-      await db.telegramPendingAction.update({ where: { id }, data: { status: "CONFIRMED", recordId: merchant.id } });
-      if (chatId && pending.confirmationMessageId) {
-        const link = appUrl() ? `\n${appUrl()}/merchants/${merchant.id}` : "";
-        await editMessageText(chatId, pending.confirmationMessageId, `✅ Merchant added: <b>${escape(merchant.name)}</b> (owner: Sales).${link}`);
-      }
-      await answerCallbackQuery(cb.id, "Merchant created");
+      const m = await createMerchant(ctx, pending.payload as unknown as MerchantInput);
+      label = `Merchant added: <b>${escape(m.name)}</b>`;
+      path = `/merchants/${m.id}`;
+      recordId = m.id;
+    } else if (pending.kind === "CONTACT") {
+      const c = await createContact(ctx, pending.payload as unknown as ContactInput);
+      label = `Contact added: <b>${escape(c.firstName)} ${escape(c.lastName)}</b>`;
+      path = `/contacts/${c.id}`;
+      recordId = c.id;
+    } else if (pending.kind === "DEAL") {
+      const d = await createDeal(ctx, pending.payload as unknown as DealInput);
+      label = `Deal added: <b>${escape(d.title)}</b>`;
+      path = `/deals/${d.id}`;
+      recordId = d.id;
     } else {
-      const contact = await createContact(ctx, pending.payload as unknown as ContactInput);
-      await db.telegramPendingAction.update({ where: { id }, data: { status: "CONFIRMED", recordId: contact.id } });
-      if (chatId && pending.confirmationMessageId) {
-        const link = appUrl() ? `\n${appUrl()}/contacts/${contact.id}` : "";
-        await editMessageText(chatId, pending.confirmationMessageId, `✅ Contact added: <b>${escape(contact.firstName)} ${escape(contact.lastName)}</b> (owner: Sales).${link}`);
-      }
-      await answerCallbackQuery(cb.id, "Contact created");
+      const t = await createTask(ctx, pending.payload as unknown as TaskInput);
+      label = `Task added: <b>${escape(t.title)}</b>`;
+      path = `/tasks`;
+      recordId = t.id;
     }
+    await db.telegramPendingAction.update({ where: { id }, data: { status: "CONFIRMED", recordId } });
+    if (chatId && pending.confirmationMessageId) {
+      const link = appUrl() ? `\n${appUrl()}${path}` : "";
+      await editMessageText(chatId, pending.confirmationMessageId, `✅ ${label} (owner: Sales).${link}`);
+    }
+    await answerCallbackQuery(cb.id, "Created");
   } catch (e) {
     await answerCallbackQuery(cb.id, "Couldn't create the record.");
     if (chatId) await sendMessage(chatId, `⚠️ Couldn't create the record: ${escape(e instanceof Error ? e.message : "unknown error")}.`);

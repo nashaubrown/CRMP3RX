@@ -69,3 +69,10 @@ export function setWebhook(url: string, secret: string): Promise<unknown> {
     allowed_updates: ["message", "callback_query"],
   });
 }
+
+// Populates the bot's command menu (the "Menu" button in the chat).
+export function setMyCommands(
+  commands: { command: string; description: string }[]
+): Promise<unknown> {
+  return call("setMyCommands", { commands });
+}

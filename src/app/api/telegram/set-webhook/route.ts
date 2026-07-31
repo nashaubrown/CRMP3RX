@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/authz";
 import { requireUserOrThrow } from "@/lib/rbac";
 import { setWebhook, telegramConfigured } from "@/integrations/telegram/client";
+import { registerTelegramCommands } from "@/services/telegram";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,7 @@ export async function GET(req: Request) {
   const webhookUrl = `${appUrl}/api/telegram/webhook`;
   try {
     await setWebhook(webhookUrl, secret);
+    await registerTelegramCommands();
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "setWebhook failed" },
