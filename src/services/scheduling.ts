@@ -213,6 +213,89 @@ export async function listMeetingsInMonth(monthStart: Date, monthEnd: Date) {
   });
 }
 
+// Resolves the shared "host" user whose calendar Telegram-created meetings land
+// on: TELEGRAM_MEETING_HOST_EMAIL when set, otherwise the oldest admin.
+export async function getTelegramMeetingHost() {
+  const email = process.env.TELEGRAM_MEETING_HOST_EMAIL?.trim();
+  if (email) {
+    const byEmail = await db.user.findFirst({
+      where: { email: { equals: email, mode: "insensitive" } },
+      select: { id: true, name: true },
+    });
+    if (byEmail) return byEmail;
+  }
+  return db.user.findFirst({
+    where: { role: "ADMIN" },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, name: true },
+  });
+}
+
+// Creates an internal-block meeting (no external attendee) against a shared
+// host's calendar, mirrored onto the merchant's timeline. Used by the Telegram
+// integration.
+export async function createSharedMeeting(input: {
+  hostUserId: string;
+  merchantId: string;
+  merchantName: string;
+  title: string;
+  startAt: Date;
+  durationMins: number;
+  source: string;
+}) {
+  const endAt = new Date(input.startAt.getTime() + input.durationMins * 60 * 1000);
+
+  const meeting = await db.meeting.create({
+    data: {
+      hostUserId: input.hostUserId,
+      title: input.title,
+      notes: `Created from ${input.source}.`,
+      bookerName: input.merchantName,
+      bookerEmail: "", // internal block — no external attendee to invite
+      startAt: input.startAt,
+      endAt,
+    },
+  });
+
+  await db.activity.create({
+    data: {
+      type: "MEETING",
+      subject: input.title,
+      dueAt: input.startAt,
+      entityType: "MERCHANT",
+      entityId: input.merchantId,
+      ownerId: input.hostUserId,
+      meetingId: meeting.id,
+    },
+  });
+
+  const event = await getCalendarProvider().createEvent(input.hostUserId, {
+    summary: input.title,
+    description: `Created from ${input.source} (Perx CRM).`,
+    startAt: input.startAt,
+    endAt,
+    attendees: [],
+    withMeet: false,
+  });
+  if (event) {
+    await db.meeting.update({
+      where: { id: meeting.id },
+      data: { googleEventId: event.eventId, googleMeetUrl: event.meetUrl },
+    });
+  }
+
+  await audit({
+    actorId: input.hostUserId,
+    action: "meeting.telegram_create",
+    entityType: "MERCHANT",
+    entityId: input.merchantId,
+    merchantId: input.merchantId,
+    diff: { meetingId: meeting.id, title: input.title, startAt: input.startAt.toISOString() },
+  });
+
+  return { ...meeting, googleMeetUrl: event?.meetUrl ?? null };
+}
+
 const REMINDER_LEAD_MS = 60 * 60 * 1000; // remind ~1 hour before
 
 // Sends a one-hour-before reminder to the attendee (email + SMS) and the host
@@ -250,19 +333,21 @@ export async function sendDueMeetingReminders() {
     const entityType = m.contactId ? ("CONTACT" as const) : undefined;
     const entityId = m.contactId ?? undefined;
 
-    // Attendee (merchant contact)
-    await sendSystemEmail({
-      to: m.bookerEmail,
-      subject: `Reminder: ${m.title} in 1 hour (Perx)`,
-      bodyHtml: `<p>Hi ${escapeHtml(m.bookerName)},</p><p>A reminder that <strong>${escapeHtml(
-        m.title
-      )}</strong> with ${escapeHtml(
-        hostName
-      )} starts at <strong>${when}</strong> (Maldives time) — about an hour from now.</p>${meetLine}<p>See you soon!</p>`,
-      sentById: m.hostUserId,
-      entityType,
-      entityId,
-    });
+    // Attendee (merchant contact) — skipped for internal blocks with no email.
+    if (m.bookerEmail) {
+      await sendSystemEmail({
+        to: m.bookerEmail,
+        subject: `Reminder: ${m.title} in 1 hour (Perx)`,
+        bodyHtml: `<p>Hi ${escapeHtml(m.bookerName)},</p><p>A reminder that <strong>${escapeHtml(
+          m.title
+        )}</strong> with ${escapeHtml(
+          hostName
+        )} starts at <strong>${when}</strong> (Maldives time) — about an hour from now.</p>${meetLine}<p>See you soon!</p>`,
+        sentById: m.hostUserId,
+        entityType,
+        entityId,
+      });
+    }
     if (m.bookerPhone) {
       await sendSystemSms({
         to: m.bookerPhone,
