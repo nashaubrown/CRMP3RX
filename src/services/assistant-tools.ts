@@ -5,8 +5,10 @@ import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import type { SessionUser } from "@/lib/authz";
 import { isAdmin } from "@/lib/authz";
+import { listActivitiesForEntity } from "@/services/activities";
 import { audit } from "@/services/audit";
 import { getDealsBoard } from "@/services/deals";
+import { listLeads } from "@/services/leads";
 import { listCommunicationsForEntity } from "@/services/messaging";
 import { listDueToday, listTasks } from "@/services/tasks";
 
@@ -159,6 +161,63 @@ export const assistantToolDefinitions: Anthropic.Tool[] = [
       },
       required: [],
     },
+  },
+  {
+    name: "list_leads",
+    description:
+      "List or COUNT leads — inbound prospects not yet merchants — filtered by status and scope. Use for 'how many new leads', 'my qualified leads', 'unassigned leads'.",
+    input_schema: {
+      type: "object",
+      properties: {
+        status: { type: "string", enum: ["NEW", "CONTACTED", "QUALIFIED", "UNQUALIFIED"] },
+        scope: {
+          type: "string",
+          enum: ["all", "mine", "unassigned"],
+          description: "'all' (default), 'mine' = leads you own, 'unassigned' = no owner",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "list_tasks",
+    description:
+      "List or COUNT tasks, filtered by status, priority, or a person. Use for 'what tasks does <person> have', 'open high-priority tasks', 'how many tasks are done'.",
+    input_schema: {
+      type: "object",
+      properties: {
+        status: {
+          type: "string",
+          enum: ["open", "done", "all"],
+          description: "default 'open'",
+        },
+        priority: { type: "string", enum: ["LOW", "MEDIUM", "HIGH"] },
+        assignee_name: {
+          type: "string",
+          description: "Filter to the person a task is assigned to, by name. Omit for the whole team.",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "recent_activity",
+    description:
+      "Recent timeline activity (notes, calls, meetings, tasks logged) on a merchant, contact or deal. Use for 'what's the latest on <merchant>'. For emails/SMS specifically, use recent_communications.",
+    input_schema: {
+      type: "object",
+      properties: {
+        entity_type: { type: "string", enum: ["MERCHANT", "CONTACT", "DEAL"] },
+        entity_id: { type: "string" },
+      },
+      required: ["entity_type", "entity_id"],
+    },
+  },
+  {
+    name: "deals_by_rep",
+    description:
+      "Team deal totals grouped by owner (rep): won count + value and open count + value, MVR and USD kept separate. Use for 'who has the most won deals', 'team performance', 'deal totals by rep'.",
+    input_schema: { type: "object", properties: {}, required: [] },
   },
 ];
 
@@ -392,6 +451,130 @@ async function pipelineSummaryTool(ctx: SessionUser, input: { scope?: string }) 
   };
 }
 
+async function listLeadsTool(ctx: SessionUser, input: { status?: string; scope?: string }) {
+  const scope =
+    input.scope === "mine" ? "mine" : input.scope === "unassigned" ? "unassigned" : "all";
+  const status =
+    input.status === "NEW" ||
+    input.status === "CONTACTED" ||
+    input.status === "QUALIFIED" ||
+    input.status === "UNQUALIFIED"
+      ? input.status
+      : undefined;
+
+  const { items, total } = await listLeads(ctx, {
+    scope,
+    status,
+    page: 1,
+    sort: "score",
+    dir: "desc",
+  });
+  return {
+    scope,
+    count: total,
+    leads: items.slice(0, 30).map((l) => ({
+      lead_id: l.id,
+      name:
+        l.name ||
+        [l.contact?.firstName, l.contact?.lastName].filter(Boolean).join(" ") ||
+        l.company ||
+        "—",
+      company: l.company ?? l.merchant?.name ?? null,
+      status: l.status,
+      score: l.score,
+      owner: l.owner?.name ?? "Unassigned",
+    })),
+  };
+}
+
+async function listTasksTool(
+  ctx: SessionUser,
+  input: { status?: string; priority?: string; assignee_name?: string }
+) {
+  let assignee: string | undefined;
+  if (input.assignee_name?.trim()) {
+    const user = await db.user.findFirst({
+      where: { name: { contains: input.assignee_name.trim(), mode: "insensitive" } },
+      select: { id: true },
+    });
+    if (!user) {
+      return { count: 0, note: `No team member matches "${input.assignee_name}".`, tasks: [] };
+    }
+    assignee = user.id;
+  }
+
+  const status =
+    input.status === "done" || input.status === "all" ? input.status : ("open" as const);
+  const priority =
+    input.priority === "LOW" || input.priority === "MEDIUM" || input.priority === "HIGH"
+      ? input.priority
+      : undefined;
+
+  const tasks = await listTasks(ctx, {
+    scope: "all",
+    assignee,
+    status,
+    priority,
+    view: "list",
+    group: "due",
+  });
+  return {
+    count: tasks.length,
+    tasks: tasks.slice(0, 30).map((t) => ({
+      subject: t.title,
+      status: t.status,
+      priority: t.priority,
+      due: t.dueAt ? formatDateTime(t.dueAt) : null,
+      assignee: t.assigneeName,
+      related_to: t.link?.label ?? null,
+    })),
+  };
+}
+
+async function recentActivityTool(
+  ctx: SessionUser,
+  input: { entity_type: "MERCHANT" | "CONTACT" | "DEAL"; entity_id: string }
+) {
+  const activities = await listActivitiesForEntity(ctx, input.entity_type, input.entity_id);
+  return {
+    count: activities.length,
+    activities: activities.slice(0, 15).map((a) => ({
+      type: a.type,
+      subject: a.subject,
+      when: formatDateTime(a.createdAt),
+      by: a.owner?.name ?? null,
+    })),
+  };
+}
+
+async function dealsByRepTool(ctx: SessionUser) {
+  const { deals } = await getDealsBoard(ctx, "all");
+  type Tally = { won: number; wonMvr: number; wonUsd: number; open: number; openMvr: number; openUsd: number };
+  const byRep = new Map<string, Tally>();
+  for (const d of deals) {
+    const t =
+      byRep.get(d.ownerName) ??
+      byRep.set(d.ownerName, { won: 0, wonMvr: 0, wonUsd: 0, open: 0, openMvr: 0, openUsd: 0 }).get(d.ownerName)!;
+    if (d.stage === "WON") {
+      t.won += 1;
+      if (d.currency === "MVR") t.wonMvr += d.value;
+      else t.wonUsd += d.value;
+    } else if (d.stage !== "LOST") {
+      t.open += 1;
+      if (d.currency === "MVR") t.openMvr += d.value;
+      else t.openUsd += d.value;
+    }
+  }
+  const reps = [...byRep.entries()]
+    .map(([owner, t]) => ({
+      owner,
+      won: { count: t.won, mvr: t.wonMvr, usd: t.wonUsd },
+      open: { count: t.open, mvr: t.openMvr, usd: t.openUsd },
+    }))
+    .sort((a, b) => b.won.mvr + b.won.usd - (a.won.mvr + a.won.usd) || b.won.count - a.won.count);
+  return { reps };
+}
+
 async function listMeetingsTool(ctx: SessionUser, input: { scope?: string }) {
   const scope = input.scope === "all" ? "all" : "mine";
   const meetings = await db.meeting.findMany({
@@ -536,6 +719,19 @@ export async function executeAssistantTool(
         );
       case "stale_merchants":
         return JSON.stringify(await staleMerchantsTool(ctx, input));
+      case "list_leads":
+        return JSON.stringify(await listLeadsTool(ctx, input));
+      case "list_tasks":
+        return JSON.stringify(await listTasksTool(ctx, input));
+      case "recent_activity":
+        return JSON.stringify(
+          await recentActivityTool(
+            ctx,
+            input as { entity_type: "MERCHANT" | "CONTACT" | "DEAL"; entity_id: string }
+          )
+        );
+      case "deals_by_rep":
+        return JSON.stringify(await dealsByRepTool(ctx));
       default:
         return JSON.stringify({ error: `Unknown tool: ${name}` });
     }
