@@ -1,13 +1,11 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { CalendarCheckIcon, CalendarIcon, LinkIcon } from "lucide-react";
+import { CalendarCheckIcon, CalendarIcon } from "lucide-react";
 
 import { disconnectCalendarAction } from "@/app/(app)/settings/actions";
 import { AiProviderCard } from "@/app/(app)/settings/ai-provider-card";
 import { ApiKeysCard } from "@/app/(app)/settings/api-keys-card";
 import { OptionSetsCard } from "@/app/(app)/settings/option-sets-card";
 import { AffiliatesCard } from "@/app/(app)/settings/affiliates-card";
-import { AvailabilityForm } from "@/app/(app)/settings/availability-form";
 import { MeetingList } from "@/app/(app)/settings/meeting-list";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +25,7 @@ import { listApiKeys } from "@/services/api-keys";
 import { isAdmin } from "@/lib/authz";
 import { listManagedOptions, OPTION_SETS } from "@/services/option-sets";
 import { listAffiliates } from "@/services/affiliates";
-import { listUpcomingMeetings } from "@/services/scheduling";
+import { listTeamAgenda } from "@/services/scheduling";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -52,12 +50,10 @@ export default async function SettingsPage({
     db.user.findUnique({
       where: { id: user.id },
       select: {
-        bookingSlug: true,
         calendarAccount: { select: { createdAt: true } },
-        availability: { include: { rules: true } },
       },
     }),
-    listUpcomingMeetings(user),
+    listTeamAgenda(),
     listApiKeys(user),
     getAiSettings(user),
     admin
@@ -87,7 +83,7 @@ export default async function SettingsPage({
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
         <p className="text-muted-foreground text-sm">
-          Calendar connection, availability, your public booking page, and API access
+          Calendar connection, the team agenda, and API access
         </p>
       </div>
 
@@ -103,8 +99,8 @@ export default async function SettingsPage({
             <CalendarIcon className="size-4" /> Google Calendar
           </CardTitle>
           <CardDescription>
-            When connected, your busy times are excluded from the booking page and bookings
-            create calendar events with Google Meet links.
+            When connected, meetings you schedule with a merchant create calendar events with
+            Google Meet links, and your busy times sync to your Google Calendar.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex items-center justify-between gap-3">
@@ -133,47 +129,10 @@ export default async function SettingsPage({
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <LinkIcon className="size-4" /> Availability & booking page
-          </CardTitle>
+          <CardTitle className="text-base">Team agenda</CardTitle>
           <CardDescription>
-            {profile?.bookingSlug ? (
-              <>
-                Merchants can book you at{" "}
-                <Link
-                  href={`/book/${profile.bookingSlug}`}
-                  className="underline"
-                  target="_blank"
-                >
-                  {appUrl}/book/{profile.bookingSlug}
-                </Link>
-              </>
-            ) : (
-              "Set a booking link and weekly hours to accept bookings."
-            )}
+            Upcoming meetings across the team — scheduled with merchants from their record pages.
           </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <AvailabilityForm
-            initial={{
-              bookingSlug: profile?.bookingSlug ?? "",
-              slotDurationMins: profile?.availability?.slotDurationMins ?? 30,
-              bufferMins: profile?.availability?.bufferMins ?? 10,
-              rules:
-                profile?.availability?.rules.map((r) => ({
-                  dayOfWeek: r.dayOfWeek,
-                  startMinutes: r.startMinutes,
-                  endMinutes: r.endMinutes,
-                })) ?? [],
-            }}
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Upcoming meetings</CardTitle>
-          <CardDescription>Meetings you host — booked via your public page or scheduled from a merchant/contact.</CardDescription>
         </CardHeader>
         <CardContent>
           <MeetingList
@@ -184,6 +143,8 @@ export default async function SettingsPage({
               bookerEmail: m.bookerEmail,
               when: formatDateTime(m.startAt),
               meetUrl: m.googleMeetUrl,
+              host: m.host.name,
+              canCancel: admin || m.hostUserId === user.id,
             }))}
           />
         </CardContent>

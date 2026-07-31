@@ -14,6 +14,8 @@ export type MeetingItem = {
   bookerEmail: string;
   when: string; // formatted MV time
   meetUrl: string | null;
+  host?: string; // shown in the team agenda
+  canCancel?: boolean; // host or admin only
 };
 
 export function MeetingList({ meetings }: { meetings: MeetingItem[] }) {
@@ -31,6 +33,7 @@ export function MeetingList({ meetings }: { meetings: MeetingItem[] }) {
             <p className="font-medium">{meeting.bookerName}</p>
             <p className="text-muted-foreground text-xs">
               {meeting.when} · {meeting.bookerEmail}
+              {meeting.host ? <> · with {meeting.host}</> : null}
             </p>
             {meeting.meetUrl ? (
               <a
@@ -44,22 +47,24 @@ export function MeetingList({ meetings }: { meetings: MeetingItem[] }) {
               </a>
             ) : null}
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-destructive"
-            disabled={pending}
-            onClick={() =>
-              startTransition(async () => {
-                const result = await cancelMeetingAction(meeting.id);
-                if (result.error) toast.error(result.error);
-                else toast.success("Meeting cancelled — booker notified");
-              })
-            }
-          >
-            {pending ? <Loader2Icon className="animate-spin" /> : <XIcon />}
-            Cancel
-          </Button>
+          {meeting.canCancel === false ? null : (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-destructive"
+              disabled={pending}
+              onClick={() =>
+                startTransition(async () => {
+                  const result = await cancelMeetingAction(meeting.id);
+                  if (result.error) toast.error(result.error);
+                  else toast.success("Meeting cancelled — booker notified");
+                })
+              }
+            >
+              {pending ? <Loader2Icon className="animate-spin" /> : <XIcon />}
+              Cancel
+            </Button>
+          )}
         </div>
       ))}
     </div>
