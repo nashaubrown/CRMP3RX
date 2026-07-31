@@ -151,6 +151,51 @@ export async function* runAssistantTurn(
   }
 }
 
+// One-shot Q&A: runs the read-only tool loop and returns the final answer text,
+// without streaming or persisting a conversation. Used by the Telegram bot.
+export async function answerAssistantQuestion(
+  ctx: SessionUser,
+  question: string
+): Promise<string> {
+  const provider = await getAiProvider();
+  if (!provider) {
+    return `Ask Perx isn't configured yet. ${await aiConfigHint()}`;
+  }
+
+  const messages: AiMessage[] = [{ role: "user", content: question }];
+  let answer = "";
+
+  for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
+    let turnText = "";
+    let toolCalls: { id: string; name: string; input: Record<string, unknown> }[] = [];
+    for await (const event of provider.streamTurn({
+      system: systemPrompt(ctx),
+      messages,
+      tools: assistantTools,
+    })) {
+      if (event.type === "final") {
+        turnText = event.text;
+        toolCalls = event.toolCalls;
+      }
+    }
+    if (turnText) answer = turnText;
+    if (toolCalls.length === 0) break;
+
+    messages.push({ role: "assistant", content: turnText, toolCalls });
+    const results: { toolCallId: string; name: string; content: string }[] = [];
+    for (const call of toolCalls) {
+      results.push({
+        toolCallId: call.id,
+        name: call.name,
+        content: await executeAssistantTool(ctx, call.name, call.input),
+      });
+    }
+    messages.push({ role: "tool_results", results });
+  }
+
+  return answer.trim() || "I couldn't find an answer to that.";
+}
+
 export async function listConversations(ctx: SessionUser) {
   return db.conversation.findMany({
     where: { userId: ctx.id },

@@ -14,6 +14,7 @@ import { dealSchema, type DealInput } from "@/lib/validators/deal";
 import { merchantSchema, type MerchantInput } from "@/lib/validators/merchant";
 import { taskSchema, type TaskInput } from "@/lib/validators/task";
 import { createActivity, listActivitiesForEntity } from "@/services/activities";
+import { answerAssistantQuestion } from "@/services/assistant";
 import { createContact } from "@/services/contacts";
 import { createDeal, moveDealStage } from "@/services/deals";
 import { createMerchant } from "@/services/merchants";
@@ -62,6 +63,7 @@ export const COMMAND_MENU: { command: string; description: string }[] = [
   { command: "mine", description: "My tasks and meetings (needs /link)" },
   { command: "find", description: "Search merchants and contacts" },
   { command: "merchant", description: "Show a merchant's card" },
+  { command: "ask", description: "Ask a question about the CRM data" },
   { command: "log", description: "Reply to a record to log a note" },
   { command: "move", description: "Reply to a deal to move its stage" },
   { command: "won", description: "Reply to a deal to mark it won" },
@@ -416,6 +418,18 @@ async function cmdLink(chatId: number, userId: string, args: string) {
     update: { crmUserId: user.id },
   });
   await sendMessage(chatId, `🔗 Linked to <b>${escape(user.name ?? email)}</b>. /mine now works.`);
+}
+
+// Routes a natural-language question through Ask Perx (read-only tools) and
+// replies with the answer.
+async function askAndReply(chatId: number, question: string) {
+  const q = question.trim();
+  if (!q) {
+    await sendMessage(chatId, "Ask me a question, e.g. <code>/ask which merchants are active?</code>");
+    return;
+  }
+  const answer = await answerAssistantQuestion(await getBotOwner(), q);
+  await sendMessage(chatId, escape(answer));
 }
 
 // ---- Reply-to-a-record actions ----
@@ -786,6 +800,9 @@ async function handleCommand(msg: TgMessage, cmd: string, args: string, by: stri
     case "link":
       await cmdLink(chatId, userId, args);
       return;
+    case "ask":
+      await askAndReply(chatId, args);
+      return;
     case "schedule": {
       if (!args) {
         await db.telegramConvoState.deleteMany({ where: { chatId: String(chatId), userId } });
@@ -841,7 +858,15 @@ async function handleMessage(msg: TgMessage) {
     return;
   }
 
-  // 3) Natural-language capture.
+  // 3) A question? Strip a leading @mention; if it ends with "?", route it to
+  // Ask Perx (read-only) and answer in the group.
+  const question = text.replace(/^@\w+[\s,]*/, "").trim();
+  if (question.endsWith("?")) {
+    await askAndReply(msg.chat.id, question);
+    return;
+  }
+
+  // 4) Natural-language create capture.
   if (!ACTION_HINT.test(text)) return;
   const extracted = await extractIntent(text);
   if (!extracted || extracted.intent === "none") return;
