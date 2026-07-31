@@ -32,7 +32,10 @@ import { buildMergeVars, listCommunicationsForEntity } from "@/services/messagin
 import { getMerchant } from "@/services/merchants";
 import { hasCalendarConnected } from "@/services/scheduling";
 import { listTemplates } from "@/services/templates";
+import { listTasksForRecord } from "@/services/tasks";
 import { listTeamMembers } from "@/services/users";
+import { RecordTasks } from "@/components/tasks/record-tasks";
+import { toUiTask } from "@/lib/task-ui";
 import { ComposeButtons } from "@/components/compose/compose-buttons";
 import { ScheduleMeetingDialog } from "@/components/scheduling/schedule-meeting-dialog";
 import { CommunicationsCard } from "@/components/compose/communications-card";
@@ -52,17 +55,21 @@ export default async function MerchantDetailPage({
   const merchant = await getMerchant(user, id);
   if (!merchant) notFound();
 
-  const [activities, team, history, comms, templates, mergeVars, calendarConnected, outlets] =
+  const [activities, team, history, comms, templates, mergeVars, calendarConnected, outlets, taskItems] =
     await Promise.all([
       listActivitiesForEntity(user, "MERCHANT", id),
-      merchant.access.canManageShares ? listTeamMembers() : Promise.resolve([]),
+      listTeamMembers(),
       merchant.access.canViewHistory ? listMerchantHistory(user, id) : Promise.resolve([]),
       listCommunicationsForEntity(user, "MERCHANT", id),
       merchant.access.canEdit ? listTemplates() : Promise.resolve([]),
       merchant.access.canEdit ? buildMergeVars(user, "MERCHANT", id) : Promise.resolve({}),
       merchant.access.canEdit ? hasCalendarConnected(user.id) : Promise.resolve(false),
       listOutlets(id),
+      listTasksForRecord("merchant", id),
     ]);
+
+  const now = new Date();
+  const tasks = taskItems.map((t) => toUiTask(t, now));
 
   const emailRecipients = [
     ...(merchant.email ? [{ label: `${merchant.name} <${merchant.email}>`, value: merchant.email }] : []),
@@ -291,6 +298,23 @@ export default async function MerchantDetailPage({
                 }))}
                 canEdit={merchant.access.canEdit}
                 pinColor={pinColors({ onboarded: merchant.loyaltyLive, status: merchant.status })}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Tasks ({tasks.length})</CardTitle>
+              <CardDescription>To-dos for this merchant. Also appear in the Tasks tracker.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <RecordTasks
+                kind="merchant"
+                recordId={merchant.id}
+                tasks={tasks}
+                team={team.map((m) => ({ id: m.id, name: m.name }))}
+                currentUserId={user.id}
+                revalidate={`/merchants/${merchant.id}`}
               />
             </CardContent>
           </Card>

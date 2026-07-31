@@ -303,21 +303,21 @@ async function pipelineSummaryTool(ctx: SessionUser, input: { scope?: string }) 
 
 async function listActivitiesDueTool(ctx: SessionUser) {
   const [tasks, today] = await Promise.all([
-    listTasks(ctx, { scope: "mine", status: "open" }),
+    listTasks(ctx, { scope: "mine", status: "open", view: "list", group: "due" }),
     listDueToday(ctx),
   ]);
   const now = new Date();
   return {
     overdue: tasks
       .filter((t) => t.dueAt && t.dueAt < now)
-      .map((t) => ({ subject: t.subject, due: formatDateTime(t.dueAt!), related_to: t.entityLabel })),
+      .map((t) => ({ subject: t.title, due: formatDateTime(t.dueAt!), related_to: t.link?.label ?? null })),
     upcoming: tasks
       .filter((t) => !t.dueAt || t.dueAt >= now)
       .slice(0, 15)
       .map((t) => ({
-        subject: t.subject,
+        subject: t.title,
         due: t.dueAt ? formatDateTime(t.dueAt) : null,
-        related_to: t.entityLabel,
+        related_to: t.link?.label ?? null,
       })),
     meetings_today: today.meetings.map((m) => ({
       with: m.bookerName,
