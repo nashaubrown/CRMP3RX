@@ -22,6 +22,11 @@ export const authConfig = {
         pathname.startsWith("/api/auth") ||
         pathname.startsWith("/api/webhooks") ||
         pathname.startsWith("/api/booking") ||
+        // Telegram posts here unauthenticated; the route verifies its own
+        // secret-token header.
+        pathname.startsWith("/api/telegram/webhook") ||
+        // Called by the reminders scheduler; the route verifies CRON_SECRET.
+        pathname.startsWith("/api/cron") ||
         // API-key authenticated surfaces (REST + MCP) do their own auth
         pathname.startsWith("/api/v1") ||
         pathname === "/api/mcp";
