@@ -728,6 +728,10 @@ model Meeting {
   googleMeetUrl String?
   status        MeetingStatus @default(CONFIRMED)
 
+  // Set when the "1 hour before" reminder has been sent, so the cron never
+  // double-sends.
+  reminderSentAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -736,6 +740,7 @@ model Meeting {
   @@index([hostUserId, startAt])
   @@index([contactId])
   @@index([googleEventId])
+  @@index([status, reminderSentAt, startAt])
 }
 
 // ---------- Audit & AI assistant ----------
