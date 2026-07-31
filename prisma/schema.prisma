@@ -743,6 +743,31 @@ model Meeting {
   @@index([status, reminderSentAt, startAt])
 }
 
+enum TelegramPendingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+// A meeting parsed from a Telegram group post, awaiting an in-chat
+// confirmation tap before it becomes a real Meeting + calendar event.
+model TelegramPendingMeeting {
+  id                    String                @id @default(cuid())
+  chatId                String
+  merchantId            String
+  merchantName          String
+  title                 String
+  startAt               DateTime
+  durationMins          Int                   @default(30)
+  status                TelegramPendingStatus @default(PENDING)
+  meetingId             String?
+  confirmationMessageId String?
+  createdByName         String?
+  createdAt             DateTime              @default(now())
+
+  @@index([status, createdAt])
+}
+
 // ---------- Audit & AI assistant ----------
 
 model AuditLog {
