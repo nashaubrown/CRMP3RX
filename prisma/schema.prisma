@@ -749,6 +749,28 @@ enum TelegramPendingStatus {
   CANCELLED
 }
 
+enum TelegramActionKind {
+  MERCHANT
+  CONTACT
+}
+
+// A create-record action (merchant or contact) parsed from a Telegram post,
+// awaiting an in-chat confirmation tap. payload holds the validated fields.
+model TelegramPendingAction {
+  id                    String                @id @default(cuid())
+  chatId                String
+  kind                  TelegramActionKind
+  payload               Json
+  summary               String
+  status                TelegramPendingStatus @default(PENDING)
+  recordId              String?
+  confirmationMessageId String?
+  createdByName         String?
+  createdAt             DateTime              @default(now())
+
+  @@index([status, createdAt])
+}
+
 // A meeting parsed from a Telegram group post, awaiting an in-chat
 // confirmation tap before it becomes a real Meeting + calendar event.
 model TelegramPendingMeeting {
