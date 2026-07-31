@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { db } from "@/lib/db";
 import { requireUserOrThrow } from "@/lib/rbac";
 import { dealSchema, moveDealSchema } from "@/lib/validators/deal";
+import { createActivity } from "@/services/activities";
 import { createDeal, deleteDeal, moveDealStage, updateDeal } from "@/services/deals";
 
 export type DealFormState = {
@@ -103,4 +105,33 @@ export async function deleteDealAction(id: string) {
   await deleteDeal(ctx, id);
   revalidatePath("/deals");
   redirect("/deals");
+}
+
+// One-tap log: a rep sent the proposal to the merchant over WhatsApp. Advances
+// the deal to Proposal (only from an earlier stage, never regressing) and logs
+// an activity on the deal's timeline.
+export async function logWhatsappProposalAction(
+  dealId: string
+): Promise<{ error: string | null }> {
+  const ctx = await requireUserOrThrow();
+  try {
+    const deal = await db.deal.findUnique({ where: { id: dealId }, select: { stage: true } });
+    if (!deal) throw new Error("Deal not found");
+
+    if (deal.stage === "NEW" || deal.stage === "QUALIFIED") {
+      await moveDealStage(ctx, dealId, "PROPOSAL");
+    }
+    await createActivity(ctx, {
+      type: "NOTE",
+      subject: "Proposal sent via WhatsApp",
+      entityType: "DEAL",
+      entityId: dealId,
+    });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Something went wrong" };
+  }
+
+  revalidatePath(`/deals/${dealId}`);
+  revalidatePath("/deals");
+  return { error: null };
 }
