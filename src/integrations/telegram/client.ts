@@ -27,17 +27,23 @@ async function call<T = unknown>(method: string, body: Record<string, unknown>):
 
 export type InlineButton = { text: string; callback_data: string };
 
-export function sendMessage(
+export async function sendMessage(
   chatId: string | number,
   text: string,
   buttons?: InlineButton[][]
 ): Promise<{ message_id: number }> {
-  return call("sendMessage", {
-    chat_id: chatId,
-    text,
-    parse_mode: "HTML",
-    ...(buttons ? { reply_markup: { inline_keyboard: buttons } } : {}),
-  });
+  const replyMarkup = buttons ? { reply_markup: { inline_keyboard: buttons } } : {};
+  try {
+    return await call("sendMessage", { chat_id: chatId, text, parse_mode: "HTML", ...replyMarkup });
+  } catch (e) {
+    // A stray "<" or "&" in dynamic content can break HTML parsing — never let
+    // that swallow the whole message. Retry as plain text with tags stripped.
+    if (e instanceof Error && /can't parse entities|unsupported start tag/i.test(e.message)) {
+      const plain = text.replace(/<[^>]+>/g, "");
+      return await call("sendMessage", { chat_id: chatId, text: plain, ...replyMarkup });
+    }
+    throw e;
+  }
 }
 
 export function editMessageText(

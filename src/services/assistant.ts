@@ -165,32 +165,41 @@ export async function answerAssistantQuestion(
   const messages: AiMessage[] = [{ role: "user", content: question }];
   let answer = "";
 
-  for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
-    let turnText = "";
-    let toolCalls: { id: string; name: string; input: Record<string, unknown> }[] = [];
-    for await (const event of provider.streamTurn({
-      system: systemPrompt(ctx),
-      messages,
-      tools: assistantTools,
-    })) {
-      if (event.type === "final") {
-        turnText = event.text;
-        toolCalls = event.toolCalls;
+  try {
+    for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
+      let turnText = "";
+      let toolCalls: { id: string; name: string; input: Record<string, unknown> }[] = [];
+      for await (const event of provider.streamTurn({
+        system: systemPrompt(ctx),
+        messages,
+        tools: assistantTools,
+      })) {
+        if (event.type === "final") {
+          turnText = event.text;
+          toolCalls = event.toolCalls;
+        }
       }
-    }
-    if (turnText) answer = turnText;
-    if (toolCalls.length === 0) break;
+      if (turnText) answer = turnText;
+      if (toolCalls.length === 0) break;
 
-    messages.push({ role: "assistant", content: turnText, toolCalls });
-    const results: { toolCallId: string; name: string; content: string }[] = [];
-    for (const call of toolCalls) {
-      results.push({
-        toolCallId: call.id,
-        name: call.name,
-        content: await executeAssistantTool(ctx, call.name, call.input),
-      });
+      messages.push({ role: "assistant", content: turnText, toolCalls });
+      const results: { toolCallId: string; name: string; content: string }[] = [];
+      for (const call of toolCalls) {
+        results.push({
+          toolCallId: call.id,
+          name: call.name,
+          content: await executeAssistantTool(ctx, call.name, call.input),
+        });
+      }
+      messages.push({ role: "tool_results", results });
     }
-    messages.push({ role: "tool_results", results });
+  } catch (e) {
+    // Never throw to the caller (e.g. the Telegram bot) — a model/tool error
+    // becomes a friendly answer instead of silence.
+    const detail = describeAnthropicError(e) ?? (e instanceof Error ? e.message : "");
+    return answer.trim()
+      ? answer.trim()
+      : `I couldn't answer that — the AI model had trouble (${detail || "try rephrasing, or it may be rate-limited"}).`;
   }
 
   return answer.trim() || "I couldn't find an answer to that.";

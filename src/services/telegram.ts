@@ -428,8 +428,12 @@ async function askAndReply(chatId: number, question: string) {
     await sendMessage(chatId, "Ask me a question, e.g. <code>/ask which merchants are active?</code>");
     return;
   }
-  const answer = await answerAssistantQuestion(await getBotOwner(), q);
-  await sendMessage(chatId, escape(answer));
+  try {
+    const answer = await answerAssistantQuestion(await getBotOwner(), q);
+    await sendMessage(chatId, escape(answer));
+  } catch (e) {
+    await sendMessage(chatId, `⚠️ ${escape(e instanceof Error ? e.message : "I couldn't answer that right now.")}`);
+  }
 }
 
 // ---- Reply-to-a-record actions ----
