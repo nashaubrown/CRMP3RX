@@ -243,6 +243,37 @@ export async function toggleTaskDone(ctx: SessionUser, id: string) {
   });
 }
 
+export async function setTaskAssignee(ctx: SessionUser, id: string, assigneeId: string) {
+  if (!(await canEditTask(ctx, id))) throw new Error("You can't update this task");
+  const task = await db.task.update({ where: { id }, data: { assigneeId } });
+  await audit({
+    actorId: ctx.id,
+    action: "task.assign",
+    entityType: "TASK",
+    entityId: id,
+    merchantId: task.merchantId,
+    diff: { title: task.title, assigneeId },
+  });
+  return task;
+}
+
+export async function setTaskDue(ctx: SessionUser, id: string, dueAtLocal: string | null) {
+  if (!(await canEditTask(ctx, id))) throw new Error("You can't update this task");
+  const task = await db.task.update({
+    where: { id },
+    data: { dueAt: dueAtLocal ? parseMvLocal(dueAtLocal) : null },
+  });
+  await audit({
+    actorId: ctx.id,
+    action: "task.due",
+    entityType: "TASK",
+    entityId: id,
+    merchantId: task.merchantId,
+    diff: { title: task.title, dueAt: dueAtLocal },
+  });
+  return task;
+}
+
 export async function deleteTask(ctx: SessionUser, id: string) {
   if (!(await canEditTask(ctx, id))) throw new Error("You can't delete this task");
   const existing = await db.task.findUnique({ where: { id }, select: { title: true, merchantId: true } });

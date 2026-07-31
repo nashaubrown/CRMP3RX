@@ -778,6 +778,25 @@ model TelegramChatDefault {
   updatedAt    DateTime @updatedAt
 }
 
+// Maps a bot message (that showed a record) back to the record, so a user can
+// reply to it and run an action (/move, /done, /log, …).
+model TelegramMessageRef {
+  chatId     String
+  messageId  String
+  entityType String // MERCHANT | CONTACT | DEAL | TASK
+  entityId   String
+  createdAt  DateTime @default(now())
+
+  @@id([chatId, messageId])
+}
+
+// Links a Telegram user to a CRM user (via /link), so /mine and /assign me work.
+model TelegramUserLink {
+  telegramUserId String   @id
+  crmUserId      String
+  createdAt      DateTime @default(now())
+}
+
 // An in-progress guided command flow for one user in one chat. Each subsequent
 // plain message advances the flow until it has enough to build a pending action.
 model TelegramConvoState {

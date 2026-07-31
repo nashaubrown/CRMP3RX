@@ -13,11 +13,12 @@ import { contactSchema, type ContactInput } from "@/lib/validators/contact";
 import { dealSchema, type DealInput } from "@/lib/validators/deal";
 import { merchantSchema, type MerchantInput } from "@/lib/validators/merchant";
 import { taskSchema, type TaskInput } from "@/lib/validators/task";
+import { createActivity, listActivitiesForEntity } from "@/services/activities";
 import { createContact } from "@/services/contacts";
-import { createDeal } from "@/services/deals";
+import { createDeal, moveDealStage } from "@/services/deals";
 import { createMerchant } from "@/services/merchants";
 import { createSharedMeeting, getTelegramMeetingHost } from "@/services/scheduling";
-import { createTask } from "@/services/tasks";
+import { createTask, moveTask, setTaskAssignee, setTaskDue } from "@/services/tasks";
 
 // ---- Telegram update shapes (only the fields we use) ----
 type TgUser = { id?: number; first_name?: string; username?: string; is_bot?: boolean };
@@ -26,6 +27,7 @@ type TgMessage = {
   chat: { id: number };
   from?: TgUser;
   text?: string;
+  reply_to_message?: { message_id: number };
 };
 type TgCallbackQuery = {
   id: string;
@@ -54,8 +56,22 @@ export const COMMAND_MENU: { command: string; description: string }[] = [
   { command: "new_deal", description: "Add a deal" },
   { command: "new_task", description: "Add a task" },
   { command: "schedule", description: "Schedule a meeting with a merchant" },
+  { command: "merchants", description: "List merchants (optionally by status)" },
+  { command: "deals", description: "List deals (optionally by stage)" },
+  { command: "tasks", description: "List open tasks" },
+  { command: "mine", description: "My tasks and meetings (needs /link)" },
+  { command: "find", description: "Search merchants and contacts" },
+  { command: "merchant", description: "Show a merchant's card" },
+  { command: "log", description: "Reply to a record to log a note" },
+  { command: "move", description: "Reply to a deal to move its stage" },
+  { command: "won", description: "Reply to a deal to mark it won" },
+  { command: "lost", description: "Reply to a deal to mark it lost" },
+  { command: "done", description: "Reply to a task to complete it" },
+  { command: "assign", description: "Reply to a task: /assign <name>" },
+  { command: "due", description: "Reply to a task: /due YYYY-MM-DD" },
   { command: "use", description: "Set the default merchant for this chat" },
   { command: "current", description: "Show the current default merchant" },
+  { command: "link", description: "Link your Telegram to a CRM user: /link you@perx.mv" },
   { command: "cancel", description: "Cancel the current command" },
   { command: "help", description: "What can this bot do?" },
 ];
@@ -191,6 +207,308 @@ async function proposeAction(
 
 async function getChatDefault(chatId: string) {
   return db.telegramChatDefault.findUnique({ where: { chatId } });
+}
+
+// ---- Lists, search, detail (Part B) ----
+
+// Sends a message and remembers which record it shows, so a reply can act on it.
+async function sendRecord(chatId: number, text: string, entityType: string, entityId: string) {
+  const sent = await sendMessage(chatId, text);
+  await db.telegramMessageRef.create({
+    data: { chatId: String(chatId), messageId: String(sent.message_id), entityType, entityId },
+  });
+  return sent;
+}
+
+const DEAL_STAGES = ["NEW", "QUALIFIED", "PROPOSAL", "NEGOTIATION", "WON", "LOST"] as const;
+
+async function cmdMerchants(chatId: number, args: string) {
+  const status = args.trim().toUpperCase();
+  const where = ["PROSPECT", "ACTIVE", "CHURNED"].includes(status)
+    ? { status: status as "PROSPECT" | "ACTIVE" | "CHURNED" }
+    : {};
+  const merchants = await db.merchant.findMany({
+    where,
+    select: { name: true, status: true, owner: { select: { name: true } } },
+    orderBy: { name: "asc" },
+    take: 20,
+  });
+  if (merchants.length === 0) {
+    await sendMessage(chatId, "No merchants found.");
+    return;
+  }
+  const lines = merchants.map(
+    (m) => `• <b>${escape(m.name)}</b> — ${m.status.toLowerCase()} — ${escape(m.owner?.name ?? "—")}`
+  );
+  await sendMessage(chatId, `🏪 Merchants (${merchants.length}${merchants.length === 20 ? "+" : ""}):\n${lines.join("\n")}`);
+}
+
+async function cmdDeals(chatId: number, args: string) {
+  const stage = args.trim().toUpperCase();
+  const where = (DEAL_STAGES as readonly string[]).includes(stage)
+    ? { stage: stage as (typeof DEAL_STAGES)[number] }
+    : {};
+  const deals = await db.deal.findMany({
+    where,
+    include: { merchant: { select: { name: true } }, owner: { select: { name: true } } },
+    orderBy: { updatedAt: "desc" },
+    take: 10,
+  });
+  if (deals.length === 0) {
+    await sendMessage(chatId, "No deals found.");
+    return;
+  }
+  await sendMessage(chatId, `💼 Deals (${deals.length}) — reply to one with /move, /won, /lost or /log:`);
+  for (const d of deals) {
+    await sendRecord(
+      chatId,
+      `<b>${escape(d.title)}</b>\n${escape(d.merchant.name)} · ${d.stage.toLowerCase()} · ${d.currency} ${Number(d.value).toLocaleString("en-US")} · ${escape(d.owner.name ?? "—")}`,
+      "DEAL",
+      d.id
+    );
+  }
+}
+
+async function cmdTasks(chatId: number, args: string) {
+  const done = args.trim().toLowerCase() === "done";
+  const tasks = await db.task.findMany({
+    where: done ? { status: "DONE" } : { status: { not: "DONE" } },
+    include: { assignee: { select: { name: true } } },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+  });
+  if (tasks.length === 0) {
+    await sendMessage(chatId, done ? "No completed tasks." : "No open tasks. 🎉");
+    return;
+  }
+  await sendMessage(chatId, `✅ Tasks (${tasks.length}) — reply to one with /done, /assign, /due or /log:`);
+  for (const t of tasks) {
+    const due = t.dueAt ? ` · due ${formatDateTime(t.dueAt, "d MMM")}` : "";
+    await sendRecord(
+      chatId,
+      `<b>${escape(t.title)}</b>\n${t.status.toLowerCase()} · ${t.priority.toLowerCase()} · ${escape(t.assignee.name ?? "—")}${due}`,
+      "TASK",
+      t.id
+    );
+  }
+}
+
+async function cmdMine(chatId: number, userId: string) {
+  const link = await db.telegramUserLink.findUnique({ where: { telegramUserId: userId } });
+  if (!link) {
+    await sendMessage(chatId, "🔗 Link your CRM account first: <code>/link you@perx.mv</code>");
+    return;
+  }
+  const now = new Date();
+  const [tasks, meetings] = await Promise.all([
+    db.task.findMany({
+      where: { assigneeId: link.crmUserId, status: { not: "DONE" } },
+      orderBy: { dueAt: "asc" },
+      take: 10,
+    }),
+    db.meeting.findMany({
+      where: { hostUserId: link.crmUserId, status: "CONFIRMED", endAt: { gte: now } },
+      orderBy: { startAt: "asc" },
+      take: 5,
+    }),
+  ]);
+  const taskLines = tasks.length
+    ? tasks.map((t) => `• ${escape(t.title)}${t.dueAt ? ` (due ${formatDateTime(t.dueAt, "d MMM")})` : ""}`).join("\n")
+    : "None 🎉";
+  const meetLines = meetings.length
+    ? meetings.map((m) => `• ${escape(m.bookerName)} — ${formatDateTime(m.startAt)}`).join("\n")
+    : "None";
+  await sendMessage(chatId, `<b>Your open tasks</b>\n${taskLines}\n\n<b>Your upcoming meetings</b>\n${meetLines}`);
+}
+
+async function cmdFind(chatId: number, args: string) {
+  if (!args.trim()) {
+    await sendMessage(chatId, "Usage: /find <name>");
+    return;
+  }
+  const [merchants, contacts] = await Promise.all([
+    db.merchant.findMany({
+      where: { name: { contains: args, mode: "insensitive" } },
+      select: { name: true, status: true },
+      take: 8,
+    }),
+    db.contact.findMany({
+      where: {
+        OR: [
+          { firstName: { contains: args, mode: "insensitive" } },
+          { lastName: { contains: args, mode: "insensitive" } },
+        ],
+      },
+      select: { firstName: true, lastName: true, merchant: { select: { name: true } } },
+      take: 8,
+    }),
+  ]);
+  if (merchants.length === 0 && contacts.length === 0) {
+    await sendMessage(chatId, `No matches for "${escape(args)}".`);
+    return;
+  }
+  const parts: string[] = [];
+  if (merchants.length)
+    parts.push(`🏪 <b>Merchants</b>\n${merchants.map((m) => `• ${escape(m.name)} (${m.status.toLowerCase()})`).join("\n")}`);
+  if (contacts.length)
+    parts.push(
+      `👤 <b>Contacts</b>\n${contacts.map((c) => `• ${escape(c.firstName)} ${escape(c.lastName)} — ${escape(c.merchant.name)}`).join("\n")}`
+    );
+  await sendMessage(chatId, parts.join("\n\n"));
+}
+
+async function cmdMerchant(chatId: number, args: string) {
+  if (!args.trim()) {
+    await sendMessage(chatId, "Usage: /merchant <name>");
+    return;
+  }
+  const match = await matchMerchant(args);
+  if (match.status === "none") {
+    await sendMessage(chatId, `No merchant named "${escape(args)}".`);
+    return;
+  }
+  if (match.status === "ambiguous") {
+    await sendMessage(chatId, `Several match: ${match.candidates.map((c) => escape(c.name)).join(", ")}. Be exact.`);
+    return;
+  }
+  const [merchant, contactCount, deals, activities] = await Promise.all([
+    db.merchant.findUnique({
+      where: { id: match.merchant.id },
+      select: { name: true, status: true, phone: true, category: true, owner: { select: { name: true } } },
+    }),
+    db.contact.count({ where: { merchantId: match.merchant.id } }),
+    db.deal.findMany({
+      where: { merchantId: match.merchant.id, stage: { notIn: ["WON", "LOST"] } },
+      select: { title: true, stage: true },
+      take: 5,
+    }),
+    listActivitiesForEntity(await getBotOwner(), "MERCHANT", match.merchant.id),
+  ]);
+  if (!merchant) return;
+  const dealLines = deals.length ? deals.map((d) => `• ${escape(d.title)} (${d.stage.toLowerCase()})`).join("\n") : "None open";
+  const actLines = activities.slice(0, 3).map((a) => `• ${a.type.toLowerCase()}: ${escape(a.subject)} (${formatDateTime(a.createdAt, "d MMM")})`).join("\n");
+  const text =
+    `🏪 <b>${escape(merchant.name)}</b> — ${merchant.status.toLowerCase()}\n` +
+    `Owner: ${escape(merchant.owner?.name ?? "—")}${merchant.category ? ` · ${escape(merchant.category)}` : ""}${merchant.phone ? ` · ${escape(merchant.phone)}` : ""}\n` +
+    `Contacts: ${contactCount}\n\n<b>Open deals</b>\n${dealLines}` +
+    (actLines ? `\n\n<b>Recent activity</b>\n${actLines}` : "") +
+    `\n\n<i>Reply /log &lt;note&gt; or /schedule to act on this merchant.</i>`;
+  await sendRecord(chatId, text, "MERCHANT", match.merchant.id);
+}
+
+async function cmdLink(chatId: number, userId: string, args: string) {
+  const email = args.trim().toLowerCase();
+  if (!email) {
+    await sendMessage(chatId, "Usage: /link you@perx.mv");
+    return;
+  }
+  const user = await db.user.findFirst({
+    where: { email: { equals: email, mode: "insensitive" } },
+    select: { id: true, name: true },
+  });
+  if (!user) {
+    await sendMessage(chatId, `No CRM user with email "${escape(email)}".`);
+    return;
+  }
+  await db.telegramUserLink.upsert({
+    where: { telegramUserId: userId },
+    create: { telegramUserId: userId, crmUserId: user.id },
+    update: { crmUserId: user.id },
+  });
+  await sendMessage(chatId, `🔗 Linked to <b>${escape(user.name ?? email)}</b>. /mine now works.`);
+}
+
+// ---- Reply-to-a-record actions ----
+
+const REPLY_CMDS = new Set(["log", "detail", "move", "won", "lost", "done", "assign", "due"]);
+
+async function handleReplyAction(
+  msg: TgMessage,
+  ref: { entityType: string; entityId: string },
+  cmd: string,
+  args: string
+) {
+  const chatId = msg.chat.id;
+  const ctx = await getBotOwner();
+
+  if (cmd === "log") {
+    if (ref.entityType === "TASK") {
+      await sendMessage(chatId, "Notes attach to merchants, contacts or deals — not tasks.");
+      return;
+    }
+    if (!args.trim()) {
+      await sendMessage(chatId, "Usage: reply /log <note>");
+      return;
+    }
+    await createActivity(ctx, {
+      type: "NOTE",
+      subject: args.trim().slice(0, 300),
+      entityType: ref.entityType as "MERCHANT" | "CONTACT" | "DEAL",
+      entityId: ref.entityId,
+    });
+    await sendMessage(chatId, "📝 Note logged.");
+    return;
+  }
+
+  if (ref.entityType === "DEAL") {
+    try {
+      if (cmd === "won") {
+        await moveDealStage(ctx, ref.entityId, "WON");
+        await sendMessage(chatId, "🏆 Deal marked won.");
+      } else if (cmd === "lost") {
+        await moveDealStage(ctx, ref.entityId, "LOST", args.trim() || undefined);
+        await sendMessage(chatId, "Deal marked lost.");
+      } else if (cmd === "move") {
+        const stage = args.trim().toUpperCase();
+        if (!(DEAL_STAGES as readonly string[]).includes(stage)) {
+          await sendMessage(chatId, `Stage must be one of: ${DEAL_STAGES.join(", ").toLowerCase()}.`);
+          return;
+        }
+        await moveDealStage(ctx, ref.entityId, stage as (typeof DEAL_STAGES)[number]);
+        await sendMessage(chatId, `Deal moved to ${stage.toLowerCase()}.`);
+      } else {
+        await sendMessage(chatId, "That command doesn't apply to a deal. Try /move, /won, /lost or /log.");
+      }
+    } catch (e) {
+      await sendMessage(chatId, `⚠️ ${escape(e instanceof Error ? e.message : "Couldn't update the deal")}.`);
+    }
+    return;
+  }
+
+  if (ref.entityType === "TASK") {
+    try {
+      if (cmd === "done") {
+        await moveTask(ctx, ref.entityId, "DONE");
+        await sendMessage(chatId, "✅ Task completed.");
+      } else if (cmd === "assign") {
+        const user = await db.user.findFirst({
+          where: { name: { contains: args.trim(), mode: "insensitive" } },
+          select: { id: true, name: true },
+        });
+        if (!user) {
+          await sendMessage(chatId, `No team member matches "${escape(args)}".`);
+          return;
+        }
+        await setTaskAssignee(ctx, ref.entityId, user.id);
+        await sendMessage(chatId, `Assigned to ${escape(user.name ?? "them")}.`);
+      } else if (cmd === "due") {
+        const date = args.trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+          await sendMessage(chatId, "Usage: reply /due YYYY-MM-DD");
+          return;
+        }
+        await setTaskDue(ctx, ref.entityId, `${date}T09:00`);
+        await sendMessage(chatId, `Due date set to ${date}.`);
+      } else {
+        await sendMessage(chatId, "That command doesn't apply to a task. Try /done, /assign, /due or /log.");
+      }
+    } catch (e) {
+      await sendMessage(chatId, `⚠️ ${escape(e instanceof Error ? e.message : "Couldn't update the task")}.`);
+    }
+    return;
+  }
+
+  await sendMessage(chatId, "Reply /log <note> or /schedule to act on this record.");
 }
 
 // ---- Money parsing ----
@@ -380,6 +698,24 @@ const HELP = [
 async function handleCommand(msg: TgMessage, cmd: string, args: string, by: string | null, userId: string) {
   const chatId = msg.chat.id;
 
+  // Reply-to-a-record actions need the message being replied to.
+  if (REPLY_CMDS.has(cmd)) {
+    const replyMid = msg.reply_to_message?.message_id;
+    if (!replyMid) {
+      await sendMessage(chatId, "↩️ Reply to a deal/task/merchant message (from /deals, /tasks or /merchant), then use this command.");
+      return;
+    }
+    const ref = await db.telegramMessageRef.findUnique({
+      where: { chatId_messageId: { chatId: String(chatId), messageId: String(replyMid) } },
+    });
+    if (!ref) {
+      await sendMessage(chatId, "I don't recognise that message. Use /deals, /tasks or /merchant to get one you can reply to.");
+      return;
+    }
+    await handleReplyAction(msg, ref, cmd, args);
+    return;
+  }
+
   switch (cmd) {
     case "start":
     case "help":
@@ -428,6 +764,27 @@ async function handleCommand(msg: TgMessage, cmd: string, args: string, by: stri
     case "new_deal":
     case "new_task":
       await startFlow(cmd, msg, args, by, userId);
+      return;
+    case "merchants":
+      await cmdMerchants(chatId, args);
+      return;
+    case "deals":
+      await cmdDeals(chatId, args);
+      return;
+    case "tasks":
+      await cmdTasks(chatId, args);
+      return;
+    case "mine":
+      await cmdMine(chatId, userId);
+      return;
+    case "find":
+      await cmdFind(chatId, args);
+      return;
+    case "merchant":
+      await cmdMerchant(chatId, args);
+      return;
+    case "link":
+      await cmdLink(chatId, userId, args);
       return;
     case "schedule": {
       if (!args) {
