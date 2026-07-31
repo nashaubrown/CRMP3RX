@@ -121,6 +121,22 @@ export const assistantToolDefinitions: Anthropic.Tool[] = [
     input_schema: { type: "object", properties: {}, required: [] },
   },
   {
+    name: "list_meetings",
+    description:
+      "Upcoming confirmed meetings, earliest first. Use for 'when is my next meeting', 'my meetings this week', 'does the team have any meetings'. The first item is the next meeting.",
+    input_schema: {
+      type: "object",
+      properties: {
+        scope: {
+          type: "string",
+          enum: ["mine", "all"],
+          description: "'mine' = meetings you host (default), 'all' = the whole team",
+        },
+      },
+      required: [],
+    },
+  },
+  {
     name: "recent_communications",
     description: "Recent emails and SMS logged on a merchant, contact or deal.",
     input_schema: {
@@ -376,6 +392,32 @@ async function pipelineSummaryTool(ctx: SessionUser, input: { scope?: string }) 
   };
 }
 
+async function listMeetingsTool(ctx: SessionUser, input: { scope?: string }) {
+  const scope = input.scope === "all" ? "all" : "mine";
+  const meetings = await db.meeting.findMany({
+    where: {
+      status: "CONFIRMED",
+      endAt: { gte: new Date() },
+      ...(scope === "mine" ? { hostUserId: ctx.id } : {}),
+    },
+    orderBy: { startAt: "asc" },
+    take: 20,
+    include: { host: { select: { name: true } } },
+  });
+  const toRow = (m: (typeof meetings)[number]) => ({
+    title: m.title,
+    with: m.bookerName,
+    at: formatDateTime(m.startAt),
+    host: m.host.name,
+  });
+  return {
+    scope,
+    count: meetings.length,
+    next: meetings[0] ? toRow(meetings[0]) : null,
+    meetings: meetings.map(toRow),
+  };
+}
+
 async function listActivitiesDueTool(ctx: SessionUser) {
   const [tasks, today] = await Promise.all([
     listTasks(ctx, { scope: "mine", status: "open", view: "list", group: "due" }),
@@ -483,6 +525,8 @@ export async function executeAssistantTool(
         return JSON.stringify(await pipelineSummaryTool(ctx, input));
       case "list_activities_due":
         return JSON.stringify(await listActivitiesDueTool(ctx));
+      case "list_meetings":
+        return JSON.stringify(await listMeetingsTool(ctx, input));
       case "recent_communications":
         return JSON.stringify(
           await recentCommunicationsTool(
