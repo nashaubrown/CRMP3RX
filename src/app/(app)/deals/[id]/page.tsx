@@ -20,6 +20,7 @@ import { getDeal } from "@/services/deals";
 import { listTasksForRecord } from "@/services/tasks";
 import { listTeamMembers } from "@/services/users";
 import { RecordTasks } from "@/components/tasks/record-tasks";
+import { WhatsappProposalButton } from "@/components/deals/whatsapp-proposal-button";
 
 export const metadata: Metadata = { title: "Deal" };
 
@@ -111,6 +112,15 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
                 </Link>
                 .
               </p>
+              {deal.canEdit && deal.stage !== "WON" && deal.stage !== "LOST" ? (
+                <div className="border-t pt-3">
+                  <WhatsappProposalButton dealId={deal.id} />
+                  <p className="text-muted-foreground mt-1.5 text-xs">
+                    Sent the proposal on WhatsApp? Log it here to move the deal to Proposal and
+                    record the activity.
+                  </p>
+                </div>
+              ) : null}
             </CardContent>
           </Card>
 
