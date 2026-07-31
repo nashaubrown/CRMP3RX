@@ -178,6 +178,41 @@ export async function listTeamAgenda(limit = 50) {
   });
 }
 
+const MEETING_INCLUDE = {
+  host: { select: { id: true, name: true } },
+  contact: { select: { id: true, firstName: true, lastName: true } },
+} as const;
+
+// Team-wide meetings for the agenda: upcoming (ascending) and recent past
+// (descending), confirmed only.
+export async function listTeamMeetings() {
+  const now = new Date();
+  const [upcoming, past] = await Promise.all([
+    db.meeting.findMany({
+      where: { status: "CONFIRMED", endAt: { gte: now } },
+      orderBy: { startAt: "asc" },
+      take: 100,
+      include: MEETING_INCLUDE,
+    }),
+    db.meeting.findMany({
+      where: { status: "CONFIRMED", endAt: { lt: now } },
+      orderBy: { startAt: "desc" },
+      take: 50,
+      include: MEETING_INCLUDE,
+    }),
+  ]);
+  return { upcoming, past };
+}
+
+// Confirmed meetings whose start falls within the given Maldives-time month.
+export async function listMeetingsInMonth(monthStart: Date, monthEnd: Date) {
+  return db.meeting.findMany({
+    where: { status: "CONFIRMED", startAt: { gte: monthStart, lt: monthEnd } },
+    orderBy: { startAt: "asc" },
+    include: MEETING_INCLUDE,
+  });
+}
+
 export async function cancelMeeting(ctx: SessionUser, meetingId: string) {
   const meeting = await db.meeting.findUnique({ where: { id: meetingId } });
   if (!meeting) throw new Error("Meeting not found");

@@ -6,7 +6,6 @@ import { AiProviderCard } from "@/app/(app)/settings/ai-provider-card";
 import { ApiKeysCard } from "@/app/(app)/settings/api-keys-card";
 import { OptionSetsCard } from "@/app/(app)/settings/option-sets-card";
 import { AffiliatesCard } from "@/app/(app)/settings/affiliates-card";
-import { MeetingList } from "@/app/(app)/settings/meeting-list";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,7 +24,6 @@ import { listApiKeys } from "@/services/api-keys";
 import { isAdmin } from "@/lib/authz";
 import { listManagedOptions, OPTION_SETS } from "@/services/option-sets";
 import { listAffiliates } from "@/services/affiliates";
-import { listTeamAgenda } from "@/services/scheduling";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -46,14 +44,13 @@ export default async function SettingsPage({
   const { calendar: calendarMsg } = await searchParams;
 
   const admin = isAdmin(user);
-  const [profile, meetings, apiKeys, aiSettings, optionSets, affiliates] = await Promise.all([
+  const [profile, apiKeys, aiSettings, optionSets, affiliates] = await Promise.all([
     db.user.findUnique({
       where: { id: user.id },
       select: {
         calendarAccount: { select: { createdAt: true } },
       },
     }),
-    listTeamAgenda(),
     listApiKeys(user),
     getAiSettings(user),
     admin
@@ -83,7 +80,7 @@ export default async function SettingsPage({
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
         <p className="text-muted-foreground text-sm">
-          Calendar connection, the team agenda, and API access
+          Calendar connection, dropdown values, affiliates, and API access
         </p>
       </div>
 
@@ -124,29 +121,6 @@ export default async function SettingsPage({
               </Button>
             </>
           )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Team agenda</CardTitle>
-          <CardDescription>
-            Upcoming meetings across the team — scheduled with merchants from their record pages.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <MeetingList
-            meetings={meetings.map((m) => ({
-              id: m.id,
-              title: m.title,
-              bookerName: m.bookerName,
-              bookerEmail: m.bookerEmail,
-              when: formatDateTime(m.startAt),
-              meetUrl: m.googleMeetUrl,
-              host: m.host.name,
-              canCancel: admin || m.hostUserId === user.id,
-            }))}
-          />
         </CardContent>
       </Card>
 
