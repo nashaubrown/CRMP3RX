@@ -3,7 +3,8 @@ import { render } from "@react-email/render";
 
 import { BaseEmail } from "@/emails/base-email";
 import { db } from "@/lib/db";
-import { getEmailFrom, getEmailProvider } from "@/integrations/email";
+import { getEmailProvider } from "@/integrations/email";
+import { resolveEmailFrom } from "@/services/email-settings";
 import { getSmsProvider } from "@/integrations/sms";
 import { rateLimit } from "@/lib/rate-limit";
 import type { SessionUser } from "@/lib/authz";
@@ -34,7 +35,7 @@ export async function sendEmailFromRecord(ctx: SessionUser, args: SendEmailArgs)
     throw new Error(`Hourly email limit reached (${EMAIL_HOURLY_LIMIT}/hour)`);
   }
 
-  const from = getEmailFrom();
+  const from = await resolveEmailFrom();
   const html = await render(BaseEmail({ previewText: args.subject, bodyHtml: args.bodyHtml }));
 
   const provider = getEmailProvider();
@@ -139,7 +140,7 @@ export async function sendSystemEmail(args: {
   entityType?: EntityType;
   entityId?: string;
 }) {
-  const from = getEmailFrom();
+  const from = await resolveEmailFrom();
   const html = await render(BaseEmail({ previewText: args.subject, bodyHtml: args.bodyHtml }));
   const result = await getEmailProvider().send({ to: args.to, from, subject: args.subject, html });
   await db.emailMessage.create({

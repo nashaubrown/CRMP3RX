@@ -94,6 +94,18 @@ model AiSetting {
   updatedAt   DateTime @updatedAt
 }
 
+// Global "from" identity for outbound CRM email (singleton). Overrides the
+// EMAIL_FROM env fallback. The address's domain must be verified in the email
+// provider (Resend) or sends will fail.
+model EmailSetting {
+  id          String   @id @default("singleton")
+  fromName    String?
+  fromEmail   String
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 // Auth.js adapter models
 model Account {
   id                String  @id @default(cuid())

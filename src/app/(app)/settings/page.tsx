@@ -3,6 +3,7 @@ import { CalendarCheckIcon, CalendarIcon } from "lucide-react";
 
 import { disconnectCalendarAction } from "@/app/(app)/settings/actions";
 import { AiProviderCard } from "@/app/(app)/settings/ai-provider-card";
+import { EmailIdentityCard } from "@/app/(app)/settings/email-identity-card";
 import { ApiKeysCard } from "@/app/(app)/settings/api-keys-card";
 import { OptionSetsCard } from "@/app/(app)/settings/option-sets-card";
 import { AffiliatesCard } from "@/app/(app)/settings/affiliates-card";
@@ -20,6 +21,7 @@ import { formatDateTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/rbac";
 import { AI_PROVIDER_OPTIONS, getAiSettings } from "@/services/ai-settings";
+import { getEmailSettings } from "@/services/email-settings";
 import { listApiKeys } from "@/services/api-keys";
 import { isAdmin } from "@/lib/authz";
 import { listManagedOptions, OPTION_SETS } from "@/services/option-sets";
@@ -44,7 +46,7 @@ export default async function SettingsPage({
   const { calendar: calendarMsg } = await searchParams;
 
   const admin = isAdmin(user);
-  const [profile, apiKeys, aiSettings, optionSets, affiliates] = await Promise.all([
+  const [profile, apiKeys, aiSettings, emailSettings, optionSets, affiliates] = await Promise.all([
     db.user.findUnique({
       where: { id: user.id },
       select: {
@@ -53,6 +55,7 @@ export default async function SettingsPage({
     }),
     listApiKeys(user),
     getAiSettings(user),
+    getEmailSettings(user),
     admin
       ? Promise.all(
           OPTION_SETS.map(async (s) => ({
@@ -142,6 +145,14 @@ export default async function SettingsPage({
           source={aiSettings.activeSource}
           configured={aiSettings.configured}
           saved={aiSettings.saved}
+        />
+      ) : null}
+
+      {emailSettings.isAdmin ? (
+        <EmailIdentityCard
+          activeFrom={emailSettings.activeFrom}
+          source={emailSettings.source}
+          saved={emailSettings.saved}
         />
       ) : null}
 

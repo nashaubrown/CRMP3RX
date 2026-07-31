@@ -26,6 +26,38 @@ import {
   testAiConnection,
 } from "@/services/ai-settings";
 import { cancelMeeting } from "@/services/scheduling";
+import {
+  clearEmailSettings,
+  emailIdentitySchema,
+  saveEmailSettings,
+  type EmailIdentityInput,
+} from "@/services/email-settings";
+
+export async function saveEmailIdentityAction(
+  input: EmailIdentityInput
+): Promise<{ error: string | null }> {
+  const ctx = await requireUserOrThrow();
+  const parsed = emailIdentitySchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  try {
+    await saveEmailSettings(ctx, parsed.data);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Something went wrong" };
+  }
+  revalidatePath("/settings");
+  return { error: null };
+}
+
+export async function clearEmailIdentityAction(): Promise<{ error: string | null }> {
+  const ctx = await requireUserOrThrow();
+  try {
+    await clearEmailSettings(ctx);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Something went wrong" };
+  }
+  revalidatePath("/settings");
+  return { error: null };
+}
 
 export async function disconnectCalendarAction() {
   const ctx = await requireUserOrThrow();
