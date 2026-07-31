@@ -213,6 +213,88 @@ export async function listMeetingsInMonth(monthStart: Date, monthEnd: Date) {
   });
 }
 
+const REMINDER_LEAD_MS = 60 * 60 * 1000; // remind ~1 hour before
+
+// Sends a one-hour-before reminder to the attendee (email + SMS) and the host
+// (email), for any confirmed meeting starting within the next hour that hasn't
+// been reminded yet. Idempotent: each meeting is claimed by stamping
+// reminderSentAt before sending, so overlapping cron runs never double-send.
+// Meant to be called by the reminders cron.
+export async function sendDueMeetingReminders() {
+  const now = new Date();
+  const windowEnd = new Date(now.getTime() + REMINDER_LEAD_MS);
+
+  const due = await db.meeting.findMany({
+    where: {
+      status: "CONFIRMED",
+      reminderSentAt: null,
+      startAt: { gt: now, lte: windowEnd },
+    },
+    include: { host: { select: { id: true, name: true, email: true } } },
+  });
+
+  let sent = 0;
+  for (const m of due) {
+    // Claim before sending so a concurrent run can't also send this one.
+    const claim = await db.meeting.updateMany({
+      where: { id: m.id, reminderSentAt: null },
+      data: { reminderSentAt: now },
+    });
+    if (claim.count === 0) continue;
+
+    const when = formatDateTime(m.startAt);
+    const hostName = m.host.name ?? "Perx";
+    const meetLine = m.googleMeetUrl
+      ? `<p>Join online: <a href="${escapeHtml(m.googleMeetUrl)}">${escapeHtml(m.googleMeetUrl)}</a></p>`
+      : "";
+    const entityType = m.contactId ? ("CONTACT" as const) : undefined;
+    const entityId = m.contactId ?? undefined;
+
+    // Attendee (merchant contact)
+    await sendSystemEmail({
+      to: m.bookerEmail,
+      subject: `Reminder: ${m.title} in 1 hour (Perx)`,
+      bodyHtml: `<p>Hi ${escapeHtml(m.bookerName)},</p><p>A reminder that <strong>${escapeHtml(
+        m.title
+      )}</strong> with ${escapeHtml(
+        hostName
+      )} starts at <strong>${when}</strong> (Maldives time) — about an hour from now.</p>${meetLine}<p>See you soon!</p>`,
+      sentById: m.hostUserId,
+      entityType,
+      entityId,
+    });
+    if (m.bookerPhone) {
+      await sendSystemSms({
+        to: m.bookerPhone,
+        body: `Reminder: "${m.title}" with ${hostName} (Perx) starts at ${when} (MV time), about an hour from now.${
+          m.googleMeetUrl ? ` Join: ${m.googleMeetUrl}` : ""
+        }`,
+        sentById: m.hostUserId,
+        entityType,
+        entityId,
+      });
+    }
+
+    // Host (rep)
+    if (m.host.email) {
+      await sendSystemEmail({
+        to: m.host.email,
+        subject: `Reminder: ${m.title} with ${m.bookerName} in 1 hour`,
+        bodyHtml: `<p>Hi ${escapeHtml(
+          m.host.name ?? ""
+        )},</p><p>Reminder: <strong>${escapeHtml(m.title)}</strong> with ${escapeHtml(
+          m.bookerName
+        )} starts at <strong>${when}</strong> (Maldives time), about an hour from now.</p>${meetLine}`,
+        sentById: m.hostUserId,
+      });
+    }
+
+    sent++;
+  }
+
+  return { considered: due.length, sent };
+}
+
 export async function cancelMeeting(ctx: SessionUser, meetingId: string) {
   const meeting = await db.meeting.findUnique({ where: { id: meetingId } });
   if (!meeting) throw new Error("Meeting not found");
