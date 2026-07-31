@@ -25,7 +25,6 @@ const initialState: ActivityFormState = { error: null };
 const TYPES = [
   { value: "NOTE", label: "Note" },
   { value: "CALL", label: "Call" },
-  { value: "TASK", label: "Task" },
   { value: "MEETING", label: "Meeting" },
 ];
 

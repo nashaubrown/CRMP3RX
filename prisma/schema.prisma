@@ -57,6 +57,8 @@ model User {
   apiKeys        ApiKey[]
   canvasViews    CanvasView[]
   commissionsPaid AffiliateCommission[] @relation("CommissionPaidBy")
+  assignedTasks   Task[]                @relation("TaskAssignee")
+  createdTasks    Task[]                @relation("TaskCreatedBy")
 }
 
 // Personal access tokens for the REST API and the MCP endpoint. Only a
@@ -218,6 +220,7 @@ model Merchant {
   leads        Lead[]
   deals        Deal[]
   shares       MerchantShare[]
+  tasks        Task[]
 
   @@index([ownerId])
   @@index([status])
@@ -313,6 +316,7 @@ model Contact {
   leads         Lead[]
   deals         Deal[]
   meetings      Meeting[]
+  tasks         Task[]
 
   @@index([merchantId])
   @@index([ownerId])
@@ -388,6 +392,57 @@ model OptionItem {
   @@index([setKey])
 }
 
+// ---------- Task tracker ----------
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+// A tracked to-do. Standalone or optionally linked to a merchant/contact/deal.
+// Distinct from Activity (the record timeline): tasks carry status, priority
+// and an assignee, and drive the Tasks tracker board/list.
+model Task {
+  id          String       @id @default(cuid())
+  title       String
+  notes       String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  dueAt       DateTime?
+  // Board ordering within a status column.
+  position    Int          @default(0)
+  completedAt DateTime?
+
+  assigneeId  String
+  assignee    User   @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  createdById String
+  createdBy   User   @relation("TaskCreatedBy", fields: [createdById], references: [id])
+
+  merchantId String?
+  merchant   Merchant? @relation(fields: [merchantId], references: [id], onDelete: SetNull)
+  contactId  String?
+  contact    Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  dealId     String?
+  deal       Deal?     @relation(fields: [dealId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([assigneeId])
+  @@index([status])
+  @@index([dueAt])
+  @@index([merchantId])
+  @@index([contactId])
+  @@index([dealId])
+}
+
 enum LeadStatus {
   NEW
   CONTACTED
@@ -459,6 +514,8 @@ model Deal {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  tasks Task[]
 
   @@index([ownerId])
   @@index([stage])

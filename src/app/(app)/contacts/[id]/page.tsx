@@ -10,16 +10,20 @@ import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { DealStageBadge } from "@/components/status-badges";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatMoney } from "@/lib/format";
 import { formatPhone } from "@/lib/phone";
 import { isAdmin, requireUser } from "@/lib/rbac";
+import { toUiTask } from "@/lib/task-ui";
 import { listActivitiesForEntity } from "@/services/activities";
 import { listContactHistory } from "@/services/audit-log";
 import { getContact } from "@/services/contacts";
 import { buildMergeVars, listCommunicationsForEntity } from "@/services/messaging";
 import { hasCalendarConnected } from "@/services/scheduling";
 import { listTemplates } from "@/services/templates";
+import { listTasksForRecord } from "@/services/tasks";
+import { listTeamMembers } from "@/services/users";
+import { RecordTasks } from "@/components/tasks/record-tasks";
 import { ComposeButtons } from "@/components/compose/compose-buttons";
 import { ScheduleMeetingDialog } from "@/components/scheduling/schedule-meeting-dialog";
 import { CommunicationsCard } from "@/components/compose/communications-card";
@@ -39,7 +43,7 @@ export default async function ContactDetailPage({
   const contact = await getContact(user, id);
   if (!contact) notFound();
 
-  const [activities, history, comms, templates, mergeVars, calendarConnected] =
+  const [activities, history, comms, templates, mergeVars, calendarConnected, taskItems, team] =
     await Promise.all([
       listActivitiesForEntity(user, "CONTACT", id),
       contact.access.canViewHistory
@@ -49,7 +53,12 @@ export default async function ContactDetailPage({
       contact.access.canEdit ? listTemplates() : Promise.resolve([]),
       contact.access.canEdit ? buildMergeVars(user, "CONTACT", id) : Promise.resolve({}),
       contact.access.canEdit ? hasCalendarConnected(user.id) : Promise.resolve(false),
+      listTasksForRecord("contact", id),
+      listTeamMembers(),
     ]);
+
+  const now = new Date();
+  const tasks = taskItems.map((t) => toUiTask(t, now));
 
   return (
     <div className="flex flex-col gap-4">
@@ -169,6 +178,23 @@ export default async function ContactDetailPage({
                   {formatPhone(contact.phone)}
                 </p>
               ) : null}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Tasks ({tasks.length})</CardTitle>
+              <CardDescription>To-dos for this contact. Also appear in the Tasks tracker.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <RecordTasks
+                kind="contact"
+                recordId={contact.id}
+                tasks={tasks}
+                team={team.map((m) => ({ id: m.id, name: m.name }))}
+                currentUserId={user.id}
+                revalidate={`/contacts/${contact.id}`}
+              />
             </CardContent>
           </Card>
 

@@ -10,12 +10,16 @@ import { ActivityTimeline } from "@/components/activity/activity-timeline";
 import { DeleteButton } from "@/components/delete-button";
 import { DealStageBadge } from "@/components/status-badges";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDate } from "@/lib/datetime";
 import { formatMoney } from "@/lib/format";
 import { isAdmin, requireUser } from "@/lib/rbac";
+import { toUiTask } from "@/lib/task-ui";
 import { listActivitiesForEntity } from "@/services/activities";
 import { getDeal } from "@/services/deals";
+import { listTasksForRecord } from "@/services/tasks";
+import { listTeamMembers } from "@/services/users";
+import { RecordTasks } from "@/components/tasks/record-tasks";
 
 export const metadata: Metadata = { title: "Deal" };
 
@@ -26,7 +30,13 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
   const deal = await getDeal(user, id);
   if (!deal) notFound();
 
-  const activities = await listActivitiesForEntity(user, "DEAL", id);
+  const [activities, taskItems, team] = await Promise.all([
+    listActivitiesForEntity(user, "DEAL", id),
+    listTasksForRecord("deal", id),
+    listTeamMembers(),
+  ]);
+  const now = new Date();
+  const tasks = taskItems.map((t) => toUiTask(t, now));
   const canDelete = isAdmin(user) || deal.ownerId === user.id;
 
   return (
@@ -101,6 +111,23 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
                 </Link>
                 .
               </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Tasks ({tasks.length})</CardTitle>
+              <CardDescription>To-dos for this deal. Also appear in the Tasks tracker.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <RecordTasks
+                kind="deal"
+                recordId={deal.id}
+                tasks={tasks}
+                team={team.map((m) => ({ id: m.id, name: m.name }))}
+                currentUserId={user.id}
+                revalidate={`/deals/${deal.id}`}
+              />
             </CardContent>
           </Card>
         </div>
