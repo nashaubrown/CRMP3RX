@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { APIProvider, AdvancedMarker, InfoWindow, Map, Pin } from "@vis.gl/react-google-maps";
+import { APIProvider, AdvancedMarker, Map, Pin } from "@vis.gl/react-google-maps";
 
+import { MerchantInfoWindow } from "@/components/maps/merchant-info-window";
 import {
   DEFAULT_CENTER,
   DEFAULT_ZOOM,
@@ -73,27 +74,7 @@ export function MerchantsMap({ pins }: { pins: MerchantPin[] }) {
             })}
 
             {active ? (
-              <InfoWindow
-                position={{ lat: active.lat, lng: active.lng }}
-                onCloseClick={() => setActiveId(null)}
-              >
-                <div className="flex flex-col gap-0.5 pr-2">
-                  <span className="text-sm font-semibold text-neutral-900">{active.name}</span>
-                  {active.outletName && active.outletName !== active.name ? (
-                    <span className="text-xs text-neutral-500">{active.outletName}</span>
-                  ) : null}
-                  <span className="text-xs text-neutral-600">
-                    {active.onboarded ? "Onboarded" : active.status}
-                    {active.subscriptionPlan ? ` · ${active.subscriptionPlan}` : ""}
-                  </span>
-                  <a
-                    href={`/merchants/${active.merchantId}`}
-                    className="text-xs font-medium text-green-700 underline"
-                  >
-                    Open merchant →
-                  </a>
-                </div>
-              </InfoWindow>
+              <MerchantInfoWindow pin={active} onClose={() => setActiveId(null)} />
             ) : null}
           </Map>
         </div>

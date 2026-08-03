@@ -7,6 +7,7 @@ import { CircleIcon, PentagonIcon, Trash2Icon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { deleteGeofenceAction, saveGeofenceAction } from "@/app/(app)/zones/actions";
+import { MerchantInfoWindow } from "@/components/maps/merchant-info-window";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -333,8 +334,11 @@ export function ZonesClient({
   const [draftPts, setDraftPts] = React.useState<LatLng[]>([]);
   const [radiusM, setRadiusM] = React.useState(500);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
+  const [activePinId, setActivePinId] = React.useState<string | null>(null);
   const [form, setForm] = React.useState<FormState | null>(null);
   const [saving, setSaving] = React.useState(false);
+
+  const activePin = pins.find((p) => p.id === activePinId) ?? null;
 
   const onSelect = React.useCallback((id: string) => setSelectedId(id), []);
 
@@ -342,6 +346,15 @@ export function ZonesClient({
     setMode("none");
     setDraftPts([]);
     setForm(null);
+  }
+
+  // Entering a draw mode: drop the popup so it can't sit over the map.
+  function startDraw(next: DrawMode) {
+    setSelectedId(null);
+    setActivePinId(null);
+    setForm(null);
+    setDraftPts([]);
+    setMode(mode === next ? "none" : next);
   }
 
   function newForm(): FormState {
@@ -423,24 +436,14 @@ export function ZonesClient({
           <Button
             variant={mode === "polygon" ? "secondary" : "outline"}
             size="sm"
-            onClick={() => {
-              setSelectedId(null);
-              setForm(null);
-              setDraftPts([]);
-              setMode(mode === "polygon" ? "none" : "polygon");
-            }}
+            onClick={() => startDraw("polygon")}
           >
             <PentagonIcon /> Draw area
           </Button>
           <Button
             variant={mode === "circle" ? "secondary" : "outline"}
             size="sm"
-            onClick={() => {
-              setSelectedId(null);
-              setForm(null);
-              setDraftPts([]);
-              setMode(mode === "circle" ? "none" : "circle");
-            }}
+            onClick={() => startDraw("circle")}
           >
             <CircleIcon /> Draw radius
           </Button>
@@ -564,11 +567,22 @@ export function ZonesClient({
             {pins.map((p) => {
               const c = pinColors(p);
               return (
-                <AdvancedMarker key={p.id} position={{ lat: p.lat, lng: p.lng }} title={p.name}>
+                <AdvancedMarker
+                  key={p.id}
+                  position={{ lat: p.lat, lng: p.lng }}
+                  title={p.name}
+                  // While drawing, a pin tap is aimed at the map underneath —
+                  // don't hijack it with a popup.
+                  onClick={mode === "none" ? () => setActivePinId(p.id) : undefined}
+                >
                   <Pin background={c.background} glyphColor={c.glyph} borderColor={c.border} scale={0.7} />
                 </AdvancedMarker>
               );
             })}
+
+            {activePin ? (
+              <MerchantInfoWindow pin={activePin} onClose={() => setActivePinId(null)} />
+            ) : null}
             {zones.map((z) => (
               <ZoneOverlay key={z.id} zone={z} selected={selectedId === z.id} onSelect={onSelect} />
             ))}
