@@ -29,7 +29,12 @@ export const authConfig = {
         pathname.startsWith("/api/cron") ||
         // API-key authenticated surfaces (REST + MCP) do their own auth
         pathname.startsWith("/api/v1") ||
-        pathname === "/api/mcp";
+        pathname === "/api/mcp" ||
+        // OAuth discovery probes. MCP clients (claude.ai connectors) check
+        // these before connecting; they must 404, not redirect to /login —
+        // an HTML login page reads as "this server has a sign-in service"
+        // and sends the client down a dynamic-registration path that fails.
+        pathname.startsWith("/.well-known/");
       if (isPublic) return true;
       return !!auth?.user;
     },
