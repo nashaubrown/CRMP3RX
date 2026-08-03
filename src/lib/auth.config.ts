@@ -29,7 +29,10 @@ export const authConfig = {
         pathname.startsWith("/api/cron") ||
         // API-key authenticated surfaces (REST + MCP) do their own auth
         pathname.startsWith("/api/v1") ||
-        pathname === "/api/mcp" ||
+        // startsWith, not ===: the connector URL carries the key as a path
+        // segment (/api/mcp/perx_…), and this check runs before the rewrite
+        // that turns it back into ?key=.
+        pathname.startsWith("/api/mcp") ||
         // OAuth discovery probes. MCP clients (claude.ai connectors) check
         // these before connecting; they must 404, not redirect to /login —
         // an HTML login page reads as "this server has a sign-in service"
