@@ -27,6 +27,9 @@ export const authConfig = {
         pathname.startsWith("/api/telegram/webhook") ||
         // Called by the reminders scheduler; the route verifies CRON_SECRET.
         pathname.startsWith("/api/cron") ||
+        // Public read-only payload of published help articles; consumed by
+        // the help site's Netlify build.
+        pathname.startsWith("/api/help/published") ||
         // API-key authenticated surfaces (REST + MCP) do their own auth
         pathname.startsWith("/api/v1") ||
         // startsWith, not ===: the connector URL carries the key as a path
