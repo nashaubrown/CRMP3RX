@@ -59,6 +59,8 @@ model User {
   commissionsPaid AffiliateCommission[] @relation("CommissionPaidBy")
   assignedTasks   Task[]                @relation("TaskAssignee")
   createdTasks    Task[]                @relation("TaskCreatedBy")
+  helpArticlesAuthored HelpArticle[]         @relation("HelpArticleAuthor")
+  helpArticlesReviewed HelpArticle[]         @relation("HelpArticleReviewer")
 }
 
 // Personal access tokens for the REST API and the MCP endpoint. Only a
@@ -913,4 +915,75 @@ model ChatMessage {
   createdAt      DateTime     @default(now())
 
   @@index([conversationId])
+}
+
+// ---------- Help Center (public docs CMS) ----------
+// Articles are written in the CRM with a rich-text editor (Plate JSON),
+// go through review (SALES_REP submits, ADMIN approves), and the published
+// copy is served to the public help site via /api/help/published.
+// Working copy (contentJson/contentHtml) is separate from the live copy
+// (publishedJson/publishedHtml) so edits never take the live article down.
+
+enum HelpArticleStatus {
+  DRAFT
+  IN_REVIEW
+  PUBLISHED
+  REJECTED
+  ARCHIVED
+}
+
+model HelpCategory {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  description String   @default("")
+  icon        String   @default("chart")
+  order       Int      @default(99)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  articles HelpArticle[]
+}
+
+model HelpArticle {
+  id          String            @id @default(cuid())
+  slug        String            @unique
+  title       String
+  description String            @default("")
+  order       Int               @default(99)
+  status      HelpArticleStatus @default(DRAFT)
+
+  categoryId String
+  category   HelpCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  // Working copy — what the editor edits.
+  contentJson Json
+  contentHtml String @default("")
+
+  // Live copy — what the public site renders. Set on publish.
+  publishedTitle       String?
+  publishedDescription String?
+  publishedJson        Json?
+  publishedHtml        String?
+
+  authorId   String?
+  author     User?   @relation("HelpArticleAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  reviewerId String?
+  reviewer   User?   @relation("HelpArticleReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  reviewNote String?
+
+  submittedAt DateTime?
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([categoryId])
+  @@index([status])
+}
+
+model HelpSetting {
+  id                  String   @id @default("singleton")
+  netlifyBuildHookUrl String?
+  siteUrl             String?
+  updatedAt           DateTime @updatedAt
 }
