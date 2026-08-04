@@ -7,7 +7,9 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card"
       className={cn(
-        "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm",
+        // rounded-2xl + the layered surface shadow match the Help Center's
+        // card treatment; add `surface-interactive` on cards that are links.
+        "bg-card text-card-foreground surface-card flex flex-col gap-6 rounded-2xl border py-6",
         className
       )}
       {...props}

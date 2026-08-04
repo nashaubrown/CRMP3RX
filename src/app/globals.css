@@ -38,6 +38,19 @@
   --sidebar-accent-foreground: oklch(0.52 0.14 150);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.723 0.192 149.6);
+
+  /* Surface treatment shared with the Perx Help Center (help.perx.mv) so the
+     two properties read as one product. Two-layer shadows: a hairline for
+     resting cards, a deeper one for hover/raised states. */
+  --shadow-card: 0 1px 2px rgba(3, 7, 18, 0.04), 0 8px 24px -12px rgba(3, 7, 18, 0.08);
+  --shadow-pop: 0 12px 40px -8px rgba(3, 7, 18, 0.18);
+  /* Soft mint gradient behind the app shell. */
+  --wash: radial-gradient(1200px 600px at 70% -10%, #dff2e6 0%, #eaf6ef 45%, #f4faf6 100%);
+  /* Flat green pair for icon tiles and soft accents (kept as hex to match the
+     help center exactly; the oklch tokens above stay the source of truth for
+     component colour). */
+  --green-soft: #dcfce7;
+  --green-deep: #15803d;
 }
 
 .dark {
@@ -73,6 +86,12 @@
   --sidebar-accent-foreground: oklch(0.92 0.05 150);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.723 0.192 149.6);
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
+  --shadow-pop: 0 12px 40px -8px rgba(0, 0, 0, 0.6);
+  --wash: radial-gradient(1200px 600px at 70% -10%, #0f2418 0%, #0c1712 45%, #0a0f1a 100%);
+  --green-soft: #0c2e1c;
+  --green-deep: #4ade80;
 }
 
 @theme inline {
@@ -121,5 +140,66 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* ---- Help-Center surface language -----------------------------------------
+   Shared visual vocabulary with help.perx.mv. Kept as plain classes rather
+   than component edits so the look can be applied (and reverted) in one file. */
+
+@layer components {
+  /* Soft mint field behind the app shell. `fixed` so it doesn't repeat or
+     scroll away on long pages; the shell paints its content above it. */
+  .wash {
+    background: var(--wash);
+    background-attachment: fixed;
+  }
+
+  /* Resting elevation for cards and panels. */
+  .surface-card {
+    box-shadow: var(--shadow-card);
+  }
+
+  /* Clickable cards only: rise slightly and pick up a green edge on hover.
+     Opt-in, because a card wrapping a form should not move under the cursor. */
+  .surface-interactive {
+    transition:
+      transform 0.18s ease,
+      box-shadow 0.18s ease,
+      border-color 0.18s ease;
+  }
+
+  .surface-interactive:hover {
+    transform: translateY(-2px);
+    border-color: var(--primary);
+    box-shadow: var(--shadow-pop);
+  }
+
+  /* Respect users who ask for less motion — drop the movement, keep the depth. */
+  @media (prefers-reduced-motion: reduce) {
+    .surface-interactive {
+      transition: box-shadow 0.18s ease, border-color 0.18s ease;
+    }
+    .surface-interactive:hover {
+      transform: none;
+    }
+  }
+
+  /* Rounded mint square holding a section or stat icon. */
+  .icon-tile {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: var(--green-soft);
+    color: var(--green-deep);
+  }
+
+  .icon-tile-sm {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
   }
 }

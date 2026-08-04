@@ -17,7 +17,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex min-h-svh flex-col">
+    <div className="wash flex min-h-svh flex-col">
       <Topbar
         user={{ name: user.name, email: user.email, role: user.role }}
         generativeUi={pref?.generativeUi ?? false}
@@ -25,7 +25,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       />
       {/* Centered, max-width content so it doesn't stretch edge-to-edge on
           wide screens; pb clears the fixed bottom nav. */}
-      <main className="mx-auto w-full max-w-[1600px] flex-1 p-4 pb-24 md:p-6 md:pb-24">
+      <main className="mx-auto w-full max-w-[1600px] flex-1 p-4 pb-24 md:p-8 md:pb-24">
         {children}
       </main>
       <BottomNav isAdmin={user.role === "ADMIN"} />

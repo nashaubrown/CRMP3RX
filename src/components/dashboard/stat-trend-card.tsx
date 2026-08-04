@@ -28,7 +28,7 @@ export function StatTrendCard({ stat }: { stat: StatTrend }) {
 
   return (
     <Link href={stat.href}>
-      <Card className="hover:border-ring/50 h-full gap-2 p-4 transition-colors">
+      <Card className="surface-interactive h-full gap-2 p-4">
         <span className="text-muted-foreground text-xs">{stat.label}</span>
         <span className="text-xl font-semibold tracking-tight tabular-nums">{stat.value}</span>
         <div className="mt-1 flex items-end justify-between gap-2">

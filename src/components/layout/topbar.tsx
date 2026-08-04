@@ -38,7 +38,7 @@ export function Topbar({ user, generativeUi, onSignOut }: TopbarProps) {
     .toUpperCase();
 
   return (
-    <header className="bg-background sticky top-0 z-40 border-b">
+    <header className="bg-background/95 supports-[backdrop-filter]:bg-background/70 sticky top-0 z-40 border-b backdrop-blur">
       <div className="mx-auto flex h-14 w-full max-w-[1600px] items-center gap-2 px-4">
         <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
         <BrandLogo imgClassName="h-7 w-auto rounded-md" fallbackClassName="size-7 text-sm" />
