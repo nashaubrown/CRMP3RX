@@ -54,12 +54,15 @@ export function MrrForecast({
   );
   const endMrr = series[series.length - 1];
 
-  // Chart geometry (viewBox units; scales to container via w-full).
-  const W = 320;
+  // Chart geometry (viewBox units; scales to the container via w-full, so the
+  // viewBox aspect ratio sets the rendered height). This card is full-width,
+  // so the box is wide: a narrow one gets scaled up ~4x here, which made the
+  // chart ~550px tall with a correspondingly fat line and huge tick labels.
+  const W = 900;
   const H = 130;
-  const padX = 6;
-  const padTop = 10;
-  const padBottom = 18;
+  const padX = 16;
+  const padTop = 12;
+  const padBottom = 22;
   const max = Math.max(...series, 1);
   const stepX = (W - padX * 2) / (series.length - 1);
   const usableH = H - padTop - padBottom;
@@ -147,7 +150,7 @@ export function MrrForecast({
 
       <svg
         viewBox={`0 0 ${W} ${H}`}
-        className="text-primary h-auto w-full"
+        className="text-primary h-auto max-h-60 w-full"
         role="img"
         aria-label={`Projected MRR reaching ${money(endMrr, currency)} per month in 12 months`}
       >
