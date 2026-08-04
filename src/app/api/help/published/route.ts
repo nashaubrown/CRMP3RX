@@ -12,7 +12,9 @@ export async function GET() {
   const payload = await getPublishedPayload();
   return NextResponse.json(payload, {
     headers: {
-      "Cache-Control": "public, max-age=60, s-maxage=60",
+      // no-store: the help site build must always see the latest published set;
+      // CDN-cached payloads made rebuilds ship stale content.
+      "Cache-Control": "no-store",
       "Access-Control-Allow-Origin": "*",
     },
   });
