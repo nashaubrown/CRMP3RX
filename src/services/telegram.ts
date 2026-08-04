@@ -2,9 +2,11 @@ import { getAiProvider } from "@/integrations/ai";
 import {
   answerCallbackQuery,
   editMessageText,
+  getMe,
   sendMessage,
   setMyCommands,
 } from "@/integrations/telegram/client";
+import type { BotIdentity } from "@/integrations/telegram/client";
 import type { SessionUser } from "@/lib/authz";
 import { formatDateTime, parseMvLocal } from "@/lib/datetime";
 import { db } from "@/lib/db";
@@ -25,10 +27,10 @@ import { createTask, moveTask, setTaskAssignee, setTaskDue } from "@/services/ta
 type TgUser = { id?: number; first_name?: string; username?: string; is_bot?: boolean };
 type TgMessage = {
   message_id: number;
-  chat: { id: number };
+  chat: { id: number; type?: string };
   from?: TgUser;
   text?: string;
-  reply_to_message?: { message_id: number };
+  reply_to_message?: { message_id: number; from?: TgUser };
 };
 type TgCallbackQuery = {
   id: string;
@@ -43,6 +45,10 @@ export type TelegramUpdate = {
 
 const ACTION_HINT =
   /\b(meeting|meet|meet-up|meetup|call|visit|demo|appointment|schedule|scheduled|catch\s?up|sync|session|add|new|create|onboard|register|sign\s?up|merchant|contact|client|lead)\b/i;
+
+// Shown when the bot is addressed but can't tell what's being asked.
+const NUDGE =
+  "🤔 I didn't catch that. Ask me a question ending in “?”, or use a command — /help lists them.";
 
 const CB_MEETING = "tgm"; // meeting confirmations
 const CB_ACTION = "tga"; // merchant/contact/deal/task confirmations
@@ -689,10 +695,54 @@ async function startFlow(flow: FlowName, msg: TgMessage, argStr: string, by: str
 
 // ---- Command routing ----
 
-function parseCommand(text: string): { cmd: string; args: string } | null {
-  const m = text.match(/^\/([a-z_]+)(?:@\w+)?\s*([\s\S]*)$/i);
+// `addressedTo` is the "@BotName" suffix Telegram appends when a command is
+// picked from the menu in a group — it tells us whether the command was aimed
+// at this bot or at another one in the same group.
+function parseCommand(
+  text: string
+): { cmd: string; args: string; addressedTo: string | null } | null {
+  const m = text.match(/^\/([a-z_]+)(?:@(\w+))?\s*([\s\S]*)$/i);
   if (!m) return null;
-  return { cmd: m[1].toLowerCase(), args: m[2].trim() };
+  return { cmd: m[1].toLowerCase(), args: m[3].trim(), addressedTo: m[2] ?? null };
+}
+
+// ---- who is being spoken to ------------------------------------------------
+//
+// A team group is a conversation between people; the bot is a participant, not
+// the audience. So in a group it only acts when explicitly addressed: a slash
+// command, an @mention, a reply to one of its own messages, or an answer to a
+// question it just asked. In a private chat every message is already addressed
+// to it, so no gate applies.
+
+function isGroup(msg: TgMessage): boolean {
+  // Telegram sends "private" | "group" | "supergroup" | "channel".
+  return msg.chat.type !== undefined && msg.chat.type !== "private";
+}
+
+function mentionPattern(username: string): RegExp {
+  // Usernames are [A-Za-z0-9_], so this needs no escaping.
+  return new RegExp(`@${username}\\b`, "i");
+}
+
+function isMentioned(text: string, me: BotIdentity | null): boolean {
+  // Without a known username (getMe failed) fall back to "starts with some
+  // @handle" — looser, but it keeps mentions working during an outage.
+  if (!me) return /^@\w+/.test(text);
+  return mentionPattern(me.username).test(text);
+}
+
+function isReplyToBot(msg: TgMessage, me: BotIdentity | null): boolean {
+  const from = msg.reply_to_message?.from;
+  if (!from) return false;
+  return me ? from.id === me.id : Boolean(from.is_bot);
+}
+
+// Removes the @mention so the rest of the pipeline sees a clean instruction.
+function stripMention(text: string, me: BotIdentity | null): string {
+  const without = me
+    ? text.replace(new RegExp(`@${me.username}\\b`, "gi"), " ")
+    : text.replace(/^@\w+/, " ");
+  return without.replace(/\s+/g, " ").trim();
 }
 
 const HELP = [
@@ -709,7 +759,12 @@ const HELP = [
   "/use Ocean Bubbles — set a default merchant for this chat",
   "/current — show it",
   "",
-  "You can also just type naturally, e.g. <i>“Meeting with Ocean Bubbles tomorrow 3pm”</i>.",
+  "<b>In a group I only reply when you talk to me</b> — a command, an @mention,",
+  "or a reply to one of my messages. Otherwise I stay out of the conversation.",
+  "",
+  "Mention me to ask or capture anything, e.g.",
+  "<i>“@PerxCRMBot which merchants are active?”</i>",
+  "<i>“@PerxCRMBot meeting with Ocean Bubbles tomorrow 3pm”</i>",
   "Run a create command with no details and I'll ask step by step.",
 ].join("\n");
 
@@ -841,9 +896,16 @@ async function handleMessage(msg: TgMessage) {
   const userId = msg.from?.id ? String(msg.from.id) : "unknown";
   const by = personName(msg.from);
 
-  // 1) Slash command?
+  const me = await getMe();
+
+  // 1) Slash command? "/help@SomeOtherBot" in a shared group isn't ours.
   const command = parseCommand(text);
-  if (command) return handleCommand(msg, command.cmd, command.args, by, userId);
+  if (command) {
+    if (command.addressedTo && me && command.addressedTo.toLowerCase() !== me.username.toLowerCase()) {
+      return;
+    }
+    return handleCommand(msg, command.cmd, command.args, by, userId);
+  }
 
   // 2) Continuing a guided flow?
   const state = await db.telegramConvoState.findUnique({
@@ -862,21 +924,37 @@ async function handleMessage(msg: TgMessage) {
     return;
   }
 
-  // 3) A question? Strip a leading @mention; if it ends with "?", route it to
-  // Ask Perx (read-only) and answer in the group.
-  const question = text.replace(/^@\w+[\s,]*/, "").trim();
-  if (question.endsWith("?")) {
-    await askAndReply(msg.chat.id, question);
+  // 3) Past this point the bot would be speaking up on its own, so in a group
+  // it must have been addressed. Everything else is team chatter — stay out.
+  const addressed = isMentioned(text, me) || isReplyToBot(msg, me);
+  if (isGroup(msg) && !addressed) return;
+
+  const body = stripMention(text, me);
+  if (!body) {
+    // A bare "@PerxCRMBot" with nothing else.
+    await sendMessage(msg.chat.id, NUDGE);
     return;
   }
 
-  // 4) Natural-language create capture.
-  if (!ACTION_HINT.test(text)) return;
-  const extracted = await extractIntent(text);
-  if (!extracted || extracted.intent === "none") return;
-  if (extracted.intent === "meeting") return handleMeetingIntent(msg, extracted, by);
-  if (extracted.intent === "merchant") return handleMerchantIntent(msg, extracted, by);
-  if (extracted.intent === "contact") return handleContactIntent(msg, extracted, by);
+  // 4) A question? Route it to Ask Perx (read-only) and answer in the chat.
+  if (body.endsWith("?")) {
+    await askAndReply(msg.chat.id, body);
+    return;
+  }
+
+  // 5) Natural-language create capture.
+  if (ACTION_HINT.test(body)) {
+    const extracted = await extractIntent(body);
+    if (extracted && extracted.intent !== "none") {
+      if (extracted.intent === "meeting") return handleMeetingIntent(msg, extracted, by);
+      if (extracted.intent === "merchant") return handleMerchantIntent(msg, extracted, by);
+      if (extracted.intent === "contact") return handleContactIntent(msg, extracted, by);
+    }
+  }
+
+  // 6) Addressed, but nothing matched. Say so rather than going quiet —
+  // silence after a direct mention is indistinguishable from being broken.
+  await sendMessage(msg.chat.id, NUDGE);
 }
 
 async function handleMeetingIntent(

@@ -27,6 +27,27 @@ async function call<T = unknown>(method: string, body: Record<string, unknown>):
 
 export type InlineButton = { text: string; callback_data: string };
 
+// Who am I? Needed to tell a mention of this bot from a mention of anyone
+// else, and to spot replies to its own messages. Cached for the life of the
+// process — a bot's id and username don't change without a BotFather action.
+export type BotIdentity = { id: number; username: string };
+
+let identity: BotIdentity | null = null;
+
+export async function getMe(): Promise<BotIdentity | null> {
+  if (identity) return identity;
+  try {
+    const me = await call<{ id: number; username?: string }>("getMe", {});
+    if (!me?.username) return null;
+    identity = { id: me.id, username: me.username };
+    return identity;
+  } catch {
+    // Never let an identity lookup failure drop the update; the caller
+    // degrades to a looser mention check.
+    return null;
+  }
+}
+
 export async function sendMessage(
   chatId: string | number,
   text: string,
