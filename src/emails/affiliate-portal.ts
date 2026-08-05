@@ -15,7 +15,13 @@ import { resolveEmailFrom } from "@/services/email-settings";
 // flaky email never breaks registration or a payout recording.
 
 export function portalUrl(path = ""): string {
-  const base = (process.env.AFFILIATE_PORTAL_URL ?? "http://localhost:3001").replace(/\/$/, "");
+  // Default to the production portal so emailed links work without env
+  // setup; AFFILIATE_PORTAL_URL overrides (and local dev sets it to
+  // http://localhost:3001).
+  const base = (process.env.AFFILIATE_PORTAL_URL ?? "https://p3rx-affiliate-portal.vercel.app").replace(
+    /\/$/,
+    ""
+  );
   return `${base}${path}`;
 }
 
