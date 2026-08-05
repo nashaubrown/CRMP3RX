@@ -16,6 +16,14 @@ import {
   setAffiliateActiveAction,
   updateAffiliateAction,
 } from "@/app/(app)/affiliates/manage-actions";
+import { revealBankAccountAction } from "@/app/(app)/affiliates/portal-actions";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,9 +46,61 @@ export type Affiliate = {
   commissionRate: number;
   active: boolean;
   merchantCount: number;
+  // Portal fields (self-registration / payouts)
+  payoutSchedule: "MONTHLY" | "QUARTERLY" | "YEARLY";
+  idCardNumber: string | null;
+  bankName: string | null;
+  bankAccountName: string | null;
+  bankAccountLast4: string | null;
+  tcVersion: string | null;
+  tcAcceptedAtLabel: string | null;
+  lastPortalLoginAtLabel: string | null;
+  portalLeadCount: number;
+  isAdmin: boolean;
 };
 
-type Draft = { name: string; email: string; phone: string; commissionRate: string };
+const SCHEDULE_LABELS: Record<Affiliate["payoutSchedule"], string> = {
+  MONTHLY: "Monthly",
+  QUARTERLY: "Quarterly",
+  YEARLY: "Yearly",
+};
+
+// Bank details stay masked until an admin explicitly reveals them —
+// decrypt-on-demand, audit-logged server-side.
+function BankReveal({ affiliate }: { affiliate: Affiliate }) {
+  const [pending, startTransition] = React.useTransition();
+  const [revealed, setRevealed] = React.useState<string | null>(null);
+
+  if (!affiliate.bankAccountLast4) return null;
+  if (revealed) {
+    return <span className="font-mono text-xs">{revealed}</span>;
+  }
+  return (
+    <button
+      type="button"
+      className="text-muted-foreground hover:text-foreground text-xs underline decoration-dotted"
+      disabled={pending || !affiliate.isAdmin}
+      title={affiliate.isAdmin ? "Reveal (audit-logged)" : "Admins only"}
+      onClick={() =>
+        startTransition(async () => {
+          const res = await revealBankAccountAction(affiliate.id);
+          if (res.error) toast.error(res.error);
+          else setRevealed(res.accountNumber ?? null);
+        })
+      }
+    >
+      •••• {affiliate.bankAccountLast4}
+    </button>
+  );
+}
+
+type Draft = {
+  name: string;
+  email: string;
+  phone: string;
+  commissionRate: string;
+  payoutSchedule: string;
+};
 
 function AffiliateFields({
   draft,
@@ -98,6 +158,23 @@ function AffiliateFields({
           disabled={disabled}
         />
       </div>
+      <div className="flex flex-col gap-1.5">
+        <Label className="text-xs">Payout schedule</Label>
+        <Select
+          value={draft.payoutSchedule}
+          onValueChange={(v) => setDraft({ ...draft, payoutSchedule: v })}
+          disabled={disabled}
+        >
+          <SelectTrigger className="h-8">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="MONTHLY">Monthly</SelectItem>
+            <SelectItem value="QUARTERLY">Quarterly</SelectItem>
+            <SelectItem value="YEARLY">Yearly</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
     </div>
   );
 }
@@ -110,6 +187,7 @@ function AffiliateRow({ affiliate }: { affiliate: Affiliate }) {
     email: affiliate.email ?? "",
     phone: affiliate.phone ?? "",
     commissionRate: String(affiliate.commissionRate),
+    payoutSchedule: affiliate.payoutSchedule,
   });
 
   function save() {
@@ -123,6 +201,7 @@ function AffiliateRow({ affiliate }: { affiliate: Affiliate }) {
         email: draft.email,
         phone: draft.phone,
         commissionRate: draft.commissionRate,
+        payoutSchedule: draft.payoutSchedule,
       });
       if (res.error) toast.error(res.error);
       else {
@@ -156,6 +235,7 @@ function AffiliateRow({ affiliate }: { affiliate: Affiliate }) {
                 email: affiliate.email ?? "",
                 phone: affiliate.phone ?? "",
                 commissionRate: String(affiliate.commissionRate),
+                payoutSchedule: affiliate.payoutSchedule,
               });
             }}
           >
@@ -199,6 +279,36 @@ function AffiliateRow({ affiliate }: { affiliate: Affiliate }) {
           {[affiliate.email, affiliate.phone].filter(Boolean).join(" · ") || "No contact details"}
           {" · "}
           {affiliate.merchantCount} merchant{affiliate.merchantCount === 1 ? "" : "s"}
+          {" · paid "}
+          {SCHEDULE_LABELS[affiliate.payoutSchedule].toLowerCase()}
+        </p>
+        <p className="text-muted-foreground flex flex-wrap items-center gap-x-2 truncate text-xs">
+          {affiliate.idCardNumber ? <span>ID {affiliate.idCardNumber}</span> : null}
+          {affiliate.bankAccountLast4 ? (
+            <span className="inline-flex items-center gap-1">
+              {affiliate.bankName ?? "Bank"} <BankReveal affiliate={affiliate} />
+            </span>
+          ) : (
+            <span>No bank details</span>
+          )}
+          {affiliate.tcVersion ? (
+            <span>
+              Terms v{affiliate.tcVersion}
+              {affiliate.tcAcceptedAtLabel ? ` (${affiliate.tcAcceptedAtLabel})` : ""}
+            </span>
+          ) : (
+            <span>Terms unsigned</span>
+          )}
+          <span>
+            {affiliate.lastPortalLoginAtLabel
+              ? `Portal: ${affiliate.lastPortalLoginAtLabel}`
+              : "Never signed in"}
+          </span>
+          {affiliate.portalLeadCount > 0 ? (
+            <span>
+              {affiliate.portalLeadCount} referral{affiliate.portalLeadCount === 1 ? "" : "s"}
+            </span>
+          ) : null}
         </p>
       </div>
       <Button
@@ -234,7 +344,13 @@ function AffiliateRow({ affiliate }: { affiliate: Affiliate }) {
 function AddAffiliate() {
   const [pending, startTransition] = React.useTransition();
   const [open, setOpen] = React.useState(false);
-  const empty: Draft = { name: "", email: "", phone: "+960 ", commissionRate: "" };
+  const empty: Draft = {
+    name: "",
+    email: "",
+    phone: "+960 ",
+    commissionRate: "",
+    payoutSchedule: "MONTHLY",
+  };
   const [draft, setDraft] = React.useState<Draft>(empty);
 
   function add() {
@@ -248,6 +364,7 @@ function AddAffiliate() {
         email: draft.email,
         phone: draft.phone,
         commissionRate: draft.commissionRate || 0,
+        payoutSchedule: draft.payoutSchedule,
       });
       if (res.error) toast.error(res.error);
       else {

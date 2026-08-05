@@ -253,6 +253,18 @@ model Merchant {
 // admin's password (and to disable or demote another admin). See
 // src/services/users.ts.
 
+enum AffiliateApplicationStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum PayoutSchedule {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
 model Affiliate {
   id             String   @id @default(cuid())
   name           String
@@ -268,10 +280,128 @@ model Affiliate {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  merchants   Merchant[]
-  commissions AffiliateCommission[]
+  // --- Application / registration (affiliate portal) ---
+  // Legacy admin-created affiliates were backfilled to APPROVED. A draft row
+  // (self-registration in progress) is PENDING_REVIEW with appliedAt null;
+  // it becomes a real application once appliedAt is set.
+  applicationStatus AffiliateApplicationStatus @default(PENDING_REVIEW)
+  appliedAt         DateTime?
+  reviewedAt        DateTime?
+  reviewedById      String?
+  reviewNote        String? // internal; optional line included in rejection email
+  emailVerifiedAt   DateTime?
+
+  // --- Identity (KYC) ---
+  idCardNumber  String? // e.g. "A123456"; masked in all affiliate-facing output
+  idDocumentKey String? // AffiliateFile id; served to admins only
+
+  // --- Bank details ---
+  bankName         String?
+  bankAccountName  String?
+  bankAccountNoEnc String? // AES-256-GCM via src/lib/crypto; last-4 kept separately
+  bankAccountLast4 String? // for masked display without decryption
+
+  // --- Agreement ---
+  tcVersion    String? // version string signed, e.g. "2026-08-01"
+  tcAcceptedAt DateTime?
+  tcAcceptedIp String?
+  tcAcceptedUa String?
+  signatureKey String? // AffiliateFile id of the latest drawn-signature PNG
+
+  // --- Payouts ---
+  payoutSchedule PayoutSchedule @default(MONTHLY) // admin-set at approval
+
+  // --- Portal ---
+  emailNotifications Boolean   @default(true)
+  lastPortalLoginAt  DateTime?
+
+  merchants     Merchant[]
+  commissions   AffiliateCommission[]
+  loginTokens   AffiliateLoginToken[]
+  sessions      AffiliateSession[]
+  referredLeads Lead[]
+  files         AffiliateFile[]
 
   @@index([active])
+  @@index([applicationStatus])
+}
+
+// One-time tokens for the affiliate portal: magic links, registration email
+// codes, draft continuation, bank-change confirmations and application-status
+// links — one model, a `purpose` discriminator. Only SHA-256 hashes are stored
+// (pattern: ApiKey.hashedKey). Single-use via consumedAt (except DRAFT and
+// APPLICATION_STATUS, which stay valid until they expire).
+enum AffiliateTokenPurpose {
+  LOGIN
+  REGISTER_EMAIL
+  DRAFT
+  BANK_CHANGE
+  APPLICATION_STATUS
+}
+
+model AffiliateLoginToken {
+  id          String                @id @default(cuid())
+  affiliateId String
+  affiliate   Affiliate             @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  purpose     AffiliateTokenPurpose @default(LOGIN)
+  hashedToken String                @unique
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime              @default(now())
+
+  @@index([affiliateId])
+  @@index([expiresAt])
+}
+
+model AffiliateSession {
+  id          String    @id @default(cuid())
+  affiliateId String
+  affiliate   Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  hashedToken String    @unique
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  lastSeenAt  DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+
+  @@index([affiliateId])
+  @@index([expiresAt])
+}
+
+enum AffiliateFileKind {
+  ID_DOCUMENT
+  SIGNATURE
+}
+
+// Private uploads from affiliate registration (ID document, drawn signature).
+// Stored in Postgres rather than public blob storage so they are genuinely
+// private: the only read path is an ADMIN-authenticated CRM route. Volume is
+// tiny (a few files per application, ≤10 MB each) so DB storage is fine; the
+// storage helper (src/lib/affiliate-files.ts) is the single seam to swap in
+// external blob storage later.
+model AffiliateFile {
+  id          String            @id @default(cuid())
+  affiliateId String
+  affiliate   Affiliate         @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  kind        AffiliateFileKind
+  contentType String
+  sizeBytes   Int
+  data        Bytes
+  // Signature files: which T&C version was signed (prior signatures are kept
+  // when terms are re-accepted).
+  tcVersion   String?
+  createdAt   DateTime          @default(now())
+
+  @@index([affiliateId])
+}
+
+// Current affiliate Terms & Conditions text, editable by admins (singleton,
+// like EmailSetting). Bumping `version` forces re-acceptance (with a fresh
+// signature) on next portal sign-in.
+model AffiliateTermsSetting {
+  id        String   @id @default("singleton")
+  version   String
+  bodyHtml  String
+  updatedAt DateTime @updatedAt
 }
 
 enum CommissionStatus {
@@ -496,6 +626,11 @@ model Lead {
   ownerId    String?
   owner      User?     @relation("LeadOwner", fields: [ownerId], references: [id])
 
+  // Referral attribution: which affiliate brought this lead in (via the
+  // capture form's ?ref= code or the portal's submit-a-referral form).
+  affiliateId String?
+  affiliate   Affiliate? @relation(fields: [affiliateId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -503,6 +638,7 @@ model Lead {
   @@index([status])
   @@index([merchantId])
   @@index([contactId])
+  @@index([affiliateId])
 }
 
 enum DealStage {

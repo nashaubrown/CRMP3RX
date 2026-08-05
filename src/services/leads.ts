@@ -79,6 +79,7 @@ export async function listLeads(ctx: SessionUser, params: LeadListParams) {
         owner: { select: { id: true, name: true } },
         merchant: { select: { id: true, name: true } },
         contact: { select: { id: true, firstName: true, lastName: true } },
+        affiliate: { select: { id: true, name: true } },
       },
     }),
   ]);
@@ -98,6 +99,7 @@ export async function getLead(ctx: SessionUser, id: string) {
       owner: { select: { id: true, name: true } },
       merchant: { select: { id: true, name: true } },
       contact: { select: { id: true, firstName: true, lastName: true } },
+      affiliate: { select: { id: true, name: true } },
     },
   });
   if (!lead) return null;
@@ -135,12 +137,14 @@ export async function createLead(ctx: SessionUser, input: LeadInput) {
 }
 
 // Public capture form — no session; rate-limited at the action layer.
-export async function captureLead(input: LeadCaptureInput) {
-  const score = await scoreFor({ ...input, source: "WEBSITE" });
+export async function captureLead(input: LeadCaptureInput, affiliateId?: string | null) {
+  // Affiliate-referred leads score as referrals (they are one).
+  const source = affiliateId ? "REFERRAL" : "WEBSITE";
+  const score = await scoreFor({ ...input, source });
 
   const lead = await db.lead.create({
     data: {
-      source: "WEBSITE",
+      source,
       status: "NEW",
       score,
       name: input.name,
@@ -148,6 +152,7 @@ export async function captureLead(input: LeadCaptureInput) {
       email: input.email ?? null,
       phone: input.phone ?? null,
       message: input.message ?? null,
+      affiliateId: affiliateId ?? null,
       ownerId: null, // unassigned: reps claim from the leads list
     },
   });
@@ -157,7 +162,7 @@ export async function captureLead(input: LeadCaptureInput) {
     action: "lead.capture",
     entityType: "LEAD",
     entityId: lead.id,
-    diff: { name: input.name, company: input.company, score },
+    diff: { name: input.name, company: input.company, score, affiliateId: affiliateId ?? null },
   });
 
   return lead;

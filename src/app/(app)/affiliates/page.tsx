@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 
 import { AffiliatesManager } from "@/app/(app)/affiliates/affiliates-manager";
 import { BadgePercentIcon } from "lucide-react";
@@ -34,6 +33,9 @@ import {
   listAffiliates,
   monthsInRange,
 } from "@/services/affiliates";
+import { getPublishedTerms, listApplications } from "@/services/affiliate-portal";
+import { ApplicationsReview } from "@/components/affiliates/applications-review";
+import { TermsEditor } from "@/components/affiliates/terms-editor";
 
 export const metadata: Metadata = { title: "Affiliates" };
 
@@ -66,10 +68,12 @@ export default async function AffiliatesPage({
   const ledgerPeriod = sp.ledger && YM.test(sp.ledger) ? sp.ledger : thisMonth;
 
   const months = monthsInRange(from, to);
-  const [report, ledger, affiliates] = await Promise.all([
+  const [report, ledger, affiliates, applications, terms] = await Promise.all([
     getAffiliateReport(months),
     getCommissionLedger(ledgerPeriod),
     listAffiliates(user),
+    admin ? listApplications(user) : Promise.resolve([]),
+    admin ? getPublishedTerms() : Promise.resolve(null),
   ]);
 
   return (
@@ -84,7 +88,56 @@ export default async function AffiliatesPage({
         </div>
       </div>
 
-      <AffiliatesManager affiliates={affiliates} />
+      {admin ? (
+        <ApplicationsReview
+          applications={applications.map((a) => ({
+            id: a.id,
+            name: a.name,
+            email: a.email,
+            phone: a.phone,
+            idCardNumber: a.idCardNumber,
+            idDocumentUrl: a.idDocumentKey ? `/api/affiliate-files/${a.idDocumentKey}` : null,
+            idDocumentIsPdf: false, // the viewer falls back fine; PDFs render via iframe anyway
+            signatureUrl: a.signatureKey ? `/api/affiliate-files/${a.signatureKey}` : null,
+            bankName: a.bankName,
+            bankAccountName: a.bankAccountName,
+            bankAccountLast4: a.bankAccountLast4,
+            tcVersion: a.tcVersion,
+            appliedAtLabel: a.appliedAt ? formatDate(a.appliedAt) : "—",
+            priorRejection: a.priorRejection
+              ? {
+                  reviewedAtLabel: a.priorRejection.reviewedAt
+                    ? formatDate(a.priorRejection.reviewedAt)
+                    : null,
+                  reviewNote: a.priorRejection.reviewNote,
+                }
+              : null,
+          }))}
+        />
+      ) : null}
+
+      <AffiliatesManager
+        affiliates={affiliates.map((a) => ({
+          id: a.id,
+          name: a.name,
+          code: a.code,
+          email: a.email,
+          phone: a.phone,
+          commissionRate: a.commissionRate,
+          active: a.active,
+          merchantCount: a.merchantCount,
+          payoutSchedule: a.payoutSchedule,
+          idCardNumber: a.idCardNumber,
+          bankName: a.bankName,
+          bankAccountName: a.bankAccountName,
+          bankAccountLast4: a.bankAccountLast4,
+          tcVersion: a.tcVersion,
+          tcAcceptedAtLabel: a.tcAcceptedAt ? formatDate(a.tcAcceptedAt) : null,
+          lastPortalLoginAtLabel: a.lastPortalLoginAt ? formatDate(a.lastPortalLoginAt) : null,
+          portalLeadCount: a.portalLeadCount,
+          isAdmin: admin,
+        }))}
+      />
 
       {report.rows.length === 0 ? (
         <EmptyState
@@ -211,6 +264,9 @@ export default async function AffiliatesPage({
               entries={ledger.entries.map((e) => ({
                 id: e.id,
                 affiliateName: e.affiliateName,
+                payoutScheduleLabel:
+                  e.affiliatePayoutSchedule.charAt(0) +
+                  e.affiliatePayoutSchedule.slice(1).toLowerCase(),
                 amountMvr: e.amountMvr,
                 commissionRate: e.commissionRate,
                 merchantCount: e.merchantCount,
@@ -221,6 +277,13 @@ export default async function AffiliatesPage({
             />
           </CardContent>
         </Card>
+      ) : null}
+
+      {admin ? (
+        <TermsEditor
+          initialVersion={terms?.version ?? ""}
+          initialBodyHtml={terms?.bodyHtml ?? ""}
+        />
       ) : null}
     </div>
   );

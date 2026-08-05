@@ -18,7 +18,7 @@ function FieldError({ message }: { message?: string }) {
   return <p className="text-destructive text-xs">{message}</p>;
 }
 
-export function CaptureForm() {
+export function CaptureForm({ referralCode }: { referralCode?: string | null }) {
   const [state, formAction, pending] = useActionState(captureLeadAction, initialState);
   const errors = state.fieldErrors ?? {};
 
@@ -49,6 +49,9 @@ export function CaptureForm() {
           <input type="text" name="website" tabIndex={-1} autoComplete="off" />
         </label>
       </div>
+
+      {/* Affiliate attribution (validated server-side on submit) */}
+      {referralCode ? <input type="hidden" name="ref" value={referralCode} /> : null}
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="name">Your name *</Label>
