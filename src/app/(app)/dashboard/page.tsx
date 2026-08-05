@@ -113,99 +113,6 @@ export default async function DashboardPage() {
         ))}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
-            Monthly billing (MRR){admin ? "" : " — your merchants"}
-          </CardTitle>
-          <CardDescription>
-            Recurring subscription revenue from Active, loyalty-live merchants.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0">
-            <span className="text-3xl font-semibold tracking-tight tabular-nums">
-              {money(billing.totalMrr, billing.currency)}
-            </span>
-            <span className="text-muted-foreground text-sm">
-              / month · {billing.merchantCount} merchant{billing.merchantCount === 1 ? "" : "s"}
-            </span>
-          </div>
-
-          {/* Real headline figures derived from the data. */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            <div className="bg-muted/40 rounded-lg border p-2">
-              <p className="text-muted-foreground text-xs">Annual run-rate</p>
-              <p className="font-semibold tabular-nums">{money(billing.arrMvr, "MVR")}</p>
-            </div>
-            <div className="bg-muted/40 rounded-lg border p-2">
-              <p className="text-muted-foreground text-xs">Avg / merchant</p>
-              <p className="font-semibold tabular-nums">{money(billing.arpaMvr, "MVR")}</p>
-            </div>
-            <div className="bg-muted/40 rounded-lg border p-2">
-              <p className="text-muted-foreground text-xs">
-                Pipeline upside · {billing.pipelineCount}
-              </p>
-              <p className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
-                +{money(billing.pipelineMrr, "MVR")}/mo
-              </p>
-            </div>
-          </div>
-
-          {billing.lines.length === 0 ? (
-            <p className="text-muted-foreground text-sm">
-              No billable merchants yet — set a merchant to Active with a plan and loyalty live.
-            </p>
-          ) : (
-            <div className="flex flex-col gap-1.5">
-              {billing.lines.map((l) => (
-                <div key={l.plan} className="flex items-center justify-between gap-2 text-sm">
-                  <span className="flex items-center gap-2">
-                    <span className="font-medium">{l.plan}</span>
-                    <span className="text-muted-foreground text-xs">
-                      {money(l.unitPriceMvr, "MVR")}
-                      {l.perLocation ? " / location" : ""} · {l.count} merchant
-                      {l.count === 1 ? "" : "s"}
-                    </span>
-                  </span>
-                  <span className="tabular-nums">{money(l.subtotalMvr, "MVR")}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="border-t pt-3">
-            <p className="mb-2 text-sm font-medium">12-month projection</p>
-            <MrrForecast
-              currentMrr={billing.totalMrr}
-              defaultArpa={billing.arpaMvr || billing.avgPlanPriceMvr}
-              currency={billing.currency}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Merchants by owner</CardTitle>
-          <CardDescription>
-            How each rep&apos;s book breaks down by status. Tap a number to open that list, or a
-            column header to re-sort.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="px-0">
-          {ownerBreakdown.rows.length === 0 ? (
-            <p className="text-muted-foreground px-6 text-sm">No merchants yet.</p>
-          ) : (
-            <OwnerBreakdownTable
-              rows={ownerBreakdown.rows}
-              totals={ownerBreakdown.totals}
-              currency={ownerBreakdown.currency}
-            />
-          )}
-        </CardContent>
-      </Card>
-
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
@@ -343,6 +250,99 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Merchants by owner</CardTitle>
+          <CardDescription>
+            How each rep&apos;s book breaks down by status. Tap a number to open that list, or a
+            column header to re-sort.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="px-0">
+          {ownerBreakdown.rows.length === 0 ? (
+            <p className="text-muted-foreground px-6 text-sm">No merchants yet.</p>
+          ) : (
+            <OwnerBreakdownTable
+              rows={ownerBreakdown.rows}
+              totals={ownerBreakdown.totals}
+              currency={ownerBreakdown.currency}
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">
+            Monthly billing (MRR){admin ? "" : " — your merchants"}
+          </CardTitle>
+          <CardDescription>
+            Recurring subscription revenue from Active, loyalty-live merchants.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0">
+            <span className="text-3xl font-semibold tracking-tight tabular-nums">
+              {money(billing.totalMrr, billing.currency)}
+            </span>
+            <span className="text-muted-foreground text-sm">
+              / month · {billing.merchantCount} merchant{billing.merchantCount === 1 ? "" : "s"}
+            </span>
+          </div>
+
+          {/* Real headline figures derived from the data. */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <div className="bg-muted/40 rounded-lg border p-2">
+              <p className="text-muted-foreground text-xs">Annual run-rate</p>
+              <p className="font-semibold tabular-nums">{money(billing.arrMvr, "MVR")}</p>
+            </div>
+            <div className="bg-muted/40 rounded-lg border p-2">
+              <p className="text-muted-foreground text-xs">Avg / merchant</p>
+              <p className="font-semibold tabular-nums">{money(billing.arpaMvr, "MVR")}</p>
+            </div>
+            <div className="bg-muted/40 rounded-lg border p-2">
+              <p className="text-muted-foreground text-xs">
+                Pipeline upside · {billing.pipelineCount}
+              </p>
+              <p className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+                +{money(billing.pipelineMrr, "MVR")}/mo
+              </p>
+            </div>
+          </div>
+
+          {billing.lines.length === 0 ? (
+            <p className="text-muted-foreground text-sm">
+              No billable merchants yet — set a merchant to Active with a plan and loyalty live.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {billing.lines.map((l) => (
+                <div key={l.plan} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="flex items-center gap-2">
+                    <span className="font-medium">{l.plan}</span>
+                    <span className="text-muted-foreground text-xs">
+                      {money(l.unitPriceMvr, "MVR")}
+                      {l.perLocation ? " / location" : ""} · {l.count} merchant
+                      {l.count === 1 ? "" : "s"}
+                    </span>
+                  </span>
+                  <span className="tabular-nums">{money(l.subtotalMvr, "MVR")}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="border-t pt-3">
+            <p className="mb-2 text-sm font-medium">12-month projection</p>
+            <MrrForecast
+              currentMrr={billing.totalMrr}
+              defaultArpa={billing.arpaMvr || billing.avgPlanPriceMvr}
+              currency={billing.currency}
+            />
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
