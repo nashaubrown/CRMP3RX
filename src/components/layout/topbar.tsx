@@ -4,7 +4,7 @@ import Link from "next/link";
 import { LogOutIcon } from "lucide-react";
 
 import { AssistantSheet } from "@/components/assistant/assistant-sheet";
-import { BrandLogo } from "@/components/layout/brand-logo";
+import { BrandBadge, BrandLogo } from "@/components/layout/brand-logo";
 import { UiModeToggle } from "@/components/generative/ui-mode-toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -40,10 +40,14 @@ export function Topbar({ user, generativeUi, onSignOut }: TopbarProps) {
   return (
     <header className="bg-background/95 supports-[backdrop-filter]:bg-background/70 sticky top-0 z-40 border-b backdrop-blur">
       <div className="mx-auto flex h-14 w-full max-w-[1600px] items-center gap-2 px-4">
-        <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
-        <BrandLogo imgClassName="h-7 w-auto rounded-md" fallbackClassName="size-7 text-sm" />
-        <span className="hidden sm:inline">Perx CRM</span>
-      </Link>
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-2.5"
+          aria-label="Perx CRM home"
+        >
+          <BrandLogo imgClassName="h-5 w-auto" fallbackClassName="size-7 rounded-md text-sm" />
+          <BrandBadge>CRM</BrandBadge>
+        </Link>
 
       <div className="flex-1" />
 
