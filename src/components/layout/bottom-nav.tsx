@@ -17,8 +17,17 @@ function useIsActive() {
   return (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 }
 
+// Same motion language as the cards: a small rise on hover, 180ms, and no
+// movement at all for anyone who asks for reduced motion.
 const tabBase =
-  "relative flex flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium transition-colors";
+  "relative flex flex-col items-center justify-center gap-1 rounded-xl py-2 text-[11px] font-medium " +
+  "transition-[color,background-color,transform] duration-200 ease-out " +
+  "hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0";
+
+// Selected keeps a tinted pill so the current page still reads as "on" when
+// the cursor is elsewhere in the bar; hover is the lighter preview of it.
+const tabSelected = "bg-sidebar-accent text-sidebar-accent-foreground";
+const tabIdle = "text-muted-foreground hover:bg-muted hover:text-foreground";
 
 function ActiveBar() {
   return <span className="bg-primary absolute inset-x-3 top-0 h-0.5 rounded-full" aria-hidden />;
@@ -60,7 +69,7 @@ export function BottomNav({ isAdmin = false }: { isAdmin?: boolean }) {
                   // nowrap keeps "Help Center"/"Ask Perx" on one line, so the
                   // bar stays a consistent height instead of going ragged.
                   "min-w-16 px-3 whitespace-nowrap",
-                  active ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                  active ? tabSelected : tabIdle
                 )}
               >
                 {active ? <ActiveBar /> : null}
@@ -84,7 +93,7 @@ export function BottomNav({ isAdmin = false }: { isAdmin?: boolean }) {
               className={cn(
                 tabBase,
                 "min-h-14 flex-1",
-                active ? "text-primary" : "text-muted-foreground"
+                active ? tabSelected : tabIdle
               )}
             >
               {active ? <ActiveBar /> : null}
@@ -99,7 +108,7 @@ export function BottomNav({ isAdmin = false }: { isAdmin?: boolean }) {
             className={cn(
               tabBase,
               "min-h-14 flex-1",
-              overflowActive ? "text-primary" : "text-muted-foreground"
+              overflowActive ? tabSelected : tabIdle
             )}
           >
             {overflowActive ? <ActiveBar /> : null}
