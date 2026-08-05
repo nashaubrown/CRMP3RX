@@ -43,7 +43,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             <LeadStatusBadge status={lead.status} />
           </div>
           <p className="text-muted-foreground text-sm">
-            {lead.source.toLowerCase().replace("_", " ")} lead ·{" "}
+            {lead.source.toLowerCase().replace("_", " ")} lead
+            {lead.affiliate ? ` · via ${lead.affiliate.name}` : ""} ·{" "}
             {lead.owner ? `owned by ${lead.owner.id === user.id ? "you" : lead.owner.name}` : "unassigned"}{" "}
             · created {formatDateTime(lead.createdAt)}
           </p>

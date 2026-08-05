@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 
 import { rateLimit } from "@/lib/rate-limit";
 import { leadCaptureSchema } from "@/lib/validators/lead";
+import { resolveReferralCode } from "@/services/affiliate-portal";
 import { captureLead } from "@/services/leads";
 
 export type CaptureState = {
@@ -49,6 +50,10 @@ export async function captureLeadAction(
     return { error: null, success: true };
   }
 
-  await captureLead(parsed.data);
+  // Affiliate attribution: re-validated here, never trusted from the client.
+  const ref = formData.get("ref");
+  const affiliate = typeof ref === "string" && ref ? await resolveReferralCode(ref) : null;
+
+  await captureLead(parsed.data, affiliate?.id ?? null);
   return { error: null, success: true };
 }

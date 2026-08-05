@@ -32,6 +32,11 @@ export const authConfig = {
         pathname.startsWith("/api/help/published") ||
         // API-key authenticated surfaces (REST + MCP) do their own auth
         pathname.startsWith("/api/v1") ||
+        // Affiliate portal API: bearer-token authenticated (AffiliateSession)
+        // or deliberately public (registration, magic-link request) — the
+        // routes enforce their own auth and rate limits. The admin-only
+        // /api/affiliate-files route is NOT exempted: it uses the CRM session.
+        pathname.startsWith("/api/affiliate/") ||
         // startsWith, not ===: the connector URL carries the key as a path
         // segment (/api/mcp/perx_…), and this check runs before the rewrite
         // that turns it back into ?key=.

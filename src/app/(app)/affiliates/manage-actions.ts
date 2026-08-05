@@ -29,6 +29,7 @@ export type AffiliateFormInput = {
   email?: string;
   phone?: string;
   commissionRate: string | number;
+  payoutSchedule?: string;
 };
 
 export async function createAffiliateAction(

@@ -25,6 +25,9 @@ import {
 export type LedgerEntry = {
   id: string;
   affiliateName: string;
+  // Informational: how often this affiliate is paid — admins decide when to
+  // actually transfer, the ledger itself stays monthly.
+  payoutScheduleLabel: string;
   amountMvr: number;
   commissionRate: number;
   merchantCount: number;
@@ -152,7 +155,10 @@ export function CommissionLedger({
             <TableBody>
               {entries.map((e) => (
                 <TableRow key={e.id}>
-                  <TableCell className="pl-6 font-medium">{e.affiliateName}</TableCell>
+                  <TableCell className="pl-6">
+                    <span className="font-medium">{e.affiliateName}</span>
+                    <p className="text-muted-foreground text-xs">Paid {e.payoutScheduleLabel.toLowerCase()}</p>
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">{e.commissionRate}%</TableCell>
                   <TableCell className="text-right tabular-nums">{e.merchantCount}</TableCell>
                   <TableCell className="text-right tabular-nums">

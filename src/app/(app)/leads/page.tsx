@@ -148,8 +148,13 @@ export default async function LeadsPage({
                       <TableCell>
                         <LeadStatusBadge status={lead.status} />
                       </TableCell>
-                      <TableCell className="text-muted-foreground capitalize">
-                        {lead.source.toLowerCase().replace("_", " ")}
+                      <TableCell className="text-muted-foreground">
+                        <span className="capitalize">
+                          {lead.source.toLowerCase().replace("_", " ")}
+                        </span>
+                        {lead.affiliate ? (
+                          <p className="text-xs">via {lead.affiliate.name}</p>
+                        ) : null}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {lead.owner ? (

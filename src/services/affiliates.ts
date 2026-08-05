@@ -2,6 +2,11 @@ import { db } from "@/lib/db";
 import { isAdmin, type SessionUser } from "@/lib/authz";
 import { generateAffiliateCode } from "@/lib/affiliate-code";
 import type { AffiliateInput } from "@/lib/validators/affiliate";
+import {
+  commissionPaidEmail,
+  commissionRecordedEmail,
+  sendAffiliateEmail,
+} from "@/emails/affiliate-portal";
 
 // Referral partners. Reads (for the merchant-form dropdown) are open to any
 // signed-in user. Managing them is open to the whole sales team: reps sign up
@@ -30,14 +35,28 @@ export type ManagedAffiliate = {
   commissionRate: number;
   active: boolean;
   merchantCount: number;
+  // Portal / application fields
+  payoutSchedule: "MONTHLY" | "QUARTERLY" | "YEARLY";
+  applicationStatus: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+  idCardNumber: string | null;
+  bankName: string | null;
+  bankAccountName: string | null;
+  bankAccountLast4: string | null;
+  tcVersion: string | null;
+  tcAcceptedAt: Date | null;
+  lastPortalLoginAt: Date | null;
+  portalLeadCount: number;
 };
 
-// Full list (including inactive) for the admin manager UI.
+// Full list (including inactive) for the admin manager UI. Draft and pending
+// self-registrations are excluded — they live in the Applications queue until
+// approved.
 export async function listAffiliates(ctx: SessionUser): Promise<ManagedAffiliate[]> {
   assertCanManage(ctx);
   const rows = await db.affiliate.findMany({
+    where: { applicationStatus: "APPROVED" },
     orderBy: [{ active: "desc" }, { name: "asc" }],
-    include: { _count: { select: { merchants: true } } },
+    include: { _count: { select: { merchants: true, referredLeads: true } } },
   });
   return rows.map((a) => ({
     id: a.id,
@@ -48,6 +67,16 @@ export async function listAffiliates(ctx: SessionUser): Promise<ManagedAffiliate
     commissionRate: a.commissionRate,
     active: a.active,
     merchantCount: a._count.merchants,
+    payoutSchedule: a.payoutSchedule,
+    applicationStatus: a.applicationStatus,
+    idCardNumber: a.idCardNumber,
+    bankName: a.bankName,
+    bankAccountName: a.bankAccountName,
+    bankAccountLast4: a.bankAccountLast4,
+    tcVersion: a.tcVersion,
+    tcAcceptedAt: a.tcAcceptedAt,
+    lastPortalLoginAt: a.lastPortalLoginAt,
+    portalLeadCount: a._count.referredLeads,
   }));
 }
 
@@ -81,6 +110,9 @@ export async function createAffiliate(ctx: SessionUser, input: AffiliateInput) {
           phone: input.phone ?? null,
           commissionRate: input.commissionRate,
           code: generateAffiliateCode(),
+          // Staff-created affiliates skip the application flow entirely.
+          applicationStatus: "APPROVED",
+          emailVerifiedAt: new Date(),
         },
       });
     } catch (e) {
@@ -111,6 +143,7 @@ export async function updateAffiliate(ctx: SessionUser, id: string, input: Affil
       email: input.email ?? null,
       phone: input.phone ?? null,
       commissionRate: input.commissionRate,
+      ...(input.payoutSchedule ? { payoutSchedule: input.payoutSchedule } : {}),
     },
   });
 }
@@ -158,7 +191,7 @@ export function monthsInRange(fromYm: string, toYm: string): number {
 // Current monthly commission figures for every affiliate, derived from live
 // merchant status and plan pricing. Shared by the projected report and the
 // ledger snapshot.
-type MonthlyFigure = {
+export type MonthlyFigure = {
   affiliateId: string;
   name: string;
   commissionRate: number;
@@ -168,9 +201,12 @@ type MonthlyFigure = {
   monthlyCommissionMvr: number;
 };
 
-async function computeMonthlyByAffiliate(): Promise<MonthlyFigure[]> {
+// Pass an affiliateId to compute a single affiliate's figure (the portal's
+// projected-month view); omit it for the org-wide report and ledger snapshot.
+export async function computeMonthlyByAffiliate(affiliateId?: string): Promise<MonthlyFigure[]> {
   const [affiliates, plans] = await Promise.all([
     db.affiliate.findMany({
+      where: affiliateId ? { id: affiliateId } : undefined,
       orderBy: { name: "asc" },
       select: {
         id: true,
@@ -257,6 +293,7 @@ export type CommissionEntry = {
   id: string;
   affiliateId: string;
   affiliateName: string;
+  affiliatePayoutSchedule: "MONTHLY" | "QUARTERLY" | "YEARLY";
   period: string;
   amountMvr: number;
   commissionRate: number;
@@ -297,6 +334,7 @@ export async function recordCommissionsForPeriod(
   let recorded = 0;
   let updated = 0;
   let skippedPaid = 0;
+  const newlyRecorded: { affiliateId: string; amountMvr: number }[] = [];
 
   for (const f of earners) {
     const prior = byAffiliate.get(f.affiliateId);
@@ -312,6 +350,7 @@ export async function recordCommissionsForPeriod(
         },
       });
       recorded += 1;
+      newlyRecorded.push({ affiliateId: f.affiliateId, amountMvr: f.monthlyCommissionMvr });
     } else if (prior.status === "PAID") {
       skippedPaid += 1;
     } else {
@@ -328,6 +367,29 @@ export async function recordCommissionsForPeriod(
     }
   }
 
+  // Portal notification: first recording of a period only — re-records are
+  // corrections and shouldn't re-announce. Failures are swallowed inside the
+  // email helper, so a flaky provider never breaks the recording.
+  if (newlyRecorded.length > 0) {
+    const recipients = await db.affiliate.findMany({
+      where: {
+        id: { in: newlyRecorded.map((n) => n.affiliateId) },
+        emailNotifications: true,
+        email: { not: null },
+      },
+      select: { id: true, email: true },
+    });
+    const emailById = new Map(recipients.map((r) => [r.id, r.email!]));
+    await Promise.all(
+      newlyRecorded
+        .filter((n) => emailById.has(n.affiliateId))
+        .map((n) => {
+          const msg = commissionRecordedEmail({ period, amountMvr: n.amountMvr });
+          return sendAffiliateEmail(emailById.get(n.affiliateId)!, msg.subject, msg.bodyHtml);
+        })
+    );
+  }
+
   return { recorded, updated, skippedPaid };
 }
 
@@ -338,7 +400,7 @@ export async function getCommissionLedger(period: string): Promise<CommissionLed
         where: { period: safePeriod },
         orderBy: { amountMvr: "desc" },
         include: {
-          affiliate: { select: { name: true } },
+          affiliate: { select: { name: true, payoutSchedule: true } },
           paidBy: { select: { name: true } },
         },
       })
@@ -348,6 +410,7 @@ export async function getCommissionLedger(period: string): Promise<CommissionLed
     id: r.id,
     affiliateId: r.affiliateId,
     affiliateName: r.affiliate.name,
+    affiliatePayoutSchedule: r.affiliate.payoutSchedule,
     period: r.period,
     amountMvr: r.amountMvr,
     commissionRate: r.commissionRate,
@@ -376,7 +439,16 @@ export async function setCommissionStatus(
   status: "PENDING" | "PAID"
 ): Promise<void> {
   assertAdmin(ctx);
-  const entry = await db.affiliateCommission.findUnique({ where: { id }, select: { id: true } });
+  const entry = await db.affiliateCommission.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      status: true,
+      period: true,
+      amountMvr: true,
+      affiliate: { select: { email: true, emailNotifications: true } },
+    },
+  });
   if (!entry) throw new AffiliateError("Commission entry not found.");
   await db.affiliateCommission.update({
     where: { id },
@@ -385,6 +457,15 @@ export async function setCommissionStatus(
         ? { status: "PAID", paidAt: new Date(), paidById: ctx.id }
         : { status: "PENDING", paidAt: null, paidById: null },
   });
+
+  // Portal notification on the PENDING -> PAID transition (opt-out honored).
+  if (status === "PAID" && entry.status !== "PAID") {
+    const { email, emailNotifications } = entry.affiliate;
+    if (email && emailNotifications) {
+      const msg = commissionPaidEmail({ period: entry.period, amountMvr: entry.amountMvr });
+      await sendAffiliateEmail(email, msg.subject, msg.bodyHtml);
+    }
+  }
 }
 
 // Months that already have recorded ledger entries, most recent first.

@@ -33,6 +33,8 @@ export const affiliateSchema = z.object({
       // Keep at most two decimals.
       return Math.round(n * 100) / 100;
     }),
+  // How often the affiliate is paid out (the ledger stays monthly regardless).
+  payoutSchedule: z.enum(["MONTHLY", "QUARTERLY", "YEARLY"]).optional(),
 });
 
 export type AffiliateInput = z.infer<typeof affiliateSchema>;
