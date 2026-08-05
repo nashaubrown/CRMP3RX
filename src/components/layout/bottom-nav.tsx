@@ -43,7 +43,11 @@ export function BottomNav({ isAdmin = false }: { isAdmin?: boolean }) {
       className="bg-background/95 supports-[backdrop-filter]:bg-background/80 fixed inset-x-0 bottom-0 z-40 border-t backdrop-blur pb-[env(safe-area-inset-bottom)]"
     >
       {/* Tablet / desktop: every destination */}
-      <ul className="mx-auto hidden max-w-3xl justify-around sm:flex">
+      {/* max-w-3xl (768px) used to cap this while 15 destinations need ~1300px,
+          so the row overflowed to the right of a centred box and read as
+          off-centre. Match the app shell's width, centre the items, and let
+          narrow desktops scroll rather than overflow. */}
+      <ul className="mx-auto hidden w-full max-w-[1600px] justify-center overflow-x-auto px-2 sm:flex">
         {navItems.map((item) => {
           const active = isActive(item.href);
           return (
@@ -53,7 +57,9 @@ export function BottomNav({ isAdmin = false }: { isAdmin?: boolean }) {
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   tabBase,
-                  "min-w-16 px-3",
+                  // nowrap keeps "Help Center"/"Ask Perx" on one line, so the
+                  // bar stays a consistent height instead of going ragged.
+                  "min-w-16 px-3 whitespace-nowrap",
                   active ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 )}
               >
