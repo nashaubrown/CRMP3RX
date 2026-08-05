@@ -53,6 +53,10 @@ export type TeamRow = {
   role: Role;
   disabled: boolean;
   isSelf: boolean;
+  isOwner: boolean;
+  // Whether the signed-in admin may reset this person's password, disable
+  // them, or change their role. Computed server-side (see listTeam).
+  canManage: boolean;
   createdAt: string;
   ownedMerchants: number;
   ownedDeals: number;
@@ -97,6 +101,9 @@ function CopyButton({ value, label }: { value: string; label: string }) {
     </Button>
   );
 }
+
+// Shown on any control an admin can't use against a fellow admin.
+const OWNER_ONLY = "Only the owner account can change another admin.";
 
 function RoleBadge({ role }: { role: Role }) {
   return role === "ADMIN" ? (
@@ -267,7 +274,13 @@ function ResetPasswordDialog({
         if (o) setPassword(suggestPassword());
       }}
     >
-      <Button variant="ghost" size="sm" onClick={() => setOpen(true)}>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setOpen(true)}
+        disabled={!member.canManage}
+        title={member.canManage ? undefined : OWNER_ONLY}
+      >
         <KeyRoundIcon className="size-3.5" /> Reset password
       </Button>
       <DialogContent>
@@ -344,6 +357,15 @@ function MemberRow({ member }: { member: TeamRow }) {
             <span className="text-muted-foreground text-xs">(you)</span>
           ) : null}
           <RoleBadge role={member.role} />
+          {member.isOwner ? (
+            <Badge
+              variant="outline"
+              className="border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-300"
+              title="The owner account — the only one that can change another admin"
+            >
+              Owner
+            </Badge>
+          ) : null}
           {member.disabled ? (
             <Badge variant="outline" className="text-destructive border-destructive/40">
               Disabled
@@ -361,9 +383,13 @@ function MemberRow({ member }: { member: TeamRow }) {
         <Select
           value={member.role}
           onValueChange={(v) => changeRole(v as Role)}
-          disabled={pending || member.disabled}
+          disabled={pending || member.disabled || !member.canManage}
         >
-          <SelectTrigger size="sm" className="w-[130px]">
+          <SelectTrigger
+            size="sm"
+            className="w-[130px]"
+            title={member.canManage ? undefined : OWNER_ONLY}
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -379,7 +405,8 @@ function MemberRow({ member }: { member: TeamRow }) {
             variant={member.disabled ? "outline" : "ghost"}
             size="sm"
             className={member.disabled ? "" : "text-destructive"}
-            disabled={pending}
+            disabled={pending || !member.canManage}
+            title={member.canManage ? undefined : OWNER_ONLY}
             onClick={toggleDisabled}
           >
             {member.disabled ? "Re-enable" : "Disable"}

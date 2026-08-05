@@ -67,26 +67,36 @@ export type TeamMember = {
   disabledAt: Date | null;
   createdAt: Date;
   isSelf: boolean;
+  isOwner: boolean;
   hasPassword: boolean;
   ownedMerchants: number;
   ownedDeals: number;
+  // Whether the *viewer* may reset this person's password, disable them or
+  // change their role. Computed here so the UI and assertMayActOnAdmin can't
+  // disagree about who can do what.
+  canManage: boolean;
 };
 
 export async function listTeam(ctx: SessionUser): Promise<TeamMember[]> {
   assertAdmin(ctx);
-  const users = await db.user.findMany({
-    orderBy: [{ disabledAt: "asc" }, { createdAt: "asc" }],
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      disabledAt: true,
-      createdAt: true,
-      passwordHash: true,
-      _count: { select: { ownedMerchants: true, ownedDeals: true } },
-    },
-  });
+  const [users, viewer] = await Promise.all([
+    db.user.findMany({
+      orderBy: [{ disabledAt: "asc" }, { createdAt: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isOwner: true,
+        disabledAt: true,
+        createdAt: true,
+        passwordHash: true,
+        _count: { select: { ownedMerchants: true, ownedDeals: true } },
+      },
+    }),
+    db.user.findUnique({ where: { id: ctx.id }, select: { isOwner: true } }),
+  ]);
+  const viewerIsOwner = Boolean(viewer?.isOwner);
   return users.map((u) => ({
     id: u.id,
     name: u.name,
@@ -95,9 +105,13 @@ export async function listTeam(ctx: SessionUser): Promise<TeamMember[]> {
     disabledAt: u.disabledAt,
     createdAt: u.createdAt,
     isSelf: u.id === ctx.id,
+    isOwner: u.isOwner,
     hasPassword: Boolean(u.passwordHash),
     ownedMerchants: u._count.ownedMerchants,
     ownedDeals: u._count.ownedDeals,
+    // Mirrors assertMayActOnAdmin: yourself always, reps always, another
+    // admin only if you're the owner.
+    canManage: u.id === ctx.id || u.role !== "ADMIN" || viewerIsOwner,
   }));
 }
 
@@ -124,6 +138,10 @@ export async function createTeamUser(
   return {
     ...u,
     isSelf: false,
+    // New accounts are never the owner, and the page reloads after creation
+    // so canManage is recomputed from the DB there anyway.
+    isOwner: false,
+    canManage: role !== "ADMIN",
     hasPassword: true,
     ownedMerchants: 0,
     ownedDeals: 0,

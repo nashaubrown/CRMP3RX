@@ -19,6 +19,8 @@ export default async function TeamPage() {
     role: m.role,
     disabled: Boolean(m.disabledAt),
     isSelf: m.isSelf,
+    isOwner: m.isOwner,
+    canManage: m.canManage,
     createdAt: formatDateTime(m.createdAt, "d MMM yyyy"),
     ownedMerchants: m.ownedMerchants,
     ownedDeals: m.ownedDeals,
