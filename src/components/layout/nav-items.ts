@@ -46,3 +46,24 @@ export const navItems: NavItem[] = [
 export function navItemsFor(isAdmin: boolean): NavItem[] {
   return isAdmin ? navItems : navItems.filter((i) => !i.adminOnly);
 }
+
+// The destinations a rep opens daily — these sit directly in the desktop
+// header; everything else lives behind "More". Order here is the order shown.
+export const PRIMARY_HREFS = [
+  "/dashboard",
+  "/merchants",
+  "/contacts",
+  "/deals",
+  "/tasks",
+  "/meetings",
+];
+
+// Splits the visible destinations into the header row and the More menu.
+export function splitNav(isAdmin: boolean): { primary: NavItem[]; overflow: NavItem[] } {
+  const items = navItemsFor(isAdmin);
+  const primary = PRIMARY_HREFS.map((h) => items.find((i) => i.href === h)).filter(
+    Boolean
+  ) as NavItem[];
+  const overflow = items.filter((i) => !PRIMARY_HREFS.includes(i.href));
+  return { primary, overflow };
+}

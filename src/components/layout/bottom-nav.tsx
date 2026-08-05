@@ -33,8 +33,9 @@ function ActiveBar() {
   return <span className="bg-primary absolute inset-x-3 top-0 h-0.5 rounded-full" aria-hidden />;
 }
 
-// Primary navigation as a bottom bar. On wide screens every destination shows;
-// on phones only 4 primary tabs plus a "More" sheet for the rest.
+// Bottom tab bar, for phones and tablets only — on desktop (lg+) the pill
+// header carries navigation instead. Bottom tabs stay on small screens because
+// they're reachable with a thumb, which matters for reps in the field.
 export function BottomNav({ isAdmin = false }: { isAdmin?: boolean }) {
   const isActive = useIsActive();
   const [moreOpen, setMoreOpen] = React.useState(false);
@@ -49,7 +50,7 @@ export function BottomNav({ isAdmin = false }: { isAdmin?: boolean }) {
   return (
     <nav
       aria-label="Primary"
-      className="bg-background/95 supports-[backdrop-filter]:bg-background/80 fixed inset-x-0 bottom-0 z-40 border-t backdrop-blur pb-[env(safe-area-inset-bottom)]"
+      className="bg-background/95 supports-[backdrop-filter]:bg-background/80 fixed inset-x-0 bottom-0 z-40 border-t backdrop-blur pb-[env(safe-area-inset-bottom)] lg:hidden"
     >
       {/* Tablet / desktop: every destination */}
       {/* max-w-3xl (768px) used to cap this while 15 destinations need ~1300px,
