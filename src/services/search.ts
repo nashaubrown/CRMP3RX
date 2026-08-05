@@ -1,12 +1,13 @@
 import { db } from "@/lib/db";
 import type { SessionUser } from "@/lib/authz";
 
-// Backs the ⌘K palette: one query across the four record types a rep jumps to.
+// Backs the ⌘K palette: one query across the record types a rep jumps to,
+// plus help articles.
 // Every merchant is org-visible (the hybrid sharing model), so results aren't
 // owner-scoped — the palette is for finding things, and opening a record you
 // don't own is already allowed.
 
-export type QuickHitType = "MERCHANT" | "CONTACT" | "DEAL" | "LEAD";
+export type QuickHitType = "MERCHANT" | "CONTACT" | "DEAL" | "LEAD" | "ARTICLE";
 
 export type QuickHit = {
   id: string;
@@ -25,7 +26,7 @@ export async function quickSearch(_ctx: SessionUser, rawQuery: string): Promise<
 
   const like = { contains: query, mode: "insensitive" as const };
 
-  const [merchants, contacts, deals, leads] = await Promise.all([
+  const [merchants, contacts, deals, leads, articles] = await Promise.all([
     db.merchant.findMany({
       where: { OR: [{ name: like }, { email: like }, { phone: like }] },
       select: { id: true, name: true, status: true, category: true },
@@ -55,6 +56,14 @@ export async function quickSearch(_ctx: SessionUser, rawQuery: string): Promise<
     db.lead.findMany({
       where: { OR: [{ name: like }, { company: like }, { email: like }] },
       select: { id: true, name: true, company: true, email: true, status: true },
+      take: PER_TYPE,
+      orderBy: { updatedAt: "desc" },
+    }),
+    // Help articles are matched on their metadata only — the body is searched
+    // on the Help Center page itself, where results have room to be read.
+    db.helpArticle.findMany({
+      where: { OR: [{ title: like }, { description: like }, { slug: like }] },
+      select: { id: true, title: true, status: true, category: { select: { title: true } } },
       take: PER_TYPE,
       orderBy: { updatedAt: "desc" },
     }),
@@ -90,6 +99,16 @@ export async function quickSearch(_ctx: SessionUser, rawQuery: string): Promise<
       title: l.name || l.company || l.email || "Untitled lead",
       subtitle: [l.company, l.status.toLowerCase()].filter(Boolean).join(" · ") || null,
       href: `/leads/${l.id}`,
+    })),
+    ...articles.map((a): QuickHit => ({
+      id: a.id,
+      type: "ARTICLE",
+      title: a.title,
+      subtitle:
+        [a.category?.title, a.status === "PUBLISHED" ? null : a.status.toLowerCase().replace("_", " ")]
+          .filter(Boolean)
+          .join(" · ") || null,
+      href: `/help-center/${a.id}`,
     })),
   ];
 }

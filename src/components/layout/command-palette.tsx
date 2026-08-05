@@ -19,6 +19,7 @@ const TYPE_LABEL: Record<QuickHitType, string> = {
   CONTACT: "Contact",
   DEAL: "Deal",
   LEAD: "Lead",
+  ARTICLE: "Article",
 };
 
 const DEBOUNCE_MS = 180;
@@ -111,7 +112,7 @@ export function CommandPalette({ isAdmin = false }: { isAdmin?: boolean }) {
           <Command.Input
             value={query}
             onValueChange={setQuery}
-            placeholder="Search merchants, contacts, deals, leads…"
+            placeholder="Search merchants, contacts, deals, leads, articles…"
             className="placeholder:text-muted-foreground h-12 w-full bg-transparent text-sm outline-none"
           />
         </div>

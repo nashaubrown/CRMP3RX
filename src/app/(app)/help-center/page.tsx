@@ -3,6 +3,7 @@ import Link from "next/link";
 import { BookOpenIcon, PlusIcon, SettingsIcon } from "lucide-react";
 
 import { EmptyState } from "@/components/list/empty-state";
+import { SearchInput } from "@/components/list/search-input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -37,23 +38,28 @@ const STATUS_LABELS: Record<string, string> = {
   ARCHIVED: "Archived",
 };
 
-type SearchParams = Promise<{ filter?: string }>;
+type SearchParams = Promise<{ filter?: string; q?: string }>;
 
 export default async function HelpCenterPage({ searchParams }: { searchParams: SearchParams }) {
   const user = await requireUser();
-  const { filter } = await searchParams;
+  const { filter, q } = await searchParams;
   const admin = isAdmin(user);
+  const query = q?.trim() ?? "";
 
-  const articles = await listHelpArticles(
-    user,
-    filter === "mine"
+  // Searching looks across every article, so a hit is never hidden by the tab
+  // you happened to be on. The tabs fall back to "All" while a query is active.
+  const activeFilter = query ? "" : (filter ?? "");
+
+  const articles = await listHelpArticles(user, {
+    ...(activeFilter === "mine"
       ? { mine: true }
-      : filter === "review"
-        ? { status: "IN_REVIEW" }
-        : filter === "published"
-          ? { status: "PUBLISHED" }
-          : {}
-  );
+      : activeFilter === "review"
+        ? { status: "IN_REVIEW" as const }
+        : activeFilter === "published"
+          ? { status: "PUBLISHED" as const }
+          : {}),
+    ...(query ? { query } : {}),
+  });
   const reviewCount = await countInReview();
 
   const filters = [
@@ -88,24 +94,31 @@ export default async function HelpCenterPage({ searchParams }: { searchParams: S
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-1">
-        {filters.map((f) => (
-          <Button
-            key={f.key}
-            size="sm"
-            variant={(filter ?? "") === f.key ? "secondary" : "ghost"}
-            asChild
-          >
-            <Link href={f.key ? `/help-center?filter=${f.key}` : "/help-center"}>{f.label}</Link>
-          </Button>
-        ))}
+      <div className="flex flex-wrap items-center gap-3">
+        <SearchInput placeholder="Search articles, including their text…" />
+        <div className="flex flex-wrap gap-1">
+          {filters.map((f) => (
+            <Button
+              key={f.key}
+              size="sm"
+              variant={activeFilter === f.key ? "secondary" : "ghost"}
+              asChild
+            >
+              <Link href={f.key ? `/help-center?filter=${f.key}` : "/help-center"}>{f.label}</Link>
+            </Button>
+          ))}
+        </div>
       </div>
 
       {articles.length === 0 ? (
         <EmptyState
           icon={BookOpenIcon}
-          title="No articles here"
-          description="Write your first help article — it goes live after admin review."
+          title={query ? "No articles matched" : "No articles here"}
+          description={
+            query
+              ? `Nothing matches “${query}” — try a different word, or clear the search.`
+              : "Write your first help article — it goes live after admin review."
+          }
         />
       ) : (
         <Card className="py-0">

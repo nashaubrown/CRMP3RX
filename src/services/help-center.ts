@@ -26,13 +26,32 @@ export async function listHelpCategories() {
 export type HelpArticleFilter = {
   status?: "DRAFT" | "IN_REVIEW" | "PUBLISHED" | "REJECTED" | "ARCHIVED";
   mine?: boolean;
+  /** Free text. Matches title, description, slug, category and article body. */
+  query?: string;
 };
 
 export async function listHelpArticles(ctx: SessionUser, filter: HelpArticleFilter = {}) {
+  const query = filter.query?.trim();
+  // contentHtml is the article body. Searching it is what makes this useful
+  // for a help library ("which article mentions QR codes?") — the cost is that
+  // a query matching HTML markup could produce a stray hit.
+  const like = { contains: query ?? "", mode: "insensitive" as const };
+
   return db.helpArticle.findMany({
     where: {
       ...(filter.status ? { status: filter.status } : {}),
       ...(filter.mine ? { authorId: ctx.id } : {}),
+      ...(query
+        ? {
+            OR: [
+              { title: like },
+              { description: like },
+              { slug: like },
+              { contentHtml: like },
+              { category: { title: like } },
+            ],
+          }
+        : {}),
     },
     orderBy: [{ updatedAt: "desc" }],
     include: {
