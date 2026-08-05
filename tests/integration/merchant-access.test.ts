@@ -59,15 +59,19 @@ describe("merchant access (hybrid sharing model)", () => {
     expect(auditRow?.merchantId).toBe(merchant.id);
   });
 
-  it("teammates can view but not edit by default", async () => {
+  // Editing is team-wide now (canEditAnyRecord); the destructive and
+  // sensitive capabilities are what a share/ownership still gates.
+  it("teammates can edit, but not delete or read history", async () => {
     const access = await getMerchantAccess(teammate, merchantId);
-    expect(access?.canEdit).toBe(false);
+    expect(access?.canEdit).toBe(true);
     expect(access?.canDelete).toBe(false);
     expect(access?.canViewHistory).toBe(false);
 
+    // CHURNED, not ACTIVE: the EDIT-share case below asserts on the audit row
+    // for the ACTIVE change, which needs to still be a real diff.
     await expect(
-      updateMerchant(teammate, merchantId, { ...baseInput, status: "ACTIVE" })
-    ).rejects.toThrow(/edit access/);
+      updateMerchant(teammate, merchantId, { ...baseInput, status: "CHURNED" })
+    ).resolves.toBeTruthy();
   });
 
   it("an EDIT share grants editing but not delete/history", async () => {
@@ -93,10 +97,11 @@ describe("merchant access (hybrid sharing model)", () => {
     expect((auditRow?.diff as { status?: { to: string } })?.status?.to).toBe("ACTIVE");
   });
 
-  it("downgrading to VIEW revokes editing", async () => {
+  it("downgrading to VIEW keeps editing (team-wide) but not deleting", async () => {
     await setMerchantShare(owner, merchantId, teammate.id, "VIEW");
     const access = await getMerchantAccess(teammate, merchantId);
-    expect(access?.canEdit).toBe(false);
+    expect(access?.canEdit).toBe(true);
+    expect(access?.canDelete).toBe(false);
   });
 
   it("only owner or admin manage shares", async () => {

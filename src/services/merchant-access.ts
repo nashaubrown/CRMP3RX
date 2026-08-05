@@ -2,15 +2,16 @@ import type { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import type { SessionUser } from "@/lib/authz";
-import { isAdmin } from "@/lib/authz";
+import { canEditAnyRecord, isAdmin } from "@/lib/authz";
 
 // Hybrid sharing model:
 //  - VIEW: every authenticated user can see every merchant (and its contacts,
 //    deals and activity) — org-wide transparency.
 //  - "Mine": owned by me, or explicitly shared with me (any permission) —
 //    the rep's working set, used by list filters and dashboard counts.
-//  - EDIT: owner, admins, and collaborators holding an EDIT share can modify
-//    the merchant, its contacts, and log activity.
+//  - EDIT: any signed-in user (see canEditAnyRecord) — the team covers for
+//    each other, so ownership isn't an edit boundary. Owner/admin/EDIT-share
+//    is still computed for the record, it just no longer restricts editing.
 //  - DELETE + share management: owner and admins only.
 
 export function merchantMineWhere(ctx: SessionUser): Prisma.MerchantWhereInput {
@@ -44,10 +45,9 @@ export async function getMerchantAccess(
 
   const owner = merchant.ownerId === ctx.id;
   const admin = isAdmin(ctx);
-  const editShare = merchant.shares.some((s) => s.permission === "EDIT");
 
   return {
-    canEdit: admin || owner || editShare,
+    canEdit: canEditAnyRecord(ctx),
     canDelete: admin || owner,
     canManageShares: admin || owner,
     canViewHistory: admin || owner,

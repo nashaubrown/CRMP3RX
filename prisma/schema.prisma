@@ -27,6 +27,10 @@ model User {
   emailVerified DateTime?
   passwordHash  String?
   role          Role      @default(SALES_REP)
+  // The single "owner" account. Only the owner may reset another admin's
+  // password, or disable/demote another admin — so one compromised admin
+  // session can't be used to take over the others.
+  isOwner       Boolean   @default(false)
   image         String?
   // Public booking page lives at /book/[bookingSlug]
   bookingSlug   String?   @unique
@@ -245,6 +249,10 @@ model Merchant {
 // A referral partner. For every merchant an affiliate brings, they earn a
 // commission (a percentage of that merchant's MRR). Managed by admins in
 // Settings; selected on the merchant form.
+// NOTE: User.isOwner marks the single account allowed to reset another
+// admin's password (and to disable or demote another admin). See
+// src/services/users.ts.
+
 model Affiliate {
   id             String   @id @default(cuid())
   name           String

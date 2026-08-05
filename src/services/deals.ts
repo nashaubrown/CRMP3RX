@@ -3,7 +3,7 @@ import type { DealStage, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { parseMvLocal } from "@/lib/datetime";
 import type { SessionUser } from "@/lib/authz";
-import { isAdmin } from "@/lib/authz";
+import { canEditAnyRecord, isAdmin } from "@/lib/authz";
 import type { DealInput } from "@/lib/validators/deal";
 import { audit, shallowDiff } from "@/services/audit";
 
@@ -20,11 +20,14 @@ async function editableMerchantIds(ctx: SessionUser): Promise<Set<string>> {
   return new Set(shares.map((s) => s.merchantId));
 }
 
+// Team-wide: any signed-in user may edit any deal (see canEditAnyRecord).
+// Kept async and same-signature so call sites are unchanged and tightening
+// this back to ownership stays a one-line edit.
 export async function canEditDeal(
   ctx: SessionUser,
   deal: { ownerId: string; merchantId: string }
 ): Promise<boolean> {
-  if (isAdmin(ctx) || deal.ownerId === ctx.id) return true;
+  if (canEditAnyRecord(ctx)) return true;
   const share = await db.merchantShare.findUnique({
     where: { merchantId_userId: { merchantId: deal.merchantId, userId: ctx.id } },
     select: { permission: true },

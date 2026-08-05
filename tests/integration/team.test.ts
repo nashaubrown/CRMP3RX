@@ -23,7 +23,16 @@ let createdEmail: string;
 beforeAll(async () => {
   const [adminUser, repUser] = await Promise.all([
     db.user.create({
-      data: { name: "Team Admin", email: `admin-${suffix}@test.mv`, role: "ADMIN", passwordHash: "x" },
+      // Owner: these cases cover legitimate team management, which for an
+      // ADMIN target is owner-only now. permissions.test.ts covers the
+      // non-owner admin being blocked.
+      data: {
+        name: "Team Admin",
+        email: `admin-${suffix}@test.mv`,
+        role: "ADMIN",
+        passwordHash: "x",
+        isOwner: true,
+      },
     }),
     db.user.create({
       data: { name: "Team Rep", email: `rep-${suffix}@test.mv`, role: "SALES_REP", passwordHash: "x" },

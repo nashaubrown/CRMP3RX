@@ -95,11 +95,12 @@ describe("contact CSV import", () => {
     const again = await importContactsCsv(owner(), rows.slice(0, 1));
     expect(again.skipped).toBe(1);
 
-    // A user without edit rights on the merchant can't import into it
-    const denied = await importContactsCsv(stranger(), [
-      { firstname: "Sneaky", lastname: "Import", merchant: merchantName },
+    // Editing is team-wide now, so a teammate can import into a merchant
+    // they don't own.
+    const byTeammate = await importContactsCsv(stranger(), [
+      { firstname: "Teammate", lastname: "Import", merchant: merchantName },
     ]);
-    expect(denied.created).toBe(0);
-    expect(denied.errors[0].message).toMatch(/edit access|permission|not allowed/i);
+    expect(byTeammate.created).toBe(1);
+    expect(byTeammate.errors).toHaveLength(0);
   });
 });

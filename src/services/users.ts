@@ -142,6 +142,7 @@ export async function setTeamRole(
     select: { role: true, disabledAt: true },
   });
   if (!target) throw new TeamError("User not found.");
+  await assertMayActOnAdmin(ctx, userId);
 
   // Prevent demoting the last remaining active admin (including yourself).
   if (target.role === "ADMIN" && role !== "ADMIN" && !target.disabledAt) {
@@ -152,6 +153,27 @@ export async function setTeamRole(
   await db.user.update({ where: { id: userId }, data: { role } });
 }
 
+
+// Acting on another ADMIN — resetting their password, disabling them, or
+// changing their role — is an account-takeover vector: one compromised admin
+// session shouldn't be able to lock out or impersonate the rest. Only the
+// owner account may do it. Acting on yourself is always allowed, and admins
+// keep full control over sales reps.
+async function assertMayActOnAdmin(ctx: SessionUser, targetId: string): Promise<void> {
+  if (targetId === ctx.id) return;
+  const [target, actor] = await Promise.all([
+    db.user.findUnique({ where: { id: targetId }, select: { role: true } }),
+    db.user.findUnique({ where: { id: ctx.id }, select: { isOwner: true } }),
+  ]);
+  if (!target) throw new TeamError("User not found.");
+  if (target.role !== "ADMIN") return; // reps are fair game for any admin
+  if (!actor?.isOwner) {
+    throw new TeamError(
+      "Only the owner account can change another admin. Ask them, or have that admin sign in and change it themselves."
+    );
+  }
+}
+
 export async function resetTeamPassword(
   ctx: SessionUser,
   input: z.infer<typeof resetPasswordSchema>
@@ -160,6 +182,7 @@ export async function resetTeamPassword(
   const { userId, password } = resetPasswordSchema.parse(input);
   const target = await db.user.findUnique({ where: { id: userId }, select: { id: true } });
   if (!target) throw new TeamError("User not found.");
+  await assertMayActOnAdmin(ctx, userId);
   const passwordHash = await hash(password, 10);
   await db.user.update({ where: { id: userId }, data: { passwordHash } });
 }
@@ -180,6 +203,7 @@ export async function setTeamDisabled(
     select: { role: true, disabledAt: true },
   });
   if (!target) throw new TeamError("User not found.");
+  await assertMayActOnAdmin(ctx, userId);
 
   // Blocking the last active admin would lock everyone out of team management.
   if (disabled && target.role === "ADMIN" && !target.disabledAt) {

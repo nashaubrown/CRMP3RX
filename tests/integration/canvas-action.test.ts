@@ -52,21 +52,23 @@ describe("runCanvasAction", () => {
     expect(activity?.subject).toBe("Discussed loyalty rollout");
   });
 
-  it("rejects a write action from a user without edit rights", async () => {
+  // Editing is team-wide now, so a teammate logging activity on a merchant
+  // they don't own is legitimate — and still attributed to them.
+  it("lets a teammate log activity, attributed to them", async () => {
     await expect(
       runCanvasAction(stranger(), {
         kind: "log_activity",
-        label: "Sneaky",
+        label: "Teammate note",
         entityType: "MERCHANT",
         entityId: merchantId,
-        subject: "Should not persist",
+        subject: "Covered while the owner was out",
       })
-    ).rejects.toThrow(/edit access/i);
+    ).resolves.toBeTruthy();
 
-    const leaked = await db.activity.findFirst({
+    const logged = await db.activity.findFirst({
       where: { entityType: "MERCHANT", entityId: merchantId, ownerId: strangerId },
     });
-    expect(leaked).toBeNull();
+    expect(logged).not.toBeNull();
   });
 
   it("rejects a fabricated entity id", async () => {

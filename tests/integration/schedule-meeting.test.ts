@@ -49,11 +49,16 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db.activity.deleteMany({ where: { ownerId } });
-  await db.meeting.deleteMany({ where: { hostUserId: ownerId } });
+  // The teammate schedules too now, so clear every test user's rows — not
+  // just the owner's — before deleting the users.
+  const userIds = (
+    await db.user.findMany({ where: { email: { contains: suffix } }, select: { id: true } })
+  ).map((u) => u.id);
+  await db.activity.deleteMany({ where: { ownerId: { in: userIds } } });
+  await db.meeting.deleteMany({ where: { hostUserId: { in: userIds } } });
   await db.auditLog.deleteMany({ where: { merchantId } });
-  await db.emailMessage.deleteMany({ where: { sentById: ownerId } });
-  await db.smsMessage.deleteMany({ where: { sentById: ownerId } });
+  await db.emailMessage.deleteMany({ where: { sentById: { in: userIds } } });
+  await db.smsMessage.deleteMany({ where: { sentById: { in: userIds } } });
   await db.merchant.deleteMany({ where: { id: merchantId } });
   await db.user.deleteMany({ where: { email: { contains: suffix } } });
   await db.$disconnect();
@@ -91,18 +96,20 @@ describe("scheduleMeeting", () => {
     expect(activity?.dueAt?.getTime()).toBe(meeting.startAt.getTime());
   });
 
-  it("rejects users without edit access and past times", async () => {
+  it("lets a teammate schedule, and rejects past times", async () => {
+    // Editing is team-wide now, so a teammate booking on someone else's
+    // contact is legitimate.
     await expect(
       scheduleMeeting(stranger(), {
         entityType: "CONTACT",
         entityId: contactId,
-        title: "Sneaky",
+        title: "Covering for the owner",
         attendeeName: "X",
         attendeeEmail: "x@example.com",
         startAtLocal: tomorrowAt(6),
         durationMins: 30,
       })
-    ).rejects.toThrow(/edit access/);
+    ).resolves.toBeTruthy();
 
     await expect(
       scheduleMeeting(owner(), {

@@ -2,7 +2,7 @@ import type { LeadStatus, Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import type { SessionUser } from "@/lib/authz";
-import { isAdmin } from "@/lib/authz";
+import { canEditAnyRecord, isAdmin } from "@/lib/authz";
 import type { LeadCaptureInput, LeadInput, LeadListParams } from "@/lib/validators/lead";
 import { audit } from "@/services/audit";
 import { computeLeadScore } from "@/services/lead-scoring";
@@ -12,8 +12,11 @@ export const LEADS_PAGE_SIZE = 10;
 // Leads follow the hybrid model: org-visible; editable by their owner or an
 // admin. Unassigned leads (from the public form) can be claimed by anyone.
 
-function canEditLead(ctx: SessionUser, lead: { ownerId: string | null }): boolean {
-  return isAdmin(ctx) || lead.ownerId === ctx.id;
+// Team-wide: any signed-in user may edit any lead (see canEditAnyRecord).
+// The lead argument is kept so the call sites read the same and so tightening
+// this back to ownership is a one-line change.
+function canEditLead(ctx: SessionUser, _lead: { ownerId: string | null }): boolean {
+  return canEditAnyRecord(ctx);
 }
 
 async function scoreFor(input: {

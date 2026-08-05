@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import type { SessionUser } from "@/lib/authz";
-import { isAdmin } from "@/lib/authz";
+import { canEditAnyRecord, isAdmin } from "@/lib/authz";
 import type { MerchantInput, MerchantListParams } from "@/lib/validators/merchant";
 import {
   getMerchantAccess,
@@ -200,16 +200,10 @@ export async function getMerchant(ctx: SessionUser, id: string) {
   return { ...merchant, contacts, access: access! };
 }
 
-// Merchants the current user can attach contacts to (edit rights required).
+// Merchants the current user can attach contacts to. Editing is team-wide
+// (see canEditAnyRecord), so this is every merchant.
 export async function listEditableMerchantOptions(ctx: SessionUser) {
-  const where: Prisma.MerchantWhereInput = isAdmin(ctx)
-    ? {}
-    : {
-        OR: [
-          { ownerId: ctx.id },
-          { shares: { some: { userId: ctx.id, permission: "EDIT" } } },
-        ],
-      };
+  const where: Prisma.MerchantWhereInput = canEditAnyRecord(ctx) ? {} : { id: "__none__" };
   return db.merchant.findMany({
     where,
     select: { id: true, name: true },
