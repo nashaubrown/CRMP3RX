@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db } from "@/lib/db";
+import { generateAffiliateCode } from "@/lib/affiliate-code";
 import type { SessionUser } from "@/lib/rbac";
 import {
   getAffiliateReport,
@@ -39,7 +40,7 @@ beforeAll(async () => {
   });
 
   const aff = await db.affiliate.create({
-    data: { name: `Partner ${suffix}`, commissionRate: 10 },
+    data: { name: `Partner ${suffix}`, commissionRate: 10, code: generateAffiliateCode() },
   });
   affId = aff.id;
 

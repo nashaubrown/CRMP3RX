@@ -6,7 +6,6 @@ import { AiProviderCard } from "@/app/(app)/settings/ai-provider-card";
 import { EmailIdentityCard } from "@/app/(app)/settings/email-identity-card";
 import { ApiKeysCard } from "@/app/(app)/settings/api-keys-card";
 import { OptionSetsCard } from "@/app/(app)/settings/option-sets-card";
-import { AffiliatesCard } from "@/app/(app)/settings/affiliates-card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,7 +24,6 @@ import { getEmailSettings } from "@/services/email-settings";
 import { listApiKeys } from "@/services/api-keys";
 import { isAdmin } from "@/lib/authz";
 import { listManagedOptions, OPTION_SETS } from "@/services/option-sets";
-import { listAffiliates } from "@/services/affiliates";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -46,7 +44,7 @@ export default async function SettingsPage({
   const { calendar: calendarMsg } = await searchParams;
 
   const admin = isAdmin(user);
-  const [profile, apiKeys, aiSettings, emailSettings, optionSets, affiliates] = await Promise.all([
+  const [profile, apiKeys, aiSettings, emailSettings, optionSets] = await Promise.all([
     db.user.findUnique({
       where: { id: user.id },
       select: {
@@ -73,7 +71,6 @@ export default async function SettingsPage({
           }))
         )
       : Promise.resolve([]),
-    admin ? listAffiliates(user) : Promise.resolve([]),
   ]);
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -83,7 +80,7 @@ export default async function SettingsPage({
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
         <p className="text-muted-foreground text-sm">
-          Calendar connection, dropdown values, affiliates, and API access
+          Calendar connection, dropdown values, and API access
         </p>
       </div>
 
@@ -129,7 +126,6 @@ export default async function SettingsPage({
 
       {admin ? <OptionSetsCard sets={optionSets} /> : null}
 
-      {admin ? <AffiliatesCard affiliates={affiliates} /> : null}
 
       {aiSettings.isAdmin ? (
         <AiProviderCard

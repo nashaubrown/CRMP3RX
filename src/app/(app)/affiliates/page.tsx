@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+
+import { AffiliatesManager } from "@/app/(app)/affiliates/affiliates-manager";
 import { BadgePercentIcon } from "lucide-react";
 
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
@@ -26,7 +28,12 @@ import {
 import { DownloadIcon } from "lucide-react";
 import { formatDate } from "@/lib/datetime";
 import { isAdmin, requireUser } from "@/lib/rbac";
-import { getAffiliateReport, getCommissionLedger, monthsInRange } from "@/services/affiliates";
+import {
+  getAffiliateReport,
+  getCommissionLedger,
+  listAffiliates,
+  monthsInRange,
+} from "@/services/affiliates";
 
 export const metadata: Metadata = { title: "Affiliates" };
 
@@ -59,9 +66,10 @@ export default async function AffiliatesPage({
   const ledgerPeriod = sp.ledger && YM.test(sp.ledger) ? sp.ledger : thisMonth;
 
   const months = monthsInRange(from, to);
-  const [report, ledger] = await Promise.all([
+  const [report, ledger, affiliates] = await Promise.all([
     getAffiliateReport(months),
     getCommissionLedger(ledgerPeriod),
+    listAffiliates(user),
   ]);
 
   return (
@@ -76,16 +84,13 @@ export default async function AffiliatesPage({
         </div>
       </div>
 
+      <AffiliatesManager affiliates={affiliates} />
+
       {report.rows.length === 0 ? (
         <EmptyState
           icon={BadgePercentIcon}
           title="No affiliates yet"
-          description="Add affiliates in Settings, then pick one on the merchant form to start tracking referrals."
-          action={
-            <Button asChild variant="outline" size="sm">
-              <Link href="/settings">Go to Settings</Link>
-            </Button>
-          }
+          description="Add your first referral partner below, then pick them on the merchant form to start tracking referrals."
         />
       ) : (
         <Card>

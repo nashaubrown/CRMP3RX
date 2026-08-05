@@ -15,7 +15,7 @@ import {
   createAffiliateAction,
   setAffiliateActiveAction,
   updateAffiliateAction,
-} from "@/app/(app)/settings/actions";
+} from "@/app/(app)/affiliates/manage-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
 export type Affiliate = {
   id: string;
   name: string;
+  code: string;
   email: string | null;
   phone: string | null;
   commissionRate: number;
@@ -178,6 +179,14 @@ function AffiliateRow({ affiliate }: { affiliate: Affiliate }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="truncate text-sm font-medium">{affiliate.name}</span>
+          {/* The permanent referral code. Monospace + tracking so it reads
+              cleanly when quoted over the phone; never editable. */}
+          <span
+            className="bg-muted text-muted-foreground rounded-md px-1.5 py-0.5 font-mono text-[11px] tracking-widest"
+            title="Permanent referral code"
+          >
+            {affiliate.code}
+          </span>
           <Badge
             variant="outline"
             className="border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
@@ -280,14 +289,14 @@ function AddAffiliate() {
   );
 }
 
-export function AffiliatesCard({ affiliates }: { affiliates: Affiliate[] }) {
+export function AffiliatesManager({ affiliates }: { affiliates: Affiliate[] }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Affiliates</CardTitle>
         <CardDescription>
           Referral partners who earn a commission (a % of MRR) for every merchant they bring in.
-          Pick one on the merchant form; see what&apos;s owed on the Affiliates page.
+          Pick one on the merchant form; each gets a permanent referral code.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">

@@ -248,6 +248,10 @@ model Merchant {
 model Affiliate {
   id             String   @id @default(cuid())
   name           String
+  // Permanent public referral code (6 chars, confusable characters excluded).
+  // Assigned once at creation and never editable — it gets printed, shared
+  // and quoted on payouts, so changing one would orphan that history.
+  code           String   @unique
   email          String?
   phone          String? // E.164, default region +960
   // Commission as a percentage of the referred merchant's monthly MRR.

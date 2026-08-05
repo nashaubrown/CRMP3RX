@@ -1,19 +1,30 @@
 import { db } from "@/lib/db";
 import { isAdmin, type SessionUser } from "@/lib/authz";
+import { generateAffiliateCode } from "@/lib/affiliate-code";
 import type { AffiliateInput } from "@/lib/validators/affiliate";
 
 // Referral partners. Reads (for the merchant-form dropdown) are open to any
-// signed-in user; all mutations are admin-only, mirroring option sets.
+// signed-in user. Managing them is open to the whole sales team: reps sign up
+// the referral partners they work with, so routing that through an admin just
+// added a queue.
 
 export class AffiliateError extends Error {}
 
+// Managing the partner records themselves — open to the whole team.
+function assertCanManage(ctx: SessionUser) {
+  if (!ctx?.id) throw new AffiliateError("You must be signed in to manage affiliates.");
+}
+
+// The payout ledger stays admin-only: recording a period and marking a
+// commission PAID is a money decision, not day-to-day sales work.
 function assertAdmin(ctx: SessionUser) {
-  if (!isAdmin(ctx)) throw new AffiliateError("Only admins can manage affiliates.");
+  if (!isAdmin(ctx)) throw new AffiliateError("Only admins can manage commission payouts.");
 }
 
 export type ManagedAffiliate = {
   id: string;
   name: string;
+  code: string;
   email: string | null;
   phone: string | null;
   commissionRate: number;
@@ -23,7 +34,7 @@ export type ManagedAffiliate = {
 
 // Full list (including inactive) for the admin manager UI.
 export async function listAffiliates(ctx: SessionUser): Promise<ManagedAffiliate[]> {
-  assertAdmin(ctx);
+  assertCanManage(ctx);
   const rows = await db.affiliate.findMany({
     orderBy: [{ active: "desc" }, { name: "asc" }],
     include: { _count: { select: { merchants: true } } },
@@ -31,6 +42,7 @@ export async function listAffiliates(ctx: SessionUser): Promise<ManagedAffiliate
   return rows.map((a) => ({
     id: a.id,
     name: a.name,
+    code: a.code,
     email: a.email,
     phone: a.phone,
     commissionRate: a.commissionRate,
@@ -53,20 +65,43 @@ export async function listAffiliateOptions(
   return rows;
 }
 
+// How many times to retry on a code collision before giving up. At 729M
+// possible codes a single retry is already unreachable in practice; this is
+// only here so a pathological case fails loudly instead of looping forever.
+const CODE_ATTEMPTS = 5;
+
 export async function createAffiliate(ctx: SessionUser, input: AffiliateInput) {
-  assertAdmin(ctx);
-  return db.affiliate.create({
-    data: {
-      name: input.name,
-      email: input.email ?? null,
-      phone: input.phone ?? null,
-      commissionRate: input.commissionRate,
-    },
-  });
+  assertCanManage(ctx);
+  for (let attempt = 0; attempt < CODE_ATTEMPTS; attempt++) {
+    try {
+      return await db.affiliate.create({
+        data: {
+          name: input.name,
+          email: input.email ?? null,
+          phone: input.phone ?? null,
+          commissionRate: input.commissionRate,
+          code: generateAffiliateCode(),
+        },
+      });
+    } catch (e) {
+      // P2002 = unique constraint. Only the code can collide here, so retry
+      // with a fresh one; anything else is a real error.
+      if (isUniqueViolation(e) && attempt < CODE_ATTEMPTS - 1) continue;
+      throw e;
+    }
+  }
+  throw new AffiliateError("Could not allocate a referral code. Please try again.");
 }
 
+function isUniqueViolation(e: unknown): boolean {
+  return typeof e === "object" && e !== null && (e as { code?: string }).code === "P2002";
+}
+
+// Note: `code` is deliberately absent from the update payload. It is issued
+// once at creation and never changes — it gets printed, shared and quoted on
+// payouts, so a new code would orphan that history.
 export async function updateAffiliate(ctx: SessionUser, id: string, input: AffiliateInput) {
-  assertAdmin(ctx);
+  assertCanManage(ctx);
   const existing = await db.affiliate.findUnique({ where: { id }, select: { id: true } });
   if (!existing) throw new AffiliateError("Affiliate not found.");
   return db.affiliate.update({
@@ -81,7 +116,7 @@ export async function updateAffiliate(ctx: SessionUser, id: string, input: Affil
 }
 
 export async function setAffiliateActive(ctx: SessionUser, id: string, active: boolean) {
-  assertAdmin(ctx);
+  assertCanManage(ctx);
   await db.affiliate.update({ where: { id }, data: { active } });
 }
 
