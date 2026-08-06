@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db } from "@/lib/db";
+import type { SessionUser } from "@/lib/authz";
 import { getOwnerBreakdown } from "@/services/dashboard";
 
 // Verifies the per-owner dashboard breakdown: status counts, onboarded count
@@ -10,6 +11,9 @@ import { getOwnerBreakdown } from "@/services/dashboard";
 
 const suffix = `own-${Math.random().toString(36).slice(2, 8)}`;
 let repId: string;
+// The breakdown is team-wide data, so it's fetched as an admin — they always
+// hold canSeeTeamNumbers. permissions.test.ts covers a rep being refused.
+const admin: SessionUser = { id: "seed-admin", role: "ADMIN", name: "A", email: "a@t.mv" };
 
 beforeAll(async () => {
   const rep = await db.user.create({
@@ -50,7 +54,7 @@ afterAll(async () => {
 
 describe("owner breakdown", () => {
   it("groups a rep's merchants by status with onboarded count and MRR", async () => {
-    const { rows } = await getOwnerBreakdown();
+    const { rows } = (await getOwnerBreakdown(admin))!;
     const row = rows.find((r) => r.ownerId === repId)!;
 
     expect(row).toBeDefined();
@@ -65,7 +69,7 @@ describe("owner breakdown", () => {
   });
 
   it("returns rows sorted by total merchants descending", async () => {
-    const { rows } = await getOwnerBreakdown();
+    const { rows } = (await getOwnerBreakdown(admin))!;
     for (let i = 1; i < rows.length; i++) {
       expect(rows[i - 1].total).toBeGreaterThanOrEqual(rows[i].total);
     }

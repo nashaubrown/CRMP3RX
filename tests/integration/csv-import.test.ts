@@ -16,6 +16,10 @@ let ownerId: string;
 let strangerId: string;
 
 const owner = () => ({ id: ownerId, role: "SALES_REP" as const, name: "CSV Owner" });
+// Exporting now needs the canExportData capability, which the default set
+// withholds from reps. The round-trip below exercises the CSV format, not the
+// permission, so it runs as an admin.
+const exporter = () => ({ id: ownerId, role: "ADMIN" as const, name: "CSV Admin" });
 const stranger = () => ({ id: strangerId, role: "SALES_REP" as const, name: "CSV Stranger" });
 
 beforeAll(async () => {
@@ -65,7 +69,7 @@ describe("merchant CSV import", () => {
   });
 
   it("round-trips its own export format", async () => {
-    const csv = await exportMerchantsCsv(owner(), { q: `Alpha Cafe ${suffix}` });
+    const csv = await exportMerchantsCsv(exporter(), { q: `Alpha Cafe ${suffix}` });
     const records = parseCsv(csv);
     expect(records).toHaveLength(1);
     expect(records[0].name).toBe(`Alpha Cafe ${suffix}`);

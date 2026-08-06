@@ -3,10 +3,12 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import type { SessionUser } from "@/lib/authz";
 import { canEditAnyRecord, isAdmin } from "@/lib/authz";
+import { getCapabilities } from "@/services/permissions";
 
 // Hybrid sharing model:
-//  - VIEW: every authenticated user can see every merchant (and its contacts,
-//    deals and activity) — org-wide transparency.
+//  - VIEW: governed by the canSeeAllMerchants capability. On (the default)
+//    means org-wide transparency, as before. Off narrows the rep to their own
+//    book plus explicit shares — see merchantVisibleWhere.
 //  - "Mine": owned by me, or explicitly shared with me (any permission) —
 //    the rep's working set, used by list filters and dashboard counts.
 //  - EDIT: any signed-in user (see canEditAnyRecord) — the team covers for
@@ -20,6 +22,31 @@ export function merchantMineWhere(ctx: SessionUser): Prisma.MerchantWhereInput {
 
 export function merchantSharedWhere(ctx: SessionUser): Prisma.MerchantWhereInput {
   return { shares: { some: { userId: ctx.id } } };
+}
+
+// What this user is allowed to see at all. Everyone saw every merchant until
+// permission sets arrived; a rep without canSeeAllMerchants is now narrowed to
+// their own book plus anything explicitly shared with them.
+//
+// Every merchant read path should start from this — list, detail, search, map
+// pins, exports, zone contents — so a restricted rep can't reach a colleague's
+// account by any route.
+export async function merchantVisibleWhere(
+  ctx: SessionUser
+): Promise<Prisma.MerchantWhereInput> {
+  const caps = await getCapabilities(ctx);
+  return caps.canSeeAllMerchants ? {} : merchantMineWhere(ctx);
+}
+
+// Can this user open this specific merchant?
+export async function canSeeMerchant(ctx: SessionUser, merchantId: string): Promise<boolean> {
+  const caps = await getCapabilities(ctx);
+  if (caps.canSeeAllMerchants) return true;
+  const found = await db.merchant.findFirst({
+    where: { id: merchantId, ...merchantMineWhere(ctx) },
+    select: { id: true },
+  });
+  return found !== null;
 }
 
 export type MerchantAccess = {

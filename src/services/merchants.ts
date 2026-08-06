@@ -5,9 +5,11 @@ import type { SessionUser } from "@/lib/authz";
 import { canEditAnyRecord, isAdmin } from "@/lib/authz";
 import type { MerchantInput, MerchantListParams } from "@/lib/validators/merchant";
 import {
+  canSeeMerchant,
   getMerchantAccess,
   merchantMineWhere,
   merchantSharedWhere,
+  merchantVisibleWhere,
 } from "@/services/merchant-access";
 import { audit, shallowDiff } from "@/services/audit";
 
@@ -40,16 +42,21 @@ function pickAudited(record: Record<string, unknown>) {
 }
 
 export async function listMerchants(ctx: SessionUser, params: MerchantListParams) {
-  // Hybrid model: everyone sees all merchants; scope narrows to the working set.
+  // `scope` is the user's own filter (mine / shared / all). `visible` is the
+  // permission floor — a rep without canSeeAllMerchants never sees past it,
+  // whatever scope they pick.
   const scopeWhere: Prisma.MerchantWhereInput =
     params.scope === "mine"
       ? merchantMineWhere(ctx)
       : params.scope === "shared"
         ? merchantSharedWhere(ctx)
         : {};
+  const visible = await merchantVisibleWhere(ctx);
 
   const where: Prisma.MerchantWhereInput = {
-    ...scopeWhere,
+    // AND, not spreads: `visible` and `scopeWhere` can each carry an `OR`, and
+    // spreading them together would silently drop one.
+    AND: [visible, scopeWhere],
     ...(params.status ? { status: params.status } : {}),
     ...(params.owner ? { ownerId: params.owner } : {}),
     ...(params.affiliate ? { affiliateId: params.affiliate } : {}),
@@ -112,9 +119,10 @@ export async function listMerchantsForMap(ctx: SessionUser, params: MerchantList
       : params.scope === "shared"
         ? merchantSharedWhere(ctx)
         : {};
+  const visible = await merchantVisibleWhere(ctx);
 
   const merchantWhere: Prisma.MerchantWhereInput = {
-    ...scopeWhere,
+    AND: [visible, scopeWhere],
     ...(params.status ? { status: params.status } : {}),
     ...(params.owner ? { ownerId: params.owner } : {}),
     ...(params.affiliate ? { affiliateId: params.affiliate } : {}),
@@ -171,7 +179,11 @@ export async function listPosSystems(): Promise<string[]> {
 }
 
 export async function getMerchant(ctx: SessionUser, id: string) {
-  // Everyone can view every merchant (hybrid sharing model).
+  // A rep without canSeeAllMerchants can't open a colleague's account, even
+  // with a direct link. Treated as not-found rather than forbidden, so the
+  // page doesn't confirm the record exists.
+  if (!(await canSeeMerchant(ctx, id))) return null;
+
   const merchant = await db.merchant.findUnique({
     where: { id },
     include: {

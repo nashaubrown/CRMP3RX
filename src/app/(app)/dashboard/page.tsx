@@ -51,7 +51,7 @@ export default async function DashboardPage() {
       listChangesToMyMerchants(user),
       getDashboardTrends(user),
       getBilling(user),
-      getOwnerBreakdown(),
+      getOwnerBreakdown(user),
     ]);
 
   const open = board.summaries.filter((s) => OPEN_STAGES.includes(s.stage as never));
@@ -251,26 +251,30 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Merchants by owner</CardTitle>
-          <CardDescription>
-            How each rep&apos;s book breaks down by status. Tap a number to open that list, or a
-            column header to re-sort.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="px-0">
-          {ownerBreakdown.rows.length === 0 ? (
-            <p className="text-muted-foreground px-6 text-sm">No merchants yet.</p>
-          ) : (
-            <OwnerBreakdownTable
-              rows={ownerBreakdown.rows}
-              totals={ownerBreakdown.totals}
-              currency={ownerBreakdown.currency}
-            />
-          )}
-        </CardContent>
-      </Card>
+      {/* Omitted entirely for anyone without canSeeTeamNumbers — the service
+          returns null rather than an empty table. */}
+      {ownerBreakdown ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Merchants by owner</CardTitle>
+            <CardDescription>
+              How each rep&apos;s book breaks down by status. Tap a number to open that list, or a
+              column header to re-sort.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="px-0">
+            {ownerBreakdown.rows.length === 0 ? (
+              <p className="text-muted-foreground px-6 text-sm">No merchants yet.</p>
+            ) : (
+              <OwnerBreakdownTable
+                rows={ownerBreakdown.rows}
+                totals={ownerBreakdown.totals}
+                currency={ownerBreakdown.currency}
+              />
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>

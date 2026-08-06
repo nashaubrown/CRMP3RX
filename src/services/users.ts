@@ -68,6 +68,7 @@ export type TeamMember = {
   createdAt: Date;
   isSelf: boolean;
   isOwner: boolean;
+  permissionSetId: string | null;
   hasPassword: boolean;
   ownedMerchants: number;
   ownedDeals: number;
@@ -88,6 +89,7 @@ export async function listTeam(ctx: SessionUser): Promise<TeamMember[]> {
         email: true,
         role: true,
         isOwner: true,
+        permissionSetId: true,
         disabledAt: true,
         createdAt: true,
         passwordHash: true,
@@ -106,6 +108,7 @@ export async function listTeam(ctx: SessionUser): Promise<TeamMember[]> {
     createdAt: u.createdAt,
     isSelf: u.id === ctx.id,
     isOwner: u.isOwner,
+    permissionSetId: u.permissionSetId,
     hasPassword: Boolean(u.passwordHash),
     ownedMerchants: u._count.ownedMerchants,
     ownedDeals: u._count.ownedDeals,
@@ -141,6 +144,7 @@ export async function createTeamUser(
     // New accounts are never the owner, and the page reloads after creation
     // so canManage is recomputed from the DB there anyway.
     isOwner: false,
+    permissionSetId: null,
     canManage: role !== "ADMIN",
     hasPassword: true,
     ownedMerchants: 0,

@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { getCapabilities } from "@/services/permissions";
 import type { SessionUser } from "@/lib/authz";
 import { isAdmin, ownerScope } from "@/lib/authz";
 import { merchantMineWhere } from "@/services/merchant-access";
@@ -33,7 +34,17 @@ export type OwnerBreakdown = {
 // Per-owner merchant counts by status, plus onboarded count and MRR. Team-wide:
 // every user sees every owner's row (matches the hybrid "everyone sees all
 // merchants" model). MRR reuses the subscription price-map logic from billing.
-export async function getOwnerBreakdown(): Promise<OwnerBreakdown> {
+// Per-rep performance. Returns null when the caller lacks canSeeTeamNumbers,
+// so the dashboard simply omits the card rather than rendering an empty one.
+// Previously this took no context at all — every rep could see every other
+// rep's book size and MRR.
+export async function getOwnerBreakdown(ctx: SessionUser): Promise<OwnerBreakdown | null> {
+  const caps = await getCapabilities(ctx);
+  if (!caps.canSeeTeamNumbers) return null;
+  return computeOwnerBreakdown();
+}
+
+async function computeOwnerBreakdown(): Promise<OwnerBreakdown> {
   const [merchants, plans] = await Promise.all([
     db.merchant.findMany({
       select: {

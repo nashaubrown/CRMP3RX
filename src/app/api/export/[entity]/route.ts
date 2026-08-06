@@ -1,4 +1,5 @@
 import { getSessionUser } from "@/lib/rbac";
+import { PermissionError } from "@/services/permissions";
 import {
   exportAffiliatesCsv,
   exportContactsCsv,
@@ -29,24 +30,30 @@ export async function GET(req: Request, { params }: { params: Promise<{ entity: 
   };
 
   let csv: string;
-  switch (entity) {
-    case "merchants":
-      csv = await exportMerchantsCsv(user, f);
-      break;
-    case "contacts":
-      csv = await exportContactsCsv(user, f);
-      break;
-    case "deals":
-      csv = await exportDealsCsv(user, f);
-      break;
-    case "leads":
-      csv = await exportLeadsCsv(user, f);
-      break;
-    case "affiliates":
-      csv = await exportAffiliatesCsv(user, f);
-      break;
-    default:
-      return new Response("Unknown export", { status: 404 });
+  try {
+    switch (entity) {
+      case "merchants":
+        csv = await exportMerchantsCsv(user, f);
+        break;
+      case "contacts":
+        csv = await exportContactsCsv(user, f);
+        break;
+      case "deals":
+        csv = await exportDealsCsv(user, f);
+        break;
+      case "leads":
+        csv = await exportLeadsCsv(user, f);
+        break;
+      case "affiliates":
+        csv = await exportAffiliatesCsv(user, f);
+        break;
+      default:
+        return new Response("Unknown export", { status: 404 });
+    }
+  } catch (e) {
+    // A rep without the export capability gets a plain 403, not a 500.
+    if (e instanceof PermissionError) return new Response(e.message, { status: 403 });
+    throw e;
   }
 
   const date = new Date().toISOString().slice(0, 10);

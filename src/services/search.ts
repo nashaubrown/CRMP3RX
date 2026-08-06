@@ -1,11 +1,11 @@
 import { db } from "@/lib/db";
 import type { SessionUser } from "@/lib/authz";
+import { merchantVisibleWhere } from "@/services/merchant-access";
 
 // Backs the ⌘K palette: one query across the record types a rep jumps to,
-// plus help articles.
-// Every merchant is org-visible (the hybrid sharing model), so results aren't
-// owner-scoped — the palette is for finding things, and opening a record you
-// don't own is already allowed.
+// plus help articles. Merchant-derived results respect the caller's
+// canSeeAllMerchants capability, so the palette can't surface a record the
+// user couldn't open from the list.
 
 export type QuickHitType = "MERCHANT" | "CONTACT" | "DEAL" | "LEAD" | "ARTICLE";
 
@@ -19,22 +19,28 @@ export type QuickHit = {
 
 const PER_TYPE = 5;
 
-export async function quickSearch(_ctx: SessionUser, rawQuery: string): Promise<QuickHit[]> {
+export async function quickSearch(ctx: SessionUser, rawQuery: string): Promise<QuickHit[]> {
   const query = rawQuery.trim();
   // One character matches most of the database and helps nobody.
   if (query.length < 2) return [];
 
   const like = { contains: query, mode: "insensitive" as const };
+  // A rep restricted to their own book must not reach a colleague's account
+  // through search either — including via its contacts or deals.
+  const visible = await merchantVisibleWhere(ctx);
 
   const [merchants, contacts, deals, leads, articles] = await Promise.all([
     db.merchant.findMany({
-      where: { OR: [{ name: like }, { email: like }, { phone: like }] },
+      // AND, not a spread: both sides carry an `OR`, and spreading would
+      // silently drop the visibility filter.
+      where: { AND: [visible, { OR: [{ name: like }, { email: like }, { phone: like }] }] },
       select: { id: true, name: true, status: true, category: true },
       take: PER_TYPE,
       orderBy: { updatedAt: "desc" },
     }),
     db.contact.findMany({
       where: {
+        merchant: visible,
         OR: [{ firstName: like }, { lastName: like }, { email: like }, { phone: like }],
       },
       select: {
@@ -48,7 +54,7 @@ export async function quickSearch(_ctx: SessionUser, rawQuery: string): Promise<
       orderBy: { updatedAt: "desc" },
     }),
     db.deal.findMany({
-      where: { OR: [{ title: like }, { merchant: { name: like } }] },
+      where: { merchant: visible, OR: [{ title: like }, { merchant: { name: like } }] },
       select: { id: true, title: true, stage: true, merchant: { select: { name: true } } },
       take: PER_TYPE,
       orderBy: { updatedAt: "desc" },

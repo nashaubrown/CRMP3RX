@@ -8,9 +8,14 @@ import { merchantSchema } from "@/lib/validators/merchant";
 import { contactSchema } from "@/lib/validators/contact";
 import { audit } from "@/services/audit";
 import { createContact } from "@/services/contacts";
-import { merchantMineWhere, merchantSharedWhere } from "@/services/merchant-access";
+import {
+  merchantMineWhere,
+  merchantSharedWhere,
+  merchantVisibleWhere,
+} from "@/services/merchant-access";
 import { createMerchant } from "@/services/merchants";
 import { getAffiliateReport, monthsInRange } from "@/services/affiliates";
+import { assertCapability } from "@/services/permissions";
 
 // CSV export/import. Exports honor the same scope/status/search filters as
 // the list pages (all matching rows, not just one page). Imports run every
@@ -18,6 +23,11 @@ import { getAffiliateReport, monthsInRange } from "@/services/affiliates";
 // RBAC, edit-rights gates and audit logging apply unchanged.
 
 const EXPORT_CAP = 5000;
+
+// Bulk download is the one capability that was never gated — anyone signed in
+// could pull the whole customer list. Every export path checks it.
+const EXPORT_DENIED =
+  "Your account can't download data. Ask an admin if you need export access.";
 export const IMPORT_ROW_CAP = 1000;
 
 // ---------- Export ----------
@@ -25,12 +35,17 @@ export const IMPORT_ROW_CAP = 1000;
 type ExportFilters = { q?: string; status?: string; scope?: string; owner?: string; affiliate?: string; pos?: string };
 
 export async function exportMerchantsCsv(ctx: SessionUser, f: ExportFilters) {
+  await assertCapability(ctx, "canExportData", EXPORT_DENIED);
   const where: Prisma.MerchantWhereInput = {
-    ...(f.scope === "mine"
-      ? merchantMineWhere(ctx)
-      : f.scope === "shared"
-        ? merchantSharedWhere(ctx)
-        : {}),
+    // AND, not spreads — both can carry an `OR` (see merchantVisibleWhere).
+    AND: [
+      await merchantVisibleWhere(ctx),
+      f.scope === "mine"
+        ? merchantMineWhere(ctx)
+        : f.scope === "shared"
+          ? merchantSharedWhere(ctx)
+          : {},
+    ],
     ...(f.status && ["PROSPECT", "ACTIVE", "CHURNED"].includes(f.status)
       ? { status: f.status as "PROSPECT" | "ACTIVE" | "CHURNED" }
       : {}),
@@ -82,12 +97,19 @@ export async function exportMerchantsCsv(ctx: SessionUser, f: ExportFilters) {
 }
 
 export async function exportContactsCsv(ctx: SessionUser, f: ExportFilters & { merchantId?: string }) {
+  await assertCapability(ctx, "canExportData", EXPORT_DENIED);
+  const visibleMerchants = await merchantVisibleWhere(ctx);
   const where: Prisma.ContactWhereInput = {
-    ...(f.scope === "mine"
-      ? { merchant: merchantMineWhere(ctx) }
-      : f.scope === "shared"
-        ? { merchant: merchantSharedWhere(ctx) }
-        : {}),
+    merchant: {
+      AND: [
+        visibleMerchants,
+        f.scope === "mine"
+          ? merchantMineWhere(ctx)
+          : f.scope === "shared"
+            ? merchantSharedWhere(ctx)
+            : {},
+      ],
+    },
     ...(f.merchantId ? { merchantId: f.merchantId } : {}),
     ...(f.q
       ? {
@@ -121,6 +143,7 @@ export async function exportContactsCsv(ctx: SessionUser, f: ExportFilters & { m
 }
 
 export async function exportDealsCsv(ctx: SessionUser, f: { scope?: string; stage?: string }) {
+  await assertCapability(ctx, "canExportData", EXPORT_DENIED);
   const where: Prisma.DealWhereInput = {
     ...(f.scope === "mine" ? { ownerId: ctx.id } : {}),
     ...(f.stage && ["NEW", "QUALIFIED", "PROPOSAL", "NEGOTIATION", "WON", "LOST"].includes(f.stage)
@@ -154,6 +177,7 @@ export async function exportDealsCsv(ctx: SessionUser, f: { scope?: string; stag
 }
 
 export async function exportLeadsCsv(ctx: SessionUser, f: { q?: string; status?: string; scope?: string }) {
+  await assertCapability(ctx, "canExportData", EXPORT_DENIED);
   const where: Prisma.LeadWhereInput = {
     ...(f.scope === "mine" ? { ownerId: ctx.id } : f.scope === "unassigned" ? { ownerId: null } : {}),
     ...(f.status && ["NEW", "CONTACTED", "QUALIFIED", "UNQUALIFIED"].includes(f.status)
@@ -196,7 +220,8 @@ export async function exportLeadsCsv(ctx: SessionUser, f: { q?: string; status?:
 
 // Projected affiliate commission over a month range (mirrors the Affiliates
 // page table). No per-user scope — the commission report is team-wide.
-export async function exportAffiliatesCsv(_ctx: SessionUser, f: { from?: string; to?: string }) {
+export async function exportAffiliatesCsv(ctx: SessionUser, f: { from?: string; to?: string }) {
+  await assertCapability(ctx, "canExportData", EXPORT_DENIED);
   const YM = /^\d{4}-(0[1-9]|1[0-2])$/;
   const from = f.from && YM.test(f.from) ? f.from : "";
   const to = f.to && YM.test(f.to) && (!from || f.to >= from) ? f.to : from;

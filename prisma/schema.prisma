@@ -31,6 +31,10 @@ model User {
   // password, or disable/demote another admin — so one compromised admin
   // session can't be used to take over the others.
   isOwner       Boolean   @default(false)
+  // Named capability set. Null falls back to the default set. Ignored for
+  // admins, who always have every capability.
+  permissionSetId String?
+  permissionSet   PermissionSet? @relation(fields: [permissionSetId], references: [id], onDelete: SetNull)
   image         String?
   // Public booking page lives at /book/[bookingSlug]
   bookingSlug   String?   @unique
@@ -263,6 +267,35 @@ enum PayoutSchedule {
   MONTHLY
   QUARTERLY
   YEARLY
+}
+
+// A named bundle of capabilities assigned to sales reps, so access can differ
+// between people without inventing a role per person. Admins bypass this
+// entirely — they always hold every capability. Resolution for a rep is:
+// their own set, else the set flagged isDefault, else the built-in fallback
+// in src/services/permissions.ts.
+model PermissionSet {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+
+  // Bulk-download any list as CSV (merchants, contacts, deals, leads).
+  canExportData      Boolean @default(false)
+  // See merchants owned by other reps. When false the rep's lists, search,
+  // maps and zones show only their own book plus merchants shared with them.
+  canSeeAllMerchants Boolean @default(true)
+  // See team-wide totals and the per-rep breakdown on the dashboard.
+  canSeeTeamNumbers  Boolean @default(true)
+
+  // Applied to any rep without their own set. Exactly one row carries this.
+  isDefault Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users User[]
+
+  @@index([isDefault])
 }
 
 model Affiliate {

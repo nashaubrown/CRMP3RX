@@ -16,6 +16,7 @@ import {
   setTeamDisabledAction,
   setTeamRoleAction,
 } from "@/app/(app)/team/actions";
+import { assignPermissionSetAction } from "@/app/(app)/team/permission-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -54,6 +55,7 @@ export type TeamRow = {
   disabled: boolean;
   isSelf: boolean;
   isOwner: boolean;
+  permissionSetId: string | null;
   // Whether the signed-in admin may reset this person's password, disable
   // them, or change their role. Computed server-side (see listTeam).
   canManage: boolean;
@@ -322,7 +324,13 @@ function ResetPasswordDialog({
   );
 }
 
-function MemberRow({ member }: { member: TeamRow }) {
+function MemberRow({
+  member,
+  permissionSets,
+}: {
+  member: TeamRow;
+  permissionSets: { id: string; name: string; isDefault: boolean }[];
+}) {
   const [pending, startTransition] = React.useTransition();
 
   function changeRole(role: Role) {
@@ -331,6 +339,19 @@ function MemberRow({ member }: { member: TeamRow }) {
       const result = await setTeamRoleAction(member.id, role);
       if (result.error) toast.error(result.error);
       else toast.success(`${member.name} is now ${role === "ADMIN" ? "an admin" : "a sales rep"}`);
+    });
+  }
+
+  const defaultSetName = permissionSets.find((p) => p.isDefault)?.name ?? "";
+
+  function assignSet(permissionSetId: string | null) {
+    startTransition(async () => {
+      const result = await assignPermissionSetAction(member.id, permissionSetId);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(`Permissions updated for ${member.name}`);
     });
   }
 
@@ -398,6 +419,28 @@ function MemberRow({ member }: { member: TeamRow }) {
           </SelectContent>
         </Select>
 
+        {member.role === "ADMIN" ? null : (
+          <Select
+            value={member.permissionSetId ?? "__default__"}
+            onValueChange={(v) => assignSet(v === "__default__" ? null : v)}
+            disabled={pending}
+          >
+            <SelectTrigger size="sm" className="w-[150px]" aria-label="Permission set">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__default__">
+                Default{defaultSetName ? ` (${defaultSetName})` : ""}
+              </SelectItem>
+              {permissionSets.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
         <ResetPasswordDialog member={member} onDone={() => {}} />
 
         {member.isSelf ? null : (
@@ -417,7 +460,13 @@ function MemberRow({ member }: { member: TeamRow }) {
   );
 }
 
-export function TeamClient({ members }: { members: TeamRow[] }) {
+export function TeamClient({
+  members,
+  permissionSets,
+}: {
+  members: TeamRow[];
+  permissionSets: { id: string; name: string; isDefault: boolean }[];
+}) {
   return (
     <div className="flex flex-col gap-4">
       <AddMemberForm />
@@ -431,7 +480,7 @@ export function TeamClient({ members }: { members: TeamRow[] }) {
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
           {members.map((m) => (
-            <MemberRow key={m.id} member={m} />
+            <MemberRow key={m.id} member={m} permissionSets={permissionSets} />
           ))}
         </CardContent>
       </Card>

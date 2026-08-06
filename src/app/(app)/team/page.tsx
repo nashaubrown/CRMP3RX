@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 
+import { PermissionSetsCard, type PermissionSetRow } from "@/app/(app)/team/permission-sets-card";
 import { TeamClient, type TeamRow } from "@/app/(app)/team/team-client";
 import { formatDateTime } from "@/lib/datetime";
 import { requireAdmin } from "@/lib/rbac";
+import { listPermissionSets } from "@/services/permissions";
 import { listTeam } from "@/services/users";
 
 export const metadata: Metadata = { title: "Team" };
@@ -10,7 +12,18 @@ export const metadata: Metadata = { title: "Team" };
 export default async function TeamPage() {
   // Admins only — reps are redirected to their dashboard.
   const ctx = await requireAdmin();
-  const members = await listTeam(ctx);
+  const [members, permissionSets] = await Promise.all([listTeam(ctx), listPermissionSets(ctx)]);
+
+  const sets: PermissionSetRow[] = permissionSets.map((p) => ({
+    id: p.id,
+    name: p.name,
+    description: p.description,
+    canExportData: p.canExportData,
+    canSeeAllMerchants: p.canSeeAllMerchants,
+    canSeeTeamNumbers: p.canSeeTeamNumbers,
+    isDefault: p.isDefault,
+    userCount: p._count.users,
+  }));
 
   const rows: TeamRow[] = members.map((m) => ({
     id: m.id,
@@ -24,6 +37,7 @@ export default async function TeamPage() {
     createdAt: formatDateTime(m.createdAt, "d MMM yyyy"),
     ownedMerchants: m.ownedMerchants,
     ownedDeals: m.ownedDeals,
+    permissionSetId: m.permissionSetId,
   }));
 
   return (
@@ -34,7 +48,8 @@ export default async function TeamPage() {
           Add teammates, set their role, reset passwords, and offboard people who leave.
         </p>
       </div>
-      <TeamClient members={rows} />
+      <TeamClient members={rows} permissionSets={sets} />
+      <PermissionSetsCard sets={sets} />
     </div>
   );
 }
