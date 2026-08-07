@@ -279,6 +279,10 @@ export async function convertLead(ctx: SessionUser, id: string) {
         phone: lead.phone,
         notes: lead.message ? `From lead: ${lead.message}` : null,
         ownerId: ctx.id,
+        // Referral attribution follows the lead into the merchant: commission
+        // is computed from Merchant.affiliateId, so dropping it here would
+        // silently unpay the affiliate who brought the business in.
+        affiliateId: lead.affiliateId,
       },
     });
     const contact = await tx.contact.create({
@@ -305,7 +309,7 @@ export async function convertLead(ctx: SessionUser, id: string) {
     entityType: "LEAD",
     entityId: id,
     merchantId: result.merchant.id,
-    diff: { merchantName: result.merchant.name },
+    diff: { merchantName: result.merchant.name, affiliateId: lead.affiliateId },
   });
   await audit({
     actorId: ctx.id,
