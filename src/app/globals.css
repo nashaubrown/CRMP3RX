@@ -195,6 +195,12 @@
     }
   }
 
+  /* The Maldives piece ships a scrub bar for authoring. The landing page is
+     not an editor, so hide it there. */
+  [data-omelette-chrome] {
+    display: none !important;
+  }
+
   /* Rounded mint square holding a section or stat icon. */
   .icon-tile {
     display: grid;

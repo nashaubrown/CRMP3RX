@@ -17,6 +17,15 @@ export const authConfig = {
       const { pathname } = request.nextUrl;
       const isPublic =
         pathname === "/login" ||
+        // Public landing page shown before sign-in.
+        pathname === "/welcome" ||
+        // Root is exempt so the request reaches src/app/page.tsx, which does
+        // the routing itself: signed out -> /welcome, signed in -> the user's
+        // preferred home. Without this, middleware bounces "/" to /login and
+        // logged-out visitors never see the landing page. The page renders
+        // nothing of its own, so exempting it leaks nothing.
+        pathname === "/" ||
+        pathname.startsWith("/maldives/") ||
         pathname.startsWith("/book") ||
         pathname.startsWith("/capture") ||
         pathname.startsWith("/api/auth") ||
