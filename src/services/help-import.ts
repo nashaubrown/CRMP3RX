@@ -115,17 +115,13 @@ export async function importFromHelpSite(
           title: art.title,
           description: art.description ?? "",
           order: art.order ?? 99,
-          status: "PUBLISHED",
+          // Imports land as drafts: nothing reaches the public help site until
+          // an admin has read it and pressed Publish.
+          status: "DRAFT",
           categoryId: category.id,
           contentJson: contentJson as object[],
           contentHtml: html,
-          publishedTitle: art.title,
-          publishedDescription: art.description ?? "",
-          publishedJson: contentJson as object[],
-          publishedHtml: html,
-          publishedAt: new Date(),
           authorId: ctx.id,
-          reviewerId: ctx.id,
         },
       });
       created++;
