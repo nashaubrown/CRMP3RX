@@ -557,14 +557,33 @@ export async function setEmailNotifications(affiliateId: string, enabled: boolea
 }
 
 // Current period ("YYYY-MM") in Maldives time — the portal's projection month.
-export function currentPeriodMv(): string {
+export function periodOfMv(date: Date): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Indian/Maldives",
     year: "numeric",
     month: "2-digit",
   })
-    .format(new Date())
+    .format(date)
     .replace("/", "-");
+}
+
+export function currentPeriodMv(): string {
+  return periodOfMv(new Date());
+}
+
+// How many months of history the portal's dashboard sparklines show.
+export const TREND_MONTHS = 6;
+
+// The last `count` periods ending with `endPeriod`, oldest first:
+// ["2026-03", "2026-04", ... "2026-08"]. Plain year-month arithmetic, so no
+// timezone or DST surprises.
+export function recentPeriods(count = TREND_MONTHS, endPeriod = currentPeriodMv()): string[] {
+  const [year, month] = endPeriod.split("-").map(Number);
+  const endIndex = year * 12 + (month - 1);
+  return Array.from({ length: count }, (_, i) => {
+    const index = endIndex - (count - 1 - i);
+    return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, "0")}`;
+  });
 }
 
 export type PortalOverview = {
@@ -576,6 +595,16 @@ export type PortalOverview = {
     pendingTotalMvr: number;
   };
   projectionPeriod: string;
+  // Real history for the dashboard sparklines — nothing is interpolated or
+  // invented: merchant counts come from when each referral was created, and
+  // earnings from the recorded ledger (the current month is the projection).
+  trends: {
+    months: string[];
+    merchantsBrought: number[];
+    earningsMvr: number[];
+    newMerchantsThisMonth: number;
+    earningsDeltaMvr: number;
+  };
   recentCommissions: {
     period: string;
     amountMvr: number;
@@ -585,7 +614,7 @@ export type PortalOverview = {
 };
 
 export async function getPortalOverview(affiliateId: string): Promise<PortalOverview> {
-  const [profile, figures, pending, recent] = await Promise.all([
+  const [profile, figures, pending, recent, referredAt, ledger] = await Promise.all([
     getPortalProfile(affiliateId),
     computeMonthlyByAffiliate(affiliateId),
     db.affiliateCommission.aggregate({
@@ -598,23 +627,79 @@ export async function getPortalOverview(affiliateId: string): Promise<PortalOver
       take: 3,
       select: { period: true, amountMvr: true, status: true, paidAt: true },
     }),
+    db.merchant.findMany({ where: { affiliateId }, select: { createdAt: true } }),
+    db.affiliateCommission.findMany({
+      where: { affiliateId },
+      select: { period: true, amountMvr: true },
+    }),
   ]);
   const figure = figures[0];
+  const currentPeriod = currentPeriodMv();
+  const projectedMvr = figure?.monthlyCommissionMvr ?? 0;
+
   return {
     affiliate: profile,
     stats: {
       merchantsBrought: figure?.merchantsBrought ?? 0,
       earningNow: figure?.onboarded ?? 0,
-      projectedThisMonthMvr: figure?.monthlyCommissionMvr ?? 0,
+      projectedThisMonthMvr: projectedMvr,
       pendingTotalMvr: pending._sum.amountMvr ?? 0,
     },
-    projectionPeriod: currentPeriodMv(),
+    projectionPeriod: currentPeriod,
+    trends: buildTrends({
+      referredAt: referredAt.map((m) => m.createdAt),
+      ledger,
+      currentPeriod,
+      projectedMvr,
+    }),
     recentCommissions: recent.map((r) => ({
       period: r.period,
       amountMvr: r.amountMvr,
       status: r.status,
       paidAt: r.paidAt?.toISOString() ?? null,
     })),
+  };
+}
+
+// Dashboard sparkline series. Merchants are cumulative (the affiliate's book
+// of business only grows), earnings are per-month. The current month uses the
+// live projection until an admin records the period, matching what the rest
+// of the portal shows.
+function buildTrends(args: {
+  referredAt: Date[];
+  ledger: { period: string; amountMvr: number }[];
+  currentPeriod: string;
+  projectedMvr: number;
+}): PortalOverview["trends"] {
+  const months = recentPeriods(TREND_MONTHS, args.currentPeriod);
+
+  const referredPerPeriod = new Map<string, number>();
+  for (const date of args.referredAt) {
+    const period = periodOfMv(date);
+    referredPerPeriod.set(period, (referredPerPeriod.get(period) ?? 0) + 1);
+  }
+  // Merchants referred before the window still count towards the running
+  // total — "YYYY-MM" strings compare correctly as plain strings.
+  let running = args.referredAt.filter((d) => periodOfMv(d) < months[0]).length;
+  const merchantsBrought = months.map((period) => {
+    running += referredPerPeriod.get(period) ?? 0;
+    return running;
+  });
+
+  const recordedByPeriod = new Map(args.ledger.map((e) => [e.period, e.amountMvr]));
+  const earningsMvr = months.map((period) => {
+    const recorded = recordedByPeriod.get(period);
+    if (recorded !== undefined) return recorded;
+    return period === args.currentPeriod ? args.projectedMvr : 0;
+  });
+
+  return {
+    months,
+    merchantsBrought,
+    earningsMvr,
+    newMerchantsThisMonth: referredPerPeriod.get(args.currentPeriod) ?? 0,
+    earningsDeltaMvr:
+      earningsMvr[earningsMvr.length - 1] - (earningsMvr[earningsMvr.length - 2] ?? 0),
   };
 }
 
