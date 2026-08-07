@@ -51,7 +51,9 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         </div>
         <div className="flex flex-wrap gap-2">
           {lead.canClaim ? <ClaimLeadButton leadId={lead.id} /> : null}
-          {lead.canEdit && !lead.merchantId && lead.company ? (
+          {/* Shown even without a company name — the button explains why it's
+              disabled instead of vanishing. */}
+          {lead.canEdit && !lead.merchantId ? (
             <ConvertLeadButton leadId={lead.id} company={lead.company} />
           ) : null}
           {lead.canEdit ? (

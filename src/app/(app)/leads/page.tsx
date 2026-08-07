@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+
+import { LeadRowActions } from "@/app/(app)/leads/lead-row-actions";
 import { PlusIcon, TargetIcon } from "lucide-react";
 
 import { ExportButton } from "@/components/csv/export-button";
@@ -126,16 +128,21 @@ export default async function LeadsPage({
                     <TableHead>Source</TableHead>
                     <TableHead>Owner</TableHead>
                     <SortableHead label="Created" sortKey="createdAt" basePath="/leads" searchParams={tableParams} />
+                    <TableHead className="pr-4 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {items.map((lead) => (
-                    <TableRow key={lead.id}>
+                    // `relative` anchors the stretched link below, so the whole
+                    // row opens the lead. The name alone used to be the only
+                    // way in, and it read as plain text.
+                    <TableRow key={lead.id} className="hover:bg-muted/50 relative transition-colors">
                       <TableCell className="pl-4">
-                        <Link href={`/leads/${lead.id}`} className="hover:underline">
-                          <span className="font-medium">
-                            {lead.company ?? lead.merchant?.name ?? lead.name ?? "Unnamed lead"}
-                          </span>
+                        <Link
+                          href={`/leads/${lead.id}`}
+                          className="font-medium after:absolute after:inset-0 hover:underline"
+                        >
+                          {lead.company ?? lead.merchant?.name ?? lead.name ?? "Unnamed lead"}
                         </Link>
                         <p className="text-muted-foreground text-xs">
                           {lead.name ?? "—"}
@@ -169,6 +176,14 @@ export default async function LeadsPage({
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {formatDate(lead.createdAt)}
+                      </TableCell>
+                      <TableCell className="pr-4">
+                        <LeadRowActions
+                          leadId={lead.id}
+                          canClaim={lead.ownerId === null}
+                          company={lead.company}
+                          converted={lead.merchantId !== null}
+                        />
                       </TableCell>
                     </TableRow>
                   ))}

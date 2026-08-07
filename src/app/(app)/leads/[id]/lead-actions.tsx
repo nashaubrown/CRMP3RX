@@ -74,15 +74,41 @@ export function ClaimLeadButton({ leadId }: { leadId: string }) {
   );
 }
 
-export function ConvertLeadButton({ leadId, company }: { leadId: string; company: string }) {
+export function ConvertLeadButton({
+  leadId,
+  company,
+  size = "sm",
+  label = "Convert to merchant",
+}: {
+  leadId: string;
+  // Null/empty means the lead has no company name yet. The button stays
+  // visible and explains itself — hiding it just looked like the feature was
+  // missing.
+  company: string | null;
+  size?: "sm" | "icon";
+  label?: string;
+}) {
   const [pending, startTransition] = React.useTransition();
   const [open, setOpen] = React.useState(false);
+
+  if (!company) {
+    return (
+      <Button
+        size={size}
+        variant="outline"
+        disabled
+        title="This lead has no company name yet — add one, then convert."
+      >
+        <ArrowRightIcon /> {label}
+      </Button>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="outline">
-          <ArrowRightIcon /> Convert to merchant
+        <Button size={size} variant="outline">
+          <ArrowRightIcon /> {label}
         </Button>
       </DialogTrigger>
       <DialogContent>
