@@ -88,4 +88,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return token;
     },
   },
+  events: {
+    // Sessions are JWT, so nothing is written to the Session table and there
+    // was previously no record that anyone had signed in at all. Stamping the
+    // user here is what makes "who is actually using the CRM" answerable.
+    async signIn({ user }) {
+      if (!user?.id) return;
+      await db.user
+        .update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
+        .catch(() => undefined);
+    },
+  },
 });

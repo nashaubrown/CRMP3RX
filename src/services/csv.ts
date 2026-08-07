@@ -30,6 +30,25 @@ const EXPORT_DENIED =
   "Your account can't download data. Ask an admin if you need export access.";
 export const IMPORT_ROW_CAP = 1000;
 
+
+// Exports were the one data-movement path with no trace at all — imports were
+// logged, downloads weren't. Records who took what, with the filters used and
+// the row count, so a leak can actually be investigated afterwards.
+async function auditExport(
+  ctx: SessionUser,
+  entity: string,
+  rows: number,
+  filters: Record<string, unknown>
+) {
+  await audit({
+    actorId: ctx.id,
+    action: `export.${entity}`,
+    entityType: "EXPORT",
+    entityId: entity,
+    diff: { rows, filters: Object.fromEntries(Object.entries(filters).filter(([, v]) => v)) },
+  });
+}
+
 // ---------- Export ----------
 
 type ExportFilters = { q?: string; status?: string; scope?: string; owner?: string; affiliate?: string; pos?: string };
@@ -73,6 +92,7 @@ export async function exportMerchantsCsv(ctx: SessionUser, f: ExportFilters) {
       _count: { select: { contacts: true, deals: true } },
     },
   });
+  await auditExport(ctx, "merchants", rows.length, f);
   return toCsv(rows, [
     { header: "name", value: (m) => m.name },
     { header: "category", value: (m) => m.category },
@@ -128,6 +148,7 @@ export async function exportContactsCsv(ctx: SessionUser, f: ExportFilters & { m
     take: EXPORT_CAP,
     include: { merchant: { select: { name: true } } },
   });
+  await auditExport(ctx, "contacts", rows.length, f);
   return toCsv(rows, [
     { header: "firstName", value: (c) => c.firstName },
     { header: "lastName", value: (c) => c.lastName },
@@ -160,6 +181,7 @@ export async function exportDealsCsv(ctx: SessionUser, f: { scope?: string; stag
       contact: { select: { firstName: true, lastName: true } },
     },
   });
+  await auditExport(ctx, "deals", rows.length, f);
   return toCsv(rows, [
     { header: "title", value: (d) => d.title },
     { header: "stage", value: (d) => d.stage },
@@ -202,6 +224,7 @@ export async function exportLeadsCsv(ctx: SessionUser, f: { q?: string; status?:
       merchant: { select: { name: true } },
     },
   });
+  await auditExport(ctx, "leads", rows.length, f);
   return toCsv(rows, [
     { header: "name", value: (l) => l.name },
     { header: "company", value: (l) => l.company },
@@ -227,6 +250,7 @@ export async function exportAffiliatesCsv(ctx: SessionUser, f: { from?: string; 
   const to = f.to && YM.test(f.to) && (!from || f.to >= from) ? f.to : from;
   const months = from && to ? monthsInRange(from, to) : 1;
   const report = await getAffiliateReport(months);
+  await auditExport(ctx, "affiliates", report.rows.length, f);
   return toCsv(report.rows, [
     { header: "affiliate", value: (r) => r.name },
     { header: "commissionRate", value: (r) => r.commissionRate },

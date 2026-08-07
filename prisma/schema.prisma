@@ -42,6 +42,11 @@ model User {
   generativeUi  Boolean   @default(false)
   // Set when an admin offboards someone: blocks all sign-in, keeps their records.
   disabledAt    DateTime?
+  // Adoption tracking. lastLoginAt is stamped by the Auth.js signIn event;
+  // lastActiveAt by audit(), so it moves whenever the user actually changes
+  // something. Sessions are JWT, so there is no Session row to read this from.
+  lastLoginAt   DateTime?
+  lastActiveAt  DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 

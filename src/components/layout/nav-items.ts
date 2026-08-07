@@ -1,4 +1,5 @@
 import {
+  Activity as ActivityIcon,
   BadgePercent,
   BookOpen,
   CalendarDays,
@@ -38,6 +39,7 @@ export const navItems: NavItem[] = [
   { title: "Templates", href: "/templates", icon: FileText },
   { title: "Help Center", href: "/help-center", icon: BookOpen },
   { title: "Ask Perx", href: "/assistant", icon: Sparkles },
+  { title: "Activity", href: "/activity", icon: ActivityIcon, adminOnly: true },
   { title: "Team", href: "/team", icon: UserCog, adminOnly: true },
   { title: "Settings", href: "/settings", icon: Settings },
 ];

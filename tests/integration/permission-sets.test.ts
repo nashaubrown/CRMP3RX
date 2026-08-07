@@ -22,7 +22,9 @@ let otherMerchantId: string;
 let restrictedSetId: string;
 
 const asRep = (id: string): SessionUser => ({ id, role: "SALES_REP", name: "R", email: `${id}@t.mv` });
-const admin: SessionUser = { id: "ps-admin", role: "ADMIN", name: "A", email: "a@t.mv" };
+// A real row, not a made-up id: exporting now writes an AuditLog entry, and
+// AuditLog.actorId is a foreign key.
+let admin: SessionUser;
 
 beforeAll(async () => {
   const set = await db.permissionSet.create({
@@ -43,6 +45,11 @@ beforeAll(async () => {
       canSeeTeamNumbers: true,
     },
   });
+
+  const adminUser = await db.user.create({
+    data: { name: "Perm Admin", email: `adm-${suffix}@t.mv`, role: "ADMIN" },
+  });
+  admin = { id: adminUser.id, role: "ADMIN", name: adminUser.name, email: adminUser.email };
 
   const [restricted, open, other] = await Promise.all([
     db.user.create({
@@ -76,6 +83,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await db.auditLog.deleteMany({ where: { actor: { email: { contains: suffix } } } });
   await db.merchant.deleteMany({ where: { name: { contains: token } } });
   await db.user.deleteMany({ where: { email: { contains: suffix } } });
   await db.permissionSet.deleteMany({ where: { name: { contains: suffix } } });

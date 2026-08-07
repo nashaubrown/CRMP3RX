@@ -36,6 +36,15 @@ export async function audit({
   merchantId,
   diff,
 }: AuditInput) {
+  // Stamp adoption tracking off the same call. Fire-and-forget: a failed
+  // timestamp must never fail the user's actual action, and it must not add
+  // latency to it either.
+  if (actorId) {
+    db.user
+      .update({ where: { id: actorId }, data: { lastActiveAt: new Date() } })
+      .catch(() => undefined);
+  }
+
   await db.auditLog.create({
     data: {
       actorId,
