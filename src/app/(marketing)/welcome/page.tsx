@@ -56,23 +56,18 @@ export default function WelcomePage() {
             </div>
           </div>
 
-          <div className="mt-7 flex flex-col items-start gap-5 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-white/50">
-              Perx CRM — the sales and merchant platform behind Perx Technologies.
-            </p>
-            <div className="flex items-center gap-4">
-              <Link
-                href="https://perx.mv"
-                className="text-sm text-white/50 underline-offset-4 hover:text-white hover:underline"
-              >
-                perx.mv
+          <div className="mt-7 flex items-center justify-center gap-4 sm:justify-end">
+            <Link
+              href="https://perx.mv"
+              className="text-sm text-white/50 underline-offset-4 hover:text-white hover:underline"
+            >
+              perx.mv
+            </Link>
+            <Button asChild size="lg" className="rounded-full">
+              <Link href="/login">
+                Sign in <ArrowRightIcon />
               </Link>
-              <Button asChild size="lg" className="rounded-full">
-                <Link href="/login">
-                  Sign in <ArrowRightIcon />
-                </Link>
-              </Button>
-            </div>
+            </Button>
           </div>
         </div>
       </div>
