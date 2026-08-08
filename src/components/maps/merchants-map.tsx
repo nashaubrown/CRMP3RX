@@ -5,6 +5,12 @@ import { APIProvider, AdvancedMarker, Map, Pin } from "@vis.gl/react-google-maps
 
 import { MerchantInfoWindow } from "@/components/maps/merchant-info-window";
 import {
+  MyLocationButton,
+  MyLocationLayer,
+  MyLocationStatusLine,
+} from "@/components/maps/my-location";
+import { useMyLocation } from "@/components/maps/use-my-location";
+import {
   DEFAULT_CENTER,
   DEFAULT_ZOOM,
   GOOGLE_MAPS_API_KEY,
@@ -27,6 +33,7 @@ function LegendDot({ color, label }: { color: string; label: string }) {
 // other. Click a pin for details.
 export function MerchantsMap({ pins }: { pins: MerchantPin[] }) {
   const [activeId, setActiveId] = React.useState<string | null>(null);
+  const me = useMyLocation();
 
   if (!MAPS_ENABLED) {
     return (
@@ -52,6 +59,11 @@ export function MerchantsMap({ pins }: { pins: MerchantPin[] }) {
       ) : null}
       <APIProvider apiKey={GOOGLE_MAPS_API_KEY}>
         <div className="relative h-[68vh] w-full overflow-hidden rounded-lg border">
+          <MyLocationButton
+            status={me.status}
+            onLocate={me.locate}
+            className="absolute top-2 left-2 z-10"
+          />
           <Map
             mapId={GOOGLE_MAPS_MAP_ID}
             defaultCenter={DEFAULT_CENTER}
@@ -76,8 +88,10 @@ export function MerchantsMap({ pins }: { pins: MerchantPin[] }) {
             {active ? (
               <MerchantInfoWindow pin={active} onClose={() => setActiveId(null)} />
             ) : null}
+            <MyLocationLayer fix={me.fix} />
           </Map>
         </div>
+        <MyLocationStatusLine status={me.status} fix={me.fix} error={me.error} />
       </APIProvider>
 
       <div className="text-muted-foreground flex flex-wrap items-center gap-4 text-xs">

@@ -46,3 +46,29 @@ export function pointInGeofence(point: LatLng, fence: Geofence): boolean {
   }
   return pointInPolygon(point, fence.points);
 }
+
+// Stored zones keep shape, points and radius in separate nullable columns, so
+// they don't narrow to the union above on their own. Everything that holds a
+// zone row goes through here first.
+export type GeofenceRow = { shape: string; points: LatLng[]; radiusM?: number | null };
+
+export function toGeofence(row: GeofenceRow): Geofence {
+  return row.shape === "CIRCLE"
+    ? { shape: "CIRCLE", points: row.points, radiusM: row.radiusM ?? 0 }
+    : { shape: "POLYGON", points: row.points };
+}
+
+// Every zone containing the point, in the order given. Zones are allowed to
+// overlap — a campaign zone often sits inside a territory — so this returns a
+// list rather than a first match.
+export function fencesContaining<T extends GeofenceRow>(point: LatLng, rows: T[]): T[] {
+  return rows.filter((row) => pointInGeofence(point, toGeofence(row)));
+}
+
+// Distances for people standing in the street: whole metres up to a kilometre,
+// then one decimal. GPS precision never justifies more than that.
+export function formatDistanceM(meters: number): string {
+  if (!Number.isFinite(meters) || meters < 0) return "unknown";
+  if (meters < 1000) return `${Math.round(meters)} m`;
+  return `${(meters / 1000).toFixed(1)} km`;
+}

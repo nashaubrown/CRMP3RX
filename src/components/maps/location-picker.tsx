@@ -3,9 +3,12 @@
 import * as React from "react";
 import { APIProvider, AdvancedMarker, Map, useMapsLibrary } from "@vis.gl/react-google-maps";
 
+import { MyLocationButton, MyLocationLayer, VAGUE_ACCURACY_M } from "@/components/maps/my-location";
+import { useMyLocation } from "@/components/maps/use-my-location";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { formatDistanceM } from "@/lib/geo";
 import {
   DEFAULT_CENTER,
   DEFAULT_ZOOM,
@@ -89,6 +92,18 @@ export function LocationPicker({
   const [pos, setPos] = React.useState<LatLng | null>(
     defaultLat != null && defaultLng != null ? { lat: defaultLat, lng: defaultLng } : null
   );
+  const me = useMyLocation();
+
+  // A fix is only ever a suggestion here — it drops the pin, and the rep can
+  // still drag it onto the doorway. So we adopt each new fix as it lands.
+  const adoptedRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!me.fix) return;
+    const key = `${me.fix.lat},${me.fix.lng}`;
+    if (adoptedRef.current === key) return;
+    adoptedRef.current = key;
+    setPos({ lat: me.fix.lat, lng: me.fix.lng });
+  }, [me.fix]);
 
   if (!MAPS_ENABLED) {
     return <ManualLatLng defaultLat={defaultLat} defaultLng={defaultLng} />;
@@ -101,7 +116,18 @@ export function LocationPicker({
       <input type="hidden" name="longitude" value={pos?.lng ?? ""} />
 
       <APIProvider apiKey={GOOGLE_MAPS_API_KEY}>
-        <AddressSearch onPick={setPos} />
+        {/* Stacked on a phone: side by side, the address field is squeezed to
+            about twenty characters — and a phone is where both get used. */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="sm:flex-1">
+            <AddressSearch onPick={setPos} />
+          </div>
+          <MyLocationButton
+            status={me.status}
+            onLocate={me.locate}
+            className="w-full shrink-0 sm:w-auto"
+          />
+        </div>
         <div className="h-64 w-full overflow-hidden rounded-lg border">
           <Map
             mapId={GOOGLE_MAPS_MAP_ID}
@@ -122,13 +148,21 @@ export function LocationPicker({
                 }}
               />
             ) : null}
+            <MyLocationLayer fix={me.fix} />
           </Map>
         </div>
+        {me.error ? <p className="text-destructive text-xs">{me.error}</p> : null}
+        {me.fix && me.fix.accuracyM > VAGUE_ACCURACY_M ? (
+          <p className="text-xs text-amber-600 dark:text-amber-400">
+            Your position is only accurate to about {formatDistanceM(me.fix.accuracyM)} — that can be
+            the wrong side of the street. Drag the pin onto the door before saving.
+          </p>
+        ) : null}
         <div className="flex items-center justify-between gap-2">
           <p className="text-muted-foreground text-xs">
             {pos
               ? `Pin at ${pos.lat.toFixed(5)}, ${pos.lng.toFixed(5)} — drag it or click the map to adjust.`
-              : "Search an address or click the map to drop a pin."}
+              : "Search an address, use your location, or click the map to drop a pin."}
           </p>
           {pos ? (
             <Button type="button" variant="ghost" size="sm" onClick={() => setPos(null)}>

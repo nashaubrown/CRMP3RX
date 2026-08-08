@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import type { SessionUser } from "@/lib/authz";
 import { isAdmin } from "@/lib/authz";
-import { pointInGeofence, type Geofence as GeoShape, type LatLng } from "@/lib/geo";
+import { pointInGeofence, toGeofence, type Geofence as GeoShape, type LatLng } from "@/lib/geo";
 import type { GeofenceInput } from "@/lib/validators/geofence";
 
 export class GeofenceError extends Error {}
@@ -31,11 +31,10 @@ export type GeofenceWithStats = {
   stats: GeofenceStats;
 };
 
+// Points come back from Prisma as Json; narrow, then hand to the shared
+// row-to-union mapper so this and the client agree on what a circle is.
 function asGeoShape(g: { shape: string; points: unknown; radiusM: number | null }): GeoShape {
-  const points = (g.points as LatLng[]) ?? [];
-  return g.shape === "CIRCLE"
-    ? { shape: "CIRCLE", points, radiusM: g.radiusM ?? 0 }
-    : { shape: "POLYGON", points };
+  return toGeofence({ shape: g.shape, points: (g.points as LatLng[]) ?? [], radiusM: g.radiusM });
 }
 
 // All zones with live counts of the merchants inside each and their billable MRR.

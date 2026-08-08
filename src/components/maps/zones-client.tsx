@@ -8,6 +8,12 @@ import { toast } from "sonner";
 
 import { deleteGeofenceAction, saveGeofenceAction } from "@/app/(app)/zones/actions";
 import { MerchantInfoWindow } from "@/components/maps/merchant-info-window";
+import {
+  MyLocationButton,
+  MyLocationLayer,
+  MyLocationStatusLine,
+} from "@/components/maps/my-location";
+import { useMyLocation } from "@/components/maps/use-my-location";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +35,7 @@ import {
   type MerchantPin,
   pinColors,
 } from "@/lib/maps";
-import type { LatLng } from "@/lib/geo";
+import { fencesContaining, type LatLng } from "@/lib/geo";
 import { cn } from "@/lib/utils";
 
 export type ZoneData = {
@@ -338,9 +344,18 @@ export function ZonesClient({
   const [form, setForm] = React.useState<FormState | null>(null);
   const [saving, setSaving] = React.useState(false);
 
+  const me = useMyLocation();
+
   const activePin = pins.find((p) => p.id === activePinId) ?? null;
 
   const onSelect = React.useCallback((id: string) => setSelectedId(id), []);
+
+  // Which zones the rep is standing in. Purely local: the fix never leaves the
+  // browser, and the shapes are already here for drawing.
+  const zonesHere = React.useMemo(
+    () => (me.fix ? fencesContaining(me.fix, zones) : []),
+    [me.fix, zones]
+  );
 
   function resetDraw() {
     setMode("none");
@@ -556,7 +571,15 @@ export function ZonesClient({
 
       {/* Map */}
       <APIProvider apiKey={GOOGLE_MAPS_API_KEY}>
-        <div className="h-[72vh] w-full overflow-hidden rounded-lg border">
+        <div className="flex flex-col gap-2">
+        <div className="relative h-[72vh] w-full overflow-hidden rounded-lg border">
+          {/* Sits over the map rather than inside it, clear of Google's own
+              controls in the other three corners. */}
+          <MyLocationButton
+            status={me.status}
+            onLocate={me.locate}
+            className="absolute top-2 left-2 z-10"
+          />
           <Map
             mapId={GOOGLE_MAPS_MAP_ID}
             defaultCenter={DEFAULT_CENTER}
@@ -588,7 +611,32 @@ export function ZonesClient({
             ))}
             {mode !== "none" ? <MapClicks onClick={onMapClick} /> : null}
             <DraftOverlay mode={mode} points={draftPts} radiusM={radiusM} color={drawColor} />
+            <MyLocationLayer fix={me.fix} />
           </Map>
+        </div>
+
+        <MyLocationStatusLine status={me.status} fix={me.fix} error={me.error}>
+          {zonesHere.length === 0 ? (
+            "outside every zone"
+          ) : (
+            <>
+              in{" "}
+              {zonesHere.map((z, i) => (
+                <React.Fragment key={z.id}>
+                  {i > 0 ? ", " : ""}
+                  <button
+                    type="button"
+                    className="font-medium underline-offset-2 hover:underline"
+                    style={{ color: z.color }}
+                    onClick={() => setSelectedId(z.id)}
+                  >
+                    {z.name}
+                  </button>
+                </React.Fragment>
+              ))}
+            </>
+          )}
+        </MyLocationStatusLine>
         </div>
       </APIProvider>
     </div>
