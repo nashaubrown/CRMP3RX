@@ -17,8 +17,10 @@ import { ActivityTimeline } from "@/components/activity/activity-timeline";
 import { DeleteButton } from "@/components/delete-button";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { OutletsManager } from "@/components/maps/outlets-manager";
+import { CuratedRewardsCard } from "@/components/rewards/curated-rewards-card";
 import { pinColors } from "@/lib/maps";
 import { listOutlets } from "@/services/outlets";
+import { listCuratedRewards, listRewardTemplates } from "@/services/rewards";
 import { DealStageBadge, MerchantStatusBadge } from "@/components/status-badges";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,7 +57,7 @@ export default async function MerchantDetailPage({
   const merchant = await getMerchant(user, id);
   if (!merchant) notFound();
 
-  const [activities, team, history, comms, templates, mergeVars, calendarConnected, outlets, taskItems] =
+  const [activities, team, history, comms, templates, mergeVars, calendarConnected, outlets, taskItems, curatedRewards, rewardLibrary] =
     await Promise.all([
       listActivitiesForEntity(user, "MERCHANT", id),
       listTeamMembers(),
@@ -66,6 +68,8 @@ export default async function MerchantDetailPage({
       merchant.access.canEdit ? hasCalendarConnected(user.id) : Promise.resolve(false),
       listOutlets(id),
       listTasksForRecord("merchant", id),
+      listCuratedRewards(user, id),
+      merchant.access.canEdit ? listRewardTemplates() : Promise.resolve([]),
     ]);
 
   const now = new Date();
@@ -301,6 +305,28 @@ export default async function MerchantDetailPage({
               />
             </CardContent>
           </Card>
+
+          <CuratedRewardsCard
+            merchantId={merchant.id}
+            category={merchant.category}
+            canEdit={merchant.access.canEdit}
+            rewards={curatedRewards.map((r) => ({
+              id: r.id,
+              title: r.title,
+              description: r.description,
+              mechanic: r.mechanic,
+              status: r.status,
+              notes: r.notes,
+              createdByName: r.createdBy.name,
+            }))}
+            library={rewardLibrary.map((t) => ({
+              id: t.id,
+              title: t.title,
+              description: t.description,
+              mechanic: t.mechanic,
+              category: t.category,
+            }))}
+          />
 
           <Card>
             <CardHeader>

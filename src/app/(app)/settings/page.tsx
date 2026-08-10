@@ -6,6 +6,8 @@ import { AiProviderCard } from "@/app/(app)/settings/ai-provider-card";
 import { EmailIdentityCard } from "@/app/(app)/settings/email-identity-card";
 import { ApiKeysCard } from "@/app/(app)/settings/api-keys-card";
 import { OptionSetsCard } from "@/app/(app)/settings/option-sets-card";
+import { RewardLibraryCard } from "@/app/(app)/settings/reward-library-card";
+import { listRewardTemplates } from "@/services/rewards";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,7 +25,7 @@ import { AI_PROVIDER_OPTIONS, getAiSettings } from "@/services/ai-settings";
 import { getEmailSettings } from "@/services/email-settings";
 import { listApiKeys } from "@/services/api-keys";
 import { isAdmin } from "@/lib/authz";
-import { listManagedOptions, OPTION_SETS } from "@/services/option-sets";
+import { listManagedOptions, listOptions, OPTION_SETS } from "@/services/option-sets";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -44,7 +46,7 @@ export default async function SettingsPage({
   const { calendar: calendarMsg } = await searchParams;
 
   const admin = isAdmin(user);
-  const [profile, apiKeys, aiSettings, emailSettings, optionSets] = await Promise.all([
+  const [profile, apiKeys, aiSettings, emailSettings, optionSets, rewardTemplates, categories] = await Promise.all([
     db.user.findUnique({
       where: { id: user.id },
       select: {
@@ -71,6 +73,8 @@ export default async function SettingsPage({
           }))
         )
       : Promise.resolve([]),
+    admin ? listRewardTemplates({ includeArchived: true }) : Promise.resolve([]),
+    admin ? listOptions("MERCHANT_CATEGORY") : Promise.resolve([]),
   ]);
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -125,6 +129,7 @@ export default async function SettingsPage({
       </Card>
 
       {admin ? <OptionSetsCard sets={optionSets} /> : null}
+      {admin ? <RewardLibraryCard templates={rewardTemplates} categories={categories} /> : null}
 
 
       {aiSettings.isAdmin ? (

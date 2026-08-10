@@ -74,6 +74,7 @@ model User {
   createdTasks    Task[]                @relation("TaskCreatedBy")
   helpArticlesAuthored HelpArticle[]         @relation("HelpArticleAuthor")
   helpArticlesReviewed HelpArticle[]         @relation("HelpArticleReviewer")
+  curatedRewards       CuratedReward[]       @relation("CuratedRewardCreator")
 }
 
 // Personal access tokens for the REST API and the MCP endpoint. Only a
@@ -244,6 +245,7 @@ model Merchant {
   contacts     Contact[]
   contactLinks ContactMerchant[]
   outlets      Outlet[]
+  curatedRewards CuratedReward[]
   leads        Lead[]
   deals        Deal[]
   shares       MerchantShare[]
@@ -543,7 +545,76 @@ enum GeofenceType {
   CAMPAIGN
 }
 
-enum GeofenceShape {
+// ---------- Curated rewards ----------
+//
+// Merchants freeze at the portal's blank "create a reward" form, so the team
+// curates ideas for them here. CRM-only on purpose: a curated reward is a
+// pitch, not a live reward — the merchant still creates the real thing in the
+// Merchant Portal themselves. Nothing here syncs anywhere.
+
+// The reward mechanics the Perx portal supports. Mirrored, not invented: a
+// curated idea a merchant can't actually build is worse than no idea.
+enum RewardMechanic {
+  STAMP_CARD // collect N -> get X
+  DISCOUNT // % or MVR off
+  FREE_ITEM // free add-on with a purchase
+  TIME_LIMITED // time-boxed special, e.g. double points Fridays
+}
+
+enum CuratedRewardStatus {
+  IDEA // curated, merchant hasn't seen it
+  PITCHED // shown to the merchant
+  ACCEPTED // merchant took it (created it in the portal)
+  DECLINED // merchant passed
+}
+
+// Admin-maintained library of reward ideas, tagged by merchant category so
+// "buy 5 get 1 free" is written once, not once per café. category is an
+// option-set label (MERCHANT_CATEGORY); null = fits any category.
+model RewardTemplate {
+  id          String         @id @default(cuid())
+  title       String
+  // Merchant-facing wording, ready to read out in a pitch.
+  description String?
+  mechanic    RewardMechanic
+  category    String?
+  archived    Boolean        @default(false)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  rewards CuratedReward[]
+
+  @@index([category])
+}
+
+// A reward idea curated for one specific merchant. Copies title/description
+// from its template (when it has one) so editing the library never rewrites
+// what was already pitched to someone.
+model CuratedReward {
+  id         String   @id @default(cuid())
+  merchantId String
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  // Provenance only — which library idea this started from.
+  templateId String?
+  template   RewardTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  title       String
+  description String?
+  mechanic    RewardMechanic
+  status      CuratedRewardStatus @default(IDEA)
+  // Rep notes from the conversation ("wants it weekends only").
+  notes       String?
+
+  createdById String
+  createdBy   User   @relation("CuratedRewardCreator", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([merchantId])
+  @@index([templateId])
+}enum GeofenceShape {
   POLYGON
   CIRCLE
 }
