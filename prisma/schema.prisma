@@ -561,6 +561,16 @@ enum RewardMechanic {
   TIME_LIMITED // time-boxed special, e.g. double points Fridays
 }
 
+// Where a curated reward came from. Drives the AI-refresh replacement rule:
+// STARTER and AI ideas that are still untouched may be swapped for a better
+// set; LIBRARY (rep-picked) and CUSTOM (rep-written) are never auto-removed.
+enum CuratedRewardSource {
+  STARTER // auto-curated when the merchant was created/backfilled
+  LIBRARY // a rep pulled it from the library
+  CUSTOM // a rep wrote it by hand
+  AI // written by the AI for this specific merchant
+}
+
 enum CuratedRewardStatus {
   IDEA // curated, merchant hasn't seen it
   PITCHED // shown to the merchant
@@ -603,6 +613,7 @@ model CuratedReward {
   description String?
   mechanic    RewardMechanic
   status      CuratedRewardStatus @default(IDEA)
+  source      CuratedRewardSource @default(CUSTOM)
   // Rep notes from the conversation ("wants it weekends only").
   notes       String?
 

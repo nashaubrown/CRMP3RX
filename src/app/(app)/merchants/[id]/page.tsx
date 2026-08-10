@@ -308,6 +308,7 @@ export default async function MerchantDetailPage({
 
           <CuratedRewardsCard
             merchantId={merchant.id}
+            merchantName={merchant.name}
             category={merchant.category}
             canEdit={merchant.access.canEdit}
             rewards={curatedRewards.map((r) => ({
@@ -316,6 +317,7 @@ export default async function MerchantDetailPage({
               description: r.description,
               mechanic: r.mechanic,
               status: r.status,
+              source: r.source,
               notes: r.notes,
               createdByName: r.createdBy.name,
             }))}

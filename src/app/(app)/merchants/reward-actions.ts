@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { requireUserOrThrow } from "@/lib/rbac";
 import { curatedRewardSchema, curatedRewardStatusSchema } from "@/lib/validators/reward";
+import { generateAiRewards } from "@/services/reward-ai";
 import {
   addCuratedReward,
   deleteCuratedReward,
@@ -70,4 +71,17 @@ export async function deleteCuratedRewardAction(
   }
   revalidatePath(`/merchants/${merchantId}`);
   return { error: null };
+}
+
+export async function writeAiRewardsAction(
+  merchantId: string
+): Promise<Result & { written?: number }> {
+  const ctx = await requireUserOrThrow();
+  try {
+    const res = await generateAiRewards(ctx, merchantId);
+    revalidatePath(`/merchants/${merchantId}`);
+    return { error: null, written: res.written };
+  } catch (e) {
+    return { error: toMessage(e) };
+  }
 }

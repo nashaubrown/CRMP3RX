@@ -154,6 +154,7 @@ export async function curateStarterRewards(merchant: {
         title: t.title,
         description: t.description,
         mechanic: t.mechanic,
+        source: "STARTER" as const,
         createdById: merchant.ownerId,
       })),
     });
@@ -206,6 +207,9 @@ export async function addCuratedReward(
       title,
       description,
       mechanic,
+      // Provenance drives the AI-refresh replacement rule: a rep's deliberate
+      // pick or hand-written idea is never auto-replaced; see reward-ai.ts.
+      source: templateId ? "LIBRARY" : "CUSTOM",
       notes: input.notes ?? null,
       createdById: ctx.id,
     },

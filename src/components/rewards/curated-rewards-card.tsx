@@ -7,6 +7,7 @@ import {
   Loader2Icon,
   PencilIcon,
   PlusIcon,
+  SparklesIcon,
   Trash2Icon,
   XIcon,
 } from "lucide-react";
@@ -16,6 +17,7 @@ import {
   deleteCuratedRewardAction,
   saveCuratedRewardAction,
   setCuratedRewardStatusAction,
+  writeAiRewardsAction,
 } from "@/app/(app)/merchants/reward-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,6 +40,7 @@ export type CuratedRewardRow = {
   description: string | null;
   mechanic: "STAMP_CARD" | "DISCOUNT" | "FREE_ITEM" | "TIME_LIMITED";
   status: "IDEA" | "PITCHED" | "ACCEPTED" | "DECLINED";
+  source: "STARTER" | "LIBRARY" | "CUSTOM" | "AI";
   notes: string | null;
   createdByName: string;
 };
@@ -319,6 +322,11 @@ function RewardRow({
         <Badge variant="secondary" className="text-[10px]">
           {mechanicLabel(reward.mechanic)}
         </Badge>
+        {reward.source === "AI" ? (
+          <Badge variant="outline" className="gap-1 text-[10px]">
+            <SparklesIcon className="size-2.5" /> AI
+          </Badge>
+        ) : null}
         {canEdit ? (
           // The whole workflow is these four chips — tap the merchant's answer.
           STATUSES.map((s) => (
@@ -354,14 +362,53 @@ function RewardRow({
   );
 }
 
+// Asks the AI to write this merchant's own shortlist. Untouched starter/AI
+// ideas are replaced; anything a rep pitched, edited or got an answer on
+// stays. Runs a couple of seconds — one visible model call per press.
+function WriteWithAiButton({
+  merchantId,
+  merchantName,
+}: {
+  merchantId: string;
+  merchantName: string;
+}) {
+  const [pending, startTransition] = React.useTransition();
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      disabled={pending}
+      onClick={() =>
+        startTransition(async () => {
+          const res = await writeAiRewardsAction(merchantId);
+          if (res.error) {
+            toast.error(res.error);
+            return;
+          }
+          toast.success(`${res.written} ideas written for ${merchantName}`);
+        })
+      }
+    >
+      {pending ? (
+        <Loader2Icon className="size-4 animate-spin" />
+      ) : (
+        <SparklesIcon className="size-4" />
+      )}
+      {pending ? "Writing…" : "Write with AI"}
+    </Button>
+  );
+}
+
 export function CuratedRewardsCard({
   merchantId,
+  merchantName,
   category,
   rewards,
   library,
   canEdit,
 }: {
   merchantId: string;
+  merchantName: string;
   category: string | null;
   rewards: CuratedRewardRow[];
   library: LibraryIdea[];
@@ -385,6 +432,7 @@ export function CuratedRewardsCard({
       <CardContent className="flex flex-col gap-2.5">
         {canEdit && adding === "none" ? (
           <div className="flex flex-wrap gap-2">
+            <WriteWithAiButton merchantId={merchantId} merchantName={merchantName} />
             <Button variant="outline" size="sm" onClick={() => setAdding("library")}>
               <LibraryIcon className="size-4" /> Add from library
             </Button>
