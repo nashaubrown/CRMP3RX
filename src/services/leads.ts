@@ -5,6 +5,7 @@ import type { SessionUser } from "@/lib/authz";
 import { canEditAnyRecord, isAdmin } from "@/lib/authz";
 import type { LeadCaptureInput, LeadInput, LeadListParams } from "@/lib/validators/lead";
 import { audit } from "@/services/audit";
+import { curateStarterRewards } from "@/services/rewards";
 import { computeLeadScore } from "@/services/lead-scoring";
 
 export const LEADS_PAGE_SIZE = 10;
@@ -319,6 +320,9 @@ export async function convertLead(ctx: SessionUser, id: string) {
     merchantId: result.merchant.id,
     diff: { name: result.merchant.name, source: "lead conversion" },
   });
+
+  // Converted merchants get the same starter shortlist as hand-created ones.
+  await curateStarterRewards(result.merchant);
 
   return result;
 }

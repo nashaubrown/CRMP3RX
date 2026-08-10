@@ -12,6 +12,7 @@ import {
   merchantVisibleWhere,
 } from "@/services/merchant-access";
 import { audit, shallowDiff } from "@/services/audit";
+import { curateStarterRewards } from "@/services/rewards";
 
 export const MERCHANTS_PAGE_SIZE = 100;
 
@@ -258,6 +259,10 @@ export async function createMerchant(ctx: SessionUser, input: MerchantInput) {
     merchantId: merchant.id,
     diff: pickAudited(merchant as unknown as Record<string, unknown>),
   });
+
+  // Every merchant opens with a curated shortlist to pitch (min 5 ideas,
+  // every mechanic covered). Best-effort inside.
+  await curateStarterRewards(merchant);
 
   return merchant;
 }

@@ -101,6 +101,67 @@ export async function archiveRewardTemplate(ctx: SessionUser, id: string, archiv
   return t;
 }
 
+// ---- starter curation --------------------------------------------------------
+
+// Every merchant should open with a working shortlist: at least this many
+// ideas, covering every mechanic the portal supports.
+export const STARTER_REWARD_COUNT = 5;
+
+const ALL_MECHANICS: RewardMechanic[] = ["STAMP_CARD", "DISCOUNT", "FREE_ITEM", "TIME_LIMITED"];
+
+// Curates the starter set for a fresh merchant from the active library:
+// one idea per mechanic first (own category preferred, evergreens as
+// fallback), then fills to the minimum count. Best-effort by design — a
+// thin or empty library must never fail the merchant create that called us.
+export async function curateStarterRewards(merchant: {
+  id: string;
+  category: string | null;
+  ownerId: string;
+}) {
+  try {
+    const templates = await db.rewardTemplate.findMany({
+      where: {
+        archived: false,
+        OR: [{ category: null }, ...(merchant.category ? [{ category: merchant.category }] : [])],
+      },
+      orderBy: [{ title: "asc" }],
+    });
+    if (templates.length === 0) return;
+
+    const own = templates.filter((t) => t.category != null);
+    const evergreen = templates.filter((t) => t.category == null);
+    const picked: typeof templates = [];
+    const used = new Set<string>();
+    const take = (t: (typeof templates)[number] | undefined) => {
+      if (t && !used.has(t.id)) {
+        picked.push(t);
+        used.add(t.id);
+      }
+    };
+
+    for (const mech of ALL_MECHANICS) {
+      take(own.find((t) => t.mechanic === mech) ?? evergreen.find((t) => t.mechanic === mech));
+    }
+    for (const t of [...own, ...evergreen]) {
+      if (picked.length >= STARTER_REWARD_COUNT) break;
+      take(t);
+    }
+
+    await db.curatedReward.createMany({
+      data: picked.map((t) => ({
+        merchantId: merchant.id,
+        templateId: t.id,
+        title: t.title,
+        description: t.description,
+        mechanic: t.mechanic,
+        createdById: merchant.ownerId,
+      })),
+    });
+  } catch {
+    // Starter ideas are a nicety; the merchant itself must always land.
+  }
+}
+
 // ---- per-merchant curated rewards -------------------------------------------
 
 // Visibility follows the merchant: whoever can open the merchant page can see

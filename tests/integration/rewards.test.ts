@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db } from "@/lib/db";
 import type { SessionUser } from "@/lib/rbac";
+import { createMerchant } from "@/services/merchants";
 import {
   addCuratedReward,
   archiveRewardTemplate,
@@ -131,6 +132,46 @@ describe("curated rewards", () => {
       await db.user.update({ where: { id: outsider.id }, data: { permissionSetId: null } });
       await db.permissionSet.delete({ where: { id: set.id } });
     }
+  });
+
+  it("a brand-new merchant opens with the starter shortlist: 5+ ideas, every mechanic", async () => {
+    const m = await createMerchant(owner, {
+      name: `Fresh Café ${suffix}`,
+      category: "Restaurants & Cafés",
+      status: "PROSPECT" as const,
+      loyaltyLive: false,
+      beta: false,
+      phone: undefined,
+      monthlyTxnVolume: undefined,
+      branches: undefined,
+      latitude: undefined,
+      longitude: undefined,
+    });
+    const rewards = await listCuratedRewards(owner, m.id);
+    expect(rewards.length).toBeGreaterThanOrEqual(5);
+    expect(new Set(rewards.map((r) => r.mechanic))).toEqual(
+      new Set(["STAMP_CARD", "DISCOUNT", "FREE_ITEM", "TIME_LIMITED"])
+    );
+    // Its own category's set wins over the evergreens.
+    expect(rewards.some((r) => r.title === "Buy 5 coffees, get the 6th free")).toBe(true);
+  });
+
+  it("a merchant with an unknown category still gets 5 ideas, from the evergreens", async () => {
+    const m = await createMerchant(owner, {
+      name: `Odd Trade ${suffix}`,
+      category: "Submarine Repairs",
+      status: "PROSPECT" as const,
+      loyaltyLive: false,
+      beta: false,
+      phone: undefined,
+      monthlyTxnVolume: undefined,
+      branches: undefined,
+      latitude: undefined,
+      longitude: undefined,
+    });
+    const rewards = await listCuratedRewards(owner, m.id);
+    expect(rewards.length).toBeGreaterThanOrEqual(5);
+    expect(new Set(rewards.map((r) => r.mechanic)).size).toBe(4);
   });
 
   it("deleting a curated reward removes only that row", async () => {
