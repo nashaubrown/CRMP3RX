@@ -74,7 +74,10 @@ function notify(args: {
       const text = `<b>${key}</b> ${args.line}\n${args.ticket.title}\n— ${args.actor.name ?? "someone"}`;
       const chatIds = await telegramChatIdsFor(args.targets.map((t) => t.id));
 
-      const group = devGroupChatId();
+      // The group feed: set from Telegram with /devhere (stored), or the
+      // TELEGRAM_DEV_CHAT_ID env var as a fallback.
+      const feed = await db.telegramDevFeed.findUnique({ where: { id: "singleton" } });
+      const group = feed?.chatId ?? devGroupChatId();
       if (group) await sendDevMessage(group, text);
 
       for (const target of args.targets) {

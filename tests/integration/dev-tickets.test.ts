@@ -13,6 +13,7 @@ import {
   moveDevTicket,
   ticketKey,
 } from "@/services/dev-tickets";
+import { parseBugArgs } from "@/services/telegram";
 
 const suffix = `dvt-${Math.random().toString(36).slice(2, 8)}`;
 let rep: SessionUser;
@@ -148,6 +149,25 @@ describe("dev tickets", () => {
     });
     await expect(deleteDevTicket(dev, t.id)).rejects.toThrow(DevTicketError);
     await deleteDevTicket(rep, t.id); // reporter can
+  });
+
+  it("/bug parses the product prefix and defaults to the portal", () => {
+    expect(parseBugArgs("portal: upload fails on iOS")).toEqual({
+      title: "upload fails on iOS",
+      product: "MERCHANT_PORTAL",
+    });
+    expect(parseBugArgs("app - points not showing after scan")).toEqual({
+      title: "points not showing after scan",
+      product: "PERX_APP",
+    });
+    expect(parseBugArgs("crm: zones map blank on mobile")).toEqual({
+      title: "zones map blank on mobile",
+      product: "CRM",
+    });
+    expect(parseBugArgs("reward QR won't scan")).toEqual({
+      title: "reward QR won't scan",
+      product: "MERCHANT_PORTAL",
+    });
   });
 
   it("the mine filter returns reported-by and assigned-to", async () => {

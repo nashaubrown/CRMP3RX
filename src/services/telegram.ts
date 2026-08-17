@@ -16,6 +16,12 @@ import { dealSchema, type DealInput } from "@/lib/validators/deal";
 import { merchantSchema, type MerchantInput } from "@/lib/validators/merchant";
 import { taskSchema, type TaskInput } from "@/lib/validators/task";
 import { createActivity, listActivitiesForEntity } from "@/services/activities";
+import {
+  createDevTicket,
+  DEV_PRODUCT_LABELS,
+  DEV_STATUS_LABELS,
+  ticketKey,
+} from "@/services/dev-tickets";
 import { answerAssistantQuestion } from "@/services/assistant";
 import { createContact } from "@/services/contacts";
 import { createDeal, moveDealStage } from "@/services/deals";
@@ -27,7 +33,7 @@ import { createTask, moveTask, setTaskAssignee, setTaskDue } from "@/services/ta
 type TgUser = { id?: number; first_name?: string; username?: string; is_bot?: boolean };
 type TgMessage = {
   message_id: number;
-  chat: { id: number; type?: string };
+  chat: { id: number; type?: string; title?: string };
   from?: TgUser;
   text?: string;
   reply_to_message?: { message_id: number; from?: TgUser };
@@ -79,6 +85,11 @@ export const COMMAND_MENU: { command: string; description: string }[] = [
   { command: "due", description: "Reply to a task: /due YYYY-MM-DD" },
   { command: "use", description: "Set the default merchant for this chat" },
   { command: "current", description: "Show the current default merchant" },
+  { command: "bug", description: "File a dev ticket: /bug portal: upload fails on iOS" },
+  { command: "tickets", description: "Open dev tickets (optionally: portal/app/crm)" },
+  { command: "ticket", description: "Show one ticket: /ticket 34 or /ticket PERX-34" },
+  { command: "devhere", description: "Post dev-ticket updates into this chat" },
+  { command: "devoff", description: "Stop dev-ticket updates in this chat" },
   { command: "link", description: "Link your Telegram to a CRM user: /link you@perx.mv" },
   { command: "cancel", description: "Cancel the current command" },
   { command: "help", description: "What can this bot do?" },
@@ -745,6 +756,152 @@ function stripMention(text: string, me: BotIdentity | null): string {
   return without.replace(/\s+/g, " ").trim();
 }
 
+// ---- dev-ticket commands ----------------------------------------------------
+
+// "/bug portal: upload broken" -> product from the prefix; bare "/bug ..."
+// defaults to the Merchant Portal, where most field reports come from.
+export function parseBugArgs(args: string): {
+  title: string;
+  product: "MERCHANT_PORTAL" | "PERX_APP" | "CRM";
+} {
+  const m = args.match(/^\s*(portal|app|crm)\s*[:\-–]\s*(.*)$/i);
+  if (!m) return { title: args.trim(), product: "MERCHANT_PORTAL" };
+  const key = m[1].toLowerCase();
+  const product = key === "app" ? "PERX_APP" : key === "crm" ? "CRM" : "MERCHANT_PORTAL";
+  // Keep the prefix in the title for portal (it reads naturally); strip for the rest.
+  return { title: m[2].trim(), product };
+}
+
+async function linkedCrmUser(userId: string): Promise<SessionUser | null> {
+  const link = await db.telegramUserLink.findUnique({ where: { telegramUserId: userId } });
+  if (!link) return null;
+  const user = await db.user.findUnique({ where: { id: link.crmUserId } });
+  if (!user || user.disabledAt) return null;
+  return { id: user.id, role: user.role, name: user.name, email: user.email };
+}
+
+async function cmdBug(msg: TgMessage, userId: string, args: string) {
+  const chatId = msg.chat.id;
+  const ctx = await linkedCrmUser(userId);
+  if (!ctx) {
+    await sendMessage(chatId, "🔗 Link your CRM account first: <code>/link you@perx.mv</code>");
+    return;
+  }
+  if (!args.trim()) {
+    await sendMessage(
+      chatId,
+      "What's broken? e.g.\n<code>/bug portal: reward upload fails on iOS</code>\n<code>/bug app: points not showing after scan</code>\nPrefix with <b>portal:</b>, <b>app:</b> or <b>crm:</b> — no prefix means the portal."
+    );
+    return;
+  }
+  const { title, product } = parseBugArgs(args);
+  if (!title) {
+    await sendMessage(chatId, "The ticket needs a title after the product prefix.");
+    return;
+  }
+  const t = await createDevTicket(ctx, {
+    title,
+    type: "BUG",
+    product,
+    priority: "MEDIUM",
+  });
+  await sendMessage(
+    chatId,
+    `🐛 <b>${ticketKey(t.number)}</b> filed in Backlog (${escape(DEV_PRODUCT_LABELS[product])}).\n${escape(title)}\nDetails, screenshots and assignment: CRM → Dev.`
+  );
+}
+
+async function cmdTickets(chatId: number, args: string) {
+  const wanted = args.trim().toLowerCase();
+  const product =
+    wanted === "portal" ? "MERCHANT_PORTAL" : wanted === "app" ? "PERX_APP" : wanted === "crm" ? "CRM" : undefined;
+  const tickets = await db.devTicket.findMany({
+    where: {
+      status: { notIn: ["DONE", "WONT_DO"] },
+      ...(product ? { product } : {}),
+    },
+    orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
+    take: 10,
+    include: { assignee: { select: { name: true } } },
+  });
+  if (tickets.length === 0) {
+    await sendMessage(chatId, `No open tickets${product ? ` for ${DEV_PRODUCT_LABELS[product]}` : ""} 🎉`);
+    return;
+  }
+  const lines = tickets.map(
+    (t) =>
+      `• <b>${ticketKey(t.number)}</b> ${escape(t.title)}\n   ${DEV_STATUS_LABELS[t.status]} · ${t.priority.toLowerCase()} · ${escape(t.assignee?.name ?? "unassigned")}`
+  );
+  await sendMessage(
+    chatId,
+    `<b>Open dev tickets</b>${product ? ` — ${DEV_PRODUCT_LABELS[product]}` : ""}\n${lines.join("\n")}`
+  );
+}
+
+async function cmdTicket(chatId: number, args: string) {
+  const num = Number.parseInt(args.replace(/perx-?/i, "").trim(), 10);
+  if (!Number.isFinite(num)) {
+    await sendMessage(chatId, "Which one? e.g. <code>/ticket 34</code> or <code>/ticket PERX-34</code>");
+    return;
+  }
+  const t = await db.devTicket.findUnique({
+    where: { number: num },
+    include: {
+      assignee: { select: { name: true } },
+      reporter: { select: { name: true } },
+      merchant: { select: { name: true } },
+      _count: { select: { comments: true, attachments: true } },
+    },
+  });
+  if (!t) {
+    await sendMessage(chatId, `No ticket ${ticketKey(num)}.`);
+    return;
+  }
+  const bits = [
+    `<b>${ticketKey(t.number)}</b> ${escape(t.title)}`,
+    `${DEV_STATUS_LABELS[t.status]} · ${t.priority.toLowerCase()} · ${DEV_PRODUCT_LABELS[t.product]}`,
+    `Assignee: ${escape(t.assignee?.name ?? "unassigned")} · Reporter: ${escape(t.reporter.name)}`,
+  ];
+  if (t.merchant) bits.push(`Merchant: ${escape(t.merchant.name)}`);
+  if (t.description) bits.push(escape(t.description.slice(0, 300)));
+  bits.push(`${t._count.comments} comment${t._count.comments === 1 ? "" : "s"} · ${t._count.attachments} file${t._count.attachments === 1 ? "" : "s"}`);
+  await sendMessage(chatId, bits.join("\n"));
+}
+
+async function cmdDevHere(msg: TgMessage, userId: string) {
+  const chatId = msg.chat.id;
+  const ctx = await linkedCrmUser(userId);
+  if (!ctx) {
+    await sendMessage(chatId, "🔗 Link your CRM account first: <code>/link you@perx.mv</code>");
+    return;
+  }
+  const title = msg.chat.title ?? null;
+  await db.telegramDevFeed.upsert({
+    where: { id: "singleton" },
+    create: { id: "singleton", chatId: String(chatId), chatTitle: title, enabledById: ctx.id },
+    update: { chatId: String(chatId), chatTitle: title, enabledById: ctx.id },
+  });
+  await sendMessage(
+    chatId,
+    "📌 Done — every dev-ticket event (filed, moved, commented) now lands in this chat.\nTurn it off with /devoff."
+  );
+}
+
+async function cmdDevOff(chatId: number, userId: string) {
+  const ctx = await linkedCrmUser(userId);
+  if (!ctx) {
+    await sendMessage(chatId, "🔗 Link your CRM account first: <code>/link you@perx.mv</code>");
+    return;
+  }
+  const feed = await db.telegramDevFeed.findUnique({ where: { id: "singleton" } });
+  if (!feed || feed.chatId !== String(chatId)) {
+    await sendMessage(chatId, "This chat isn't the dev feed.");
+    return;
+  }
+  await db.telegramDevFeed.delete({ where: { id: "singleton" } });
+  await sendMessage(chatId, "🔕 Dev-ticket updates stopped for this chat.");
+}
+
 const HELP = [
   "<b>Perx CRM bot</b> — I turn group posts into CRM records (with a confirm tap).",
   "",
@@ -758,6 +915,11 @@ const HELP = [
   "<b>Context</b>",
   "/use Ocean Bubbles — set a default merchant for this chat",
   "/current — show it",
+  "",
+  "<b>Dev tickets</b>",
+  "/bug portal: reward upload fails on iOS — file a ticket",
+  "/tickets — the open board · /ticket 34 — one ticket",
+  "/devhere — post every ticket update into this chat",
   "",
   "<b>In a group I only reply when you talk to me</b> — a command, an @mention,",
   "or a reply to one of my messages. Otherwise I stay out of the conversation.",
@@ -858,6 +1020,21 @@ async function handleCommand(msg: TgMessage, cmd: string, args: string, by: stri
       return;
     case "link":
       await cmdLink(chatId, userId, args);
+      return;
+    case "bug":
+      await cmdBug(msg, userId, args);
+      return;
+    case "tickets":
+      await cmdTickets(chatId, args);
+      return;
+    case "ticket":
+      await cmdTicket(chatId, args);
+      return;
+    case "devhere":
+      await cmdDevHere(msg, userId);
+      return;
+    case "devoff":
+      await cmdDevOff(chatId, userId);
       return;
     case "ask":
       await askAndReply(chatId, args);

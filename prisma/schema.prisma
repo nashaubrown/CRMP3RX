@@ -1068,6 +1068,18 @@ model TelegramMessageRef {
 }
 
 // Links a Telegram user to a CRM user (via /link), so /mine and /assign me work.
+// The group chat that hears every dev-ticket event. Set from Telegram itself
+// (/devhere in the group), so nobody has to dig chat ids out of Vercel.
+// Singleton: one dev feed per deployment.
+model TelegramDevFeed {
+  id          String   @id @default("singleton")
+  chatId      String
+  chatTitle   String?
+  enabledById String?
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+}
+
 model TelegramUserLink {
   telegramUserId String   @id
   crmUserId      String
