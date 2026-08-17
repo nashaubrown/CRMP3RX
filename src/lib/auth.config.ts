@@ -70,7 +70,7 @@ export const authConfig = {
     session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
-        session.user.role = token.role as "ADMIN" | "SALES_REP";
+        session.user.role = token.role as "ADMIN" | "SALES_REP" | "DEVELOPER";
       }
       return session;
     },

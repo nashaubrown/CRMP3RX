@@ -40,13 +40,13 @@ function assertAdmin(ctx: SessionUser) {
 export const createTeamUserSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(120),
   email: z.string().trim().toLowerCase().email("Enter a valid email"),
-  role: z.enum(["ADMIN", "SALES_REP"]),
+  role: z.enum(["ADMIN", "SALES_REP", "DEVELOPER"]),
   password: z.string().min(8, "Password must be at least 8 characters").max(200),
 });
 
 export const setRoleSchema = z.object({
   userId: z.string().min(1),
-  role: z.enum(["ADMIN", "SALES_REP"]),
+  role: z.enum(["ADMIN", "SALES_REP", "DEVELOPER"]),
 });
 
 export const resetPasswordSchema = z.object({

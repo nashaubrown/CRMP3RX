@@ -1,5 +1,6 @@
 import {
   Activity as ActivityIcon,
+  Bug,
   BadgePercent,
   BookOpen,
   CalendarDays,
@@ -38,6 +39,7 @@ export const navItems: NavItem[] = [
   { title: "Meetings", href: "/meetings", icon: CalendarDays },
   { title: "Templates", href: "/templates", icon: FileText },
   { title: "Help Center", href: "/help-center", icon: BookOpen },
+  { title: "Dev", href: "/dev", icon: Bug },
   { title: "Ask Perx", href: "/assistant", icon: Sparkles },
   { title: "Activity", href: "/activity", icon: ActivityIcon, adminOnly: true },
   { title: "Team", href: "/team", icon: UserCog, adminOnly: true },

@@ -45,7 +45,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-type Role = "ADMIN" | "SALES_REP";
+type Role = "ADMIN" | "SALES_REP" | "DEVELOPER";
 
 export type TeamRow = {
   id: string;
@@ -108,6 +108,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
 const OWNER_ONLY = "Only the owner account can change another admin.";
 
 function RoleBadge({ role }: { role: Role }) {
+  if (role === "DEVELOPER") return <Badge className="border-transparent bg-violet-500/15 text-violet-700 dark:text-violet-300">Developer</Badge>;
   return role === "ADMIN" ? (
     <Badge className="border-transparent bg-primary/15 text-primary">Admin</Badge>
   ) : (
@@ -205,6 +206,7 @@ function AddMemberForm() {
               <SelectContent>
                 <SelectItem value="SALES_REP">Sales rep — sees only their own records</SelectItem>
                 <SelectItem value="ADMIN">Admin — full access & team management</SelectItem>
+                <SelectItem value="DEVELOPER">Developer — works the Dev ticket board</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -338,7 +340,7 @@ function MemberRow({
     startTransition(async () => {
       const result = await setTeamRoleAction(member.id, role);
       if (result.error) toast.error(result.error);
-      else toast.success(`${member.name} is now ${role === "ADMIN" ? "an admin" : "a sales rep"}`);
+      else toast.success(`${member.name} is now ${role === "ADMIN" ? "an admin" : role === "DEVELOPER" ? "a developer" : "a sales rep"}`);
     });
   }
 
@@ -415,6 +417,7 @@ function MemberRow({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="SALES_REP">Sales rep</SelectItem>
+            <SelectItem value="DEVELOPER">Developer</SelectItem>
             <SelectItem value="ADMIN">Admin</SelectItem>
           </SelectContent>
         </Select>

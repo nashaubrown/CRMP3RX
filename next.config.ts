@@ -20,6 +20,11 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Ticket screenshots ride through server actions as FormData; the default
+  // 1 MB body cap would bounce any real screenshot.
+  experimental: {
+    serverActions: { bodySizeLimit: "6mb" },
+  },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },

@@ -18,6 +18,9 @@ datasource db {
 enum Role {
   ADMIN
   SALES_REP
+  // Works the Dev board (tickets against the Merchant Portal / Perx App).
+  // Everywhere else the app treats a developer like a rep.
+  DEVELOPER
 }
 
 model User {
@@ -75,6 +78,9 @@ model User {
   helpArticlesAuthored HelpArticle[]         @relation("HelpArticleAuthor")
   helpArticlesReviewed HelpArticle[]         @relation("HelpArticleReviewer")
   curatedRewards       CuratedReward[]       @relation("CuratedRewardCreator")
+  reportedTickets      DevTicket[]           @relation("DevTicketReporter")
+  assignedTickets      DevTicket[]           @relation("DevTicketAssignee")
+  ticketComments       DevTicketComment[]    @relation("DevTicketCommentAuthor")
 }
 
 // Personal access tokens for the REST API and the MCP endpoint. Only a
@@ -246,6 +252,7 @@ model Merchant {
   contactLinks ContactMerchant[]
   outlets      Outlet[]
   curatedRewards CuratedReward[]
+  devTickets   DevTicket[]
   leads        Lead[]
   deals        Deal[]
   shares       MerchantShare[]
@@ -1138,6 +1145,110 @@ model AuditLog {
   @@index([actorId])
   @@index([createdAt])
   @@index([merchantId, createdAt])
+}
+
+// ---------- Dev tickets ----------
+//
+// A Jira-shaped board inside the CRM: reps file what merchants hit in the
+// Merchant Portal / Perx App, developers work the queue, and every ticket can
+// point at the merchant who reported it — which Jira never knows.
+
+enum DevTicketType {
+  BUG
+  FEATURE
+  IMPROVEMENT
+}
+
+enum DevProduct {
+  MERCHANT_PORTAL
+  PERX_APP
+  CRM
+}
+
+enum DevTicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+// Five working states plus a terminal no. BACKLOG = filed, not yet accepted;
+// TODO = the devs agreed to do it; TESTING = the reporter verifies the fix
+// before it counts as DONE. Deliberately no separate code-review column.
+enum DevTicketStatus {
+  BACKLOG
+  TODO
+  IN_PROGRESS
+  TESTING
+  DONE
+  WONT_DO
+}
+
+model DevTicket {
+  id     String @id @default(cuid())
+  // Human handle: shown as PERX-<number>. Assigned by the database so two
+  // simultaneous filings can't collide.
+  number Int    @unique @default(autoincrement())
+
+  title       String
+  description String?
+  type        DevTicketType
+  product     DevProduct
+  priority    DevTicketPriority @default(MEDIUM)
+  status      DevTicketStatus   @default(BACKLOG)
+  // Ordering within a board column.
+  position    Int               @default(0)
+
+  // The merchant who reported/is affected — the CRM-native edge over Jira.
+  // SetNull: tickets outlive the merchants that inspired them.
+  merchantId String?
+  merchant   Merchant? @relation(fields: [merchantId], references: [id], onDelete: SetNull)
+
+  reporterId String
+  reporter   User    @relation("DevTicketReporter", fields: [reporterId], references: [id])
+  assigneeId String?
+  assignee   User?   @relation("DevTicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  comments    DevTicketComment[]
+  attachments DevTicketAttachment[]
+
+  @@index([status, position])
+  @@index([assigneeId])
+  @@index([reporterId])
+  @@index([merchantId])
+}
+
+model DevTicketComment {
+  id       String    @id @default(cuid())
+  ticketId String
+  ticket   DevTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId String
+  author   User      @relation("DevTicketCommentAuthor", fields: [authorId], references: [id])
+  body     String
+  createdAt DateTime @default(now())
+
+  @@index([ticketId])
+}
+
+// Screenshots and small files on a ticket. Stored in Postgres like affiliate
+// uploads: private by default, served through an authenticated route, and
+// swappable for blob storage later without touching callers.
+model DevTicketAttachment {
+  id           String    @id @default(cuid())
+  ticketId     String
+  ticket       DevTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  filename     String
+  contentType  String
+  sizeBytes    Int
+  data         Bytes
+  uploadedById String
+  createdAt    DateTime  @default(now())
+
+  @@index([ticketId])
 }
 
 enum ChatRole {

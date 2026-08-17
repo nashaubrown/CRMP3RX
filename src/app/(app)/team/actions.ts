@@ -33,7 +33,7 @@ async function requireAdminCtx() {
 export async function createTeamUserAction(input: {
   name: string;
   email: string;
-  role: "ADMIN" | "SALES_REP";
+  role: "ADMIN" | "SALES_REP" | "DEVELOPER";
   password: string;
 }): Promise<Result> {
   try {
@@ -48,7 +48,7 @@ export async function createTeamUserAction(input: {
 
 export async function setTeamRoleAction(
   userId: string,
-  role: "ADMIN" | "SALES_REP"
+  role: "ADMIN" | "SALES_REP" | "DEVELOPER"
 ): Promise<Result> {
   try {
     const ctx = await requireAdminCtx();
