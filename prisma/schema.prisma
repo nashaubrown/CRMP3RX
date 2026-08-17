@@ -81,6 +81,9 @@ model User {
   reportedTickets      DevTicket[]           @relation("DevTicketReporter")
   assignedTickets      DevTicket[]           @relation("DevTicketAssignee")
   ticketComments       DevTicketComment[]    @relation("DevTicketCommentAuthor")
+  roadmapSuggestions   RoadmapItem[]         @relation("RoadmapSuggestedBy")
+  roadmapVotes         RoadmapVote[]
+  roadmapComments      RoadmapComment[]      @relation("RoadmapCommentAuthor")
 }
 
 // Personal access tokens for the REST API and the MCP endpoint. Only a
@@ -253,6 +256,7 @@ model Merchant {
   outlets      Outlet[]
   curatedRewards CuratedReward[]
   devTickets   DevTicket[]
+  roadmapDemands RoadmapDemand[]
   leads        Lead[]
   deals        Deal[]
   shares       MerchantShare[]
@@ -1221,6 +1225,11 @@ model DevTicket {
   assigneeId String?
   assignee   User?   @relation("DevTicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
 
+  // The roadmap feature this ticket implements. SetNull: the work record
+  // outlives a deleted roadmap item.
+  roadmapItemId String?
+  roadmapItem   RoadmapItem? @relation(fields: [roadmapItemId], references: [id], onDelete: SetNull)
+
   resolvedAt DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
@@ -1232,6 +1241,7 @@ model DevTicket {
   @@index([assigneeId])
   @@index([reporterId])
   @@index([merchantId])
+  @@index([roadmapItemId])
 }
 
 model DevTicketComment {
@@ -1261,6 +1271,94 @@ model DevTicketAttachment {
   createdAt    DateTime  @default(now())
 
   @@index([ticketId])
+}
+
+// ---------- Roadmap ----------
+//
+// The idea's story, from suggestion to shipped. Deliberately NOT a second
+// work tracker: once an item is being built it links to the DevTickets that
+// carry the work, and its progress rolls up from the board — status is never
+// typed in twice.
+
+enum RoadmapStage {
+  SUGGESTED
+  CONSIDERING
+  PLANNED
+  IN_DEVELOPMENT // set automatically when a dev ticket is linked
+  SHIPPED
+  DECLINED
+}
+
+enum RoadmapScore {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model RoadmapItem {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  stage       RoadmapStage @default(SUGGESTED)
+  product     DevProduct
+  // MoSCoW-ish planning signals, optional by design.
+  effort      RoadmapScore?
+  impact      RoadmapScore?
+
+  suggestedById String
+  suggestedBy   User   @relation("RoadmapSuggestedBy", fields: [suggestedById], references: [id])
+
+  shippedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  votes    RoadmapVote[]
+  demands  RoadmapDemand[]
+  comments RoadmapComment[]
+  tickets  DevTicket[]
+
+  @@index([stage])
+  @@index([product])
+}
+
+// One tap per teammate per idea.
+model RoadmapVote {
+  itemId    String
+  item      RoadmapItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+
+  @@id([itemId, userId])
+}
+
+// A merchant who asked for this feature — the demand signal, and the call
+// list on the day it ships.
+model RoadmapDemand {
+  id         String      @id @default(cuid())
+  itemId     String
+  item       RoadmapItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  merchantId String
+  merchant   Merchant    @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  // What they actually said ("would pay extra for this").
+  note       String?
+  addedById  String
+  createdAt  DateTime    @default(now())
+
+  @@unique([itemId, merchantId])
+  @@index([merchantId])
+}
+
+model RoadmapComment {
+  id        String      @id @default(cuid())
+  itemId    String
+  item      RoadmapItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User        @relation("RoadmapCommentAuthor", fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime    @default(now())
+
+  @@index([itemId])
 }
 
 enum ChatRole {
