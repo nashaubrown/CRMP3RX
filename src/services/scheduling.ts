@@ -5,6 +5,10 @@ import { escapeHtml } from "@/lib/html";
 import type { SessionUser } from "@/lib/authz";
 import { canContribute, resolveMerchantId } from "@/services/activities";
 import { audit } from "@/services/audit";
+import {
+  mirrorMeetingToTeamCalendar,
+  removeMeetingFromTeamCalendar,
+} from "@/services/team-calendar";
 import { sendSystemEmail, sendSystemSms } from "@/services/messaging";
 
 // A user schedules a meeting directly from a merchant/contact page. The
@@ -107,6 +111,12 @@ export async function scheduleMeeting(ctx: SessionUser, input: ScheduleMeetingIn
       data: { googleEventId: event.eventId, googleMeetUrl: event.meetUrl },
     });
   }
+
+  // Mirror onto the shared team calendar, when one is configured.
+  await mirrorMeetingToTeamCalendar(
+    { ...meeting, notes: input.notes ?? null, googleMeetUrl: event?.meetUrl ?? null },
+    { id: ctx.id, name: ctx.name ?? null }
+  );
 
   await audit({
     actorId: ctx.id,
@@ -284,6 +294,19 @@ export async function createSharedMeeting(input: {
     });
   }
 
+  // Booking page and Telegram bookings reach the team calendar too — the
+  // mirror follows the meeting, not the way it was created.
+  const host = await db.user.findUnique({
+    where: { id: input.hostUserId },
+    select: { id: true, name: true },
+  });
+  if (host) {
+    await mirrorMeetingToTeamCalendar(
+      { ...meeting, notes: meeting.notes, googleMeetUrl: event?.meetUrl ?? null },
+      host
+    );
+  }
+
   await audit({
     actorId: input.hostUserId,
     action: "meeting.telegram_create",
@@ -393,6 +416,7 @@ export async function cancelMeeting(ctx: SessionUser, meetingId: string) {
   if (meeting.googleEventId) {
     await getCalendarProvider().deleteEvent(meeting.hostUserId, meeting.googleEventId);
   }
+  await removeMeetingFromTeamCalendar(meeting);
 
   await audit({
     actorId: ctx.id,

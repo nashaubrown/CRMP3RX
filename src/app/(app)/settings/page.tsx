@@ -7,6 +7,8 @@ import { EmailIdentityCard } from "@/app/(app)/settings/email-identity-card";
 import { ApiKeysCard } from "@/app/(app)/settings/api-keys-card";
 import { OptionSetsCard } from "@/app/(app)/settings/option-sets-card";
 import { RewardLibraryCard } from "@/app/(app)/settings/reward-library-card";
+import { TeamCalendarCard } from "@/app/(app)/settings/team-calendar-card";
+import { getTeamCalendarId, teamCalendarSubscribeUrl } from "@/services/team-calendar";
 import { listRewardTemplates } from "@/services/rewards";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -46,7 +48,7 @@ export default async function SettingsPage({
   const { calendar: calendarMsg } = await searchParams;
 
   const admin = isAdmin(user);
-  const [profile, apiKeys, aiSettings, emailSettings, optionSets, rewardTemplates, categories, calendarEventCount] = await Promise.all([
+  const [profile, apiKeys, aiSettings, emailSettings, optionSets, rewardTemplates, categories, calendarEventCount, teamCalendarId] = await Promise.all([
     db.user.findUnique({
       where: { id: user.id },
       select: {
@@ -76,6 +78,7 @@ export default async function SettingsPage({
     admin ? listRewardTemplates({ includeArchived: true }) : Promise.resolve([]),
     admin ? listOptions("MERCHANT_CATEGORY") : Promise.resolve([]),
     db.calendarEvent.count({ where: { userId: user.id } }),
+    getTeamCalendarId(),
   ]);
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -136,6 +139,12 @@ export default async function SettingsPage({
           )}
         </CardContent>
       </Card>
+
+      <TeamCalendarCard
+        calendarId={teamCalendarId}
+        subscribeUrl={teamCalendarId ? teamCalendarSubscribeUrl(teamCalendarId) : null}
+        isAdmin={admin}
+      />
 
       {admin ? <OptionSetsCard sets={optionSets} /> : null}
       {admin ? <RewardLibraryCard templates={rewardTemplates} categories={categories} /> : null}

@@ -143,9 +143,10 @@ export class GoogleCalendarProvider implements CalendarProvider {
 
     const params = new URLSearchParams({ sendUpdates: "all" });
     if (input.withMeet) params.set("conferenceDataVersion", "1");
+    const target = input.calendarId ?? auth.calendarId;
 
     const res = await fetch(
-      `${CAL_BASE}/calendars/${encodeURIComponent(auth.calendarId)}/events?${params}`,
+      `${CAL_BASE}/calendars/${encodeURIComponent(target)}/events?${params}`,
       {
         method: "POST",
         headers: { Authorization: `Bearer ${auth.token}`, "Content-Type": "application/json" },
@@ -254,11 +255,11 @@ export class GoogleCalendarProvider implements CalendarProvider {
     return { events: collected, syncToken: nextSyncToken, reset };
   }
 
-  async deleteEvent(userId: string, eventId: string): Promise<void> {
+  async deleteEvent(userId: string, eventId: string, calendarId?: string): Promise<void> {
     const auth = await getAccessToken(userId);
     if (!auth) return;
     const res = await fetch(
-      `${CAL_BASE}/calendars/${encodeURIComponent(auth.calendarId)}/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
+      `${CAL_BASE}/calendars/${encodeURIComponent(calendarId ?? auth.calendarId)}/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
       { method: "DELETE", headers: { Authorization: `Bearer ${auth.token}` } }
     );
     if (!res.ok && res.status !== 404 && res.status !== 410) {

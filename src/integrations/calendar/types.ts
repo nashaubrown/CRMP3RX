@@ -8,6 +8,9 @@ export type CalendarEventInput = {
   attendees: { email: string; displayName?: string }[];
   // Ask the provider to attach a video-conference link
   withMeet?: boolean;
+  // Write to a specific calendar instead of the user's primary — used for the
+  // shared team calendar. The user's token must have edit rights on it.
+  calendarId?: string;
 };
 
 export type CalendarEventResult = {
@@ -47,7 +50,7 @@ export type FetchedEventPage = {
 export interface CalendarProvider {
   getBusy(userId: string, from: Date, to: Date): Promise<BusyInterval[]>;
   createEvent(userId: string, input: CalendarEventInput): Promise<CalendarEventResult | null>;
-  deleteEvent(userId: string, eventId: string): Promise<void>;
+  deleteEvent(userId: string, eventId: string, calendarId?: string): Promise<void>;
   // Pull events changed since `syncToken`; a null token means a full pull from
   // `since`. Returns null when the user has no calendar connected.
   listEvents(

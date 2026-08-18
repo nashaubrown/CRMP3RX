@@ -136,6 +136,19 @@ model EmailSetting {
   updatedAt   DateTime @updatedAt
 }
 
+// Shared "Perx CRM Meetings" Google Calendar (singleton). When set, every
+// meeting booked in the CRM is mirrored onto this one calendar, so anyone who
+// adds it in Google sees the whole team's bookings without per-person wiring.
+// The calendar must be shared (with edit rights) to each user who books, since
+// the CRM writes with that user's own token.
+model CalendarSetting {
+  id             String   @id @default("singleton")
+  teamCalendarId String?
+  updatedById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
 // Auth.js adapter models
 model Account {
   id                String  @id @default(cuid())
@@ -1067,6 +1080,9 @@ model Meeting {
   endAt         DateTime
   googleEventId String?
   googleMeetUrl String?
+  // The mirror of this meeting on the shared team calendar, so edits and
+  // cancellations can reach it too.
+  teamEventId   String?
   status        MeetingStatus @default(CONFIRMED)
 
   // Set when the "1 hour before" reminder has been sent, so the cron never
