@@ -88,6 +88,7 @@ model User {
   roadmapSuggestions   RoadmapItem[]         @relation("RoadmapSuggestedBy")
   roadmapVotes         RoadmapVote[]
   roadmapComments      RoadmapComment[]      @relation("RoadmapCommentAuthor")
+  calendarEvents       CalendarEvent[]
 }
 
 // Personal access tokens for the REST API and the MCP endpoint. Only a
@@ -185,6 +186,11 @@ model GoogleCalendarAccount {
   expiresAt    DateTime
   scope        String
   calendarId   String   @default("primary")
+  // Google's incremental-sync cursor: after a full pull we store nextSyncToken
+  // and every later pull asks only for what changed. Null = do a full sync.
+  // Google expires these (410 Gone), which the sync treats as "start over".
+  syncToken    String?
+  lastSyncedAt DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -1008,6 +1014,44 @@ enum MeetingStatus {
   CANCELLED
 }
 
+// An event pulled in from someone's connected Google Calendar. Distinct from
+// Meeting (which the CRM creates and owns): these are mirrors, refreshed by
+// the sync job, and they vanish when deleted upstream. Kept in their own table
+// so importing can never corrupt the booking flow.
+model CalendarEvent {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  googleEventId String
+  title         String
+  description   String?
+  location      String?
+  startAt       DateTime
+  endAt         DateTime
+  allDay        Boolean  @default(false)
+  // Google's own per-event "private" visibility. The team sees these as a
+  // busy block with no title — an escape hatch that doesn't need a CRM setting.
+  isPrivate     Boolean  @default(false)
+  attendees     Json?
+  htmlLink      String?
+  meetUrl       String?
+  organizerEmail String?
+
+  // Set when this event is the Google side of a CRM-created Meeting, so the
+  // UI shows it once (as the CRM meeting) rather than twice.
+  meetingId String?
+  meeting   Meeting? @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+
+  syncedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, googleEventId])
+  @@index([userId, startAt])
+  @@index([startAt])
+}
+
 model Meeting {
   id            String        @id @default(cuid())
   hostUserId    String
@@ -1033,6 +1077,7 @@ model Meeting {
   updatedAt DateTime @updatedAt
 
   activities Activity[]
+  calendarEvents CalendarEvent[]
 
   @@index([hostUserId, startAt])
   @@index([contactId])

@@ -46,11 +46,11 @@ export default async function SettingsPage({
   const { calendar: calendarMsg } = await searchParams;
 
   const admin = isAdmin(user);
-  const [profile, apiKeys, aiSettings, emailSettings, optionSets, rewardTemplates, categories] = await Promise.all([
+  const [profile, apiKeys, aiSettings, emailSettings, optionSets, rewardTemplates, categories, calendarEventCount] = await Promise.all([
     db.user.findUnique({
       where: { id: user.id },
       select: {
-        calendarAccount: { select: { createdAt: true } },
+        calendarAccount: { select: { createdAt: true, lastSyncedAt: true } },
       },
     }),
     listApiKeys(user),
@@ -75,6 +75,7 @@ export default async function SettingsPage({
       : Promise.resolve([]),
     admin ? listRewardTemplates({ includeArchived: true }) : Promise.resolve([]),
     admin ? listOptions("MERCHANT_CATEGORY") : Promise.resolve([]),
+    db.calendarEvent.count({ where: { userId: user.id } }),
   ]);
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -100,17 +101,25 @@ export default async function SettingsPage({
             <CalendarIcon className="size-4" /> Google Calendar
           </CardTitle>
           <CardDescription>
-            When connected, meetings you schedule with a merchant create calendar events with
-            Google Meet links, and your busy times sync to your Google Calendar.
+            Two-way. Meetings you schedule in the CRM become Google Calendar events with Meet
+            links and invites; anything you book directly in Google appears in Meetings, refreshed
+            every 15 minutes. Events you mark private in Google show to teammates as Busy.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex items-center justify-between gap-3">
           {profile?.calendarAccount ? (
             <>
-              <Badge className="border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
-                <CalendarCheckIcon className="size-3" /> Connected since{" "}
-                {formatDateTime(profile.calendarAccount.createdAt, "d MMM yyyy")}
-              </Badge>
+              <div className="flex flex-col gap-1">
+                <Badge className="w-fit border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                  <CalendarCheckIcon className="size-3" /> Connected since{" "}
+                  {formatDateTime(profile.calendarAccount.createdAt, "d MMM yyyy")}
+                </Badge>
+                <p className="text-muted-foreground text-xs">
+                  {profile.calendarAccount.lastSyncedAt
+                    ? `Last synced ${formatDateTime(profile.calendarAccount.lastSyncedAt)} · ${calendarEventCount} event${calendarEventCount === 1 ? "" : "s"} imported`
+                    : "Waiting for the first sync (runs every 15 minutes)"}
+                </p>
+              </div>
               <form action={disconnectCalendarAction}>
                 <Button variant="outline" size="sm" type="submit">
                   Disconnect

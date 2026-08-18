@@ -6,10 +6,17 @@ import { MeetingList, type MeetingItem } from "@/app/(app)/settings/meeting-list
 import { MeetingsCalendar } from "@/components/meetings/meetings-calendar";
 import { EmptyState } from "@/components/list/empty-state";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { formatDateTime, parseMvLocal } from "@/lib/datetime";
 import { isAdmin, requireUser } from "@/lib/rbac";
 import { listMeetingsInMonth, listTeamMeetings } from "@/services/scheduling";
+import { listImportedEvents } from "@/services/calendar-sync";
 
 export const metadata: Metadata = { title: "Meetings" };
 
@@ -52,6 +59,14 @@ export default async function MeetingsPage({
   // Agenda data.
   const agenda = view === "agenda" ? await listTeamMeetings() : null;
 
+  // Events mirrored in from connected Google Calendars. Shown next to the CRM's
+  // own meetings so the page reflects what the team actually has on.
+  const now = new Date();
+  const importedUpcoming =
+    view === "agenda"
+      ? await listImportedEvents(now, new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000))
+      : [];
+
   // Calendar data.
   let calendar: {
     year: number;
@@ -59,6 +74,7 @@ export default async function MeetingsPage({
     prevHref: string;
     nextHref: string;
     meetings: Awaited<ReturnType<typeof listMeetingsInMonth>>;
+    imported: Awaited<ReturnType<typeof listImportedEvents>>;
   } | null = null;
   if (view === "calendar") {
     const nowMonth = formatDateTime(new Date(), "yyyy-MM");
@@ -76,6 +92,7 @@ export default async function MeetingsPage({
       prevHref: `/meetings?view=calendar&month=${ym(prevY, prevMo)}`,
       nextHref: `/meetings?view=calendar&month=${ym(nextY, nextMo)}`,
       meetings: await listMeetingsInMonth(monthStart, monthEnd),
+      imported: await listImportedEvents(monthStart, monthEnd),
     };
   }
 
@@ -115,17 +132,63 @@ export default async function MeetingsPage({
             hostName: m.host.name,
             meetUrl: m.googleMeetUrl,
           }))}
+          imported={calendar.imported.map((e) => ({
+            id: e.id,
+            startAt: e.startAt,
+            title: e.title,
+            ownerName: e.user.name,
+            isPrivate: e.isPrivate,
+            allDay: e.allDay,
+          }))}
         />
-      ) : agenda && (agenda.upcoming.length > 0 || agenda.past.length > 0) ? (
+      ) : agenda &&
+        (agenda.upcoming.length > 0 || agenda.past.length > 0 || importedUpcoming.length > 0) ? (
         <div className="flex flex-col gap-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Upcoming ({agenda.upcoming.length})</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <MeetingList meetings={agenda.upcoming.map(toItem)} />
-            </CardContent>
-          </Card>
+          {agenda.upcoming.length > 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Upcoming ({agenda.upcoming.length})</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <MeetingList meetings={agenda.upcoming.map(toItem)} />
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {importedUpcoming.length > 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">
+                  From Google Calendar ({importedUpcoming.length})
+                </CardTitle>
+                <CardDescription>
+                  Booked outside the CRM, mirrored in from connected calendars. Events marked
+                  private in Google show as Busy.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2">
+                {importedUpcoming.map((e) => (
+                  <div
+                    key={e.id}
+                    className="flex flex-wrap items-baseline justify-between gap-2 rounded-lg border p-2.5"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">
+                        {e.isPrivate ? "Busy" : e.title}
+                      </p>
+                      <p className="text-muted-foreground text-xs">
+                        {e.user.name}
+                        {e.location && !e.isPrivate ? ` · ${e.location}` : ""}
+                      </p>
+                    </div>
+                    <span className="text-muted-foreground text-xs">
+                      {e.allDay ? formatDateTime(e.startAt, "d MMM") : formatDateTime(e.startAt)}
+                    </span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          ) : null}
           {agenda.past.length > 0 ? (
             <Card>
               <CardHeader>
@@ -141,7 +204,7 @@ export default async function MeetingsPage({
         <EmptyState
           icon={CalendarDaysIcon}
           title="No meetings yet"
-          description="Schedule a meeting from a merchant or contact page — it shows up here and syncs to Google Calendar when connected."
+          description="Schedule a meeting from a merchant or contact page — it shows up here and syncs to Google Calendar. Connect your calendar in Settings and anything you book directly in Google appears here too."
         />
       )}
     </div>

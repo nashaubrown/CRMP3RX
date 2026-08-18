@@ -13,6 +13,17 @@ export type CalendarMeeting = {
   meetUrl: string | null;
 };
 
+// An event mirrored in from someone's Google Calendar. Rendered in a quieter
+// colour than CRM meetings so the two are never confused at a glance.
+export type CalendarImported = {
+  id: string;
+  startAt: Date;
+  title: string;
+  ownerName: string;
+  isPrivate: boolean;
+  allDay: boolean;
+};
+
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 // Month grid of meetings, laid out in Maldives time. Server component — nav is
@@ -21,12 +32,14 @@ export function MeetingsCalendar({
   year,
   month, // 1-based
   meetings,
+  imported = [],
   prevHref,
   nextHref,
 }: {
   year: number;
   month: number;
   meetings: CalendarMeeting[];
+  imported?: CalendarImported[];
   prevHref: string;
   nextHref: string;
 }) {
@@ -41,6 +54,14 @@ export function MeetingsCalendar({
     const list = byDay.get(d);
     if (list) list.push(m);
     else byDay.set(d, [m]);
+  }
+
+  const importedByDay = new Map<number, CalendarImported[]>();
+  for (const e of imported) {
+    const d = Number(formatDateTime(e.startAt, "d"));
+    const list = importedByDay.get(d);
+    if (list) list.push(e);
+    else importedByDay.set(d, [e]);
   }
 
   const nowKey = formatDateTime(new Date(), "yyyy-MM");
@@ -78,6 +99,7 @@ export function MeetingsCalendar({
         ))}
         {cells.map((day, i) => {
           const dayMeetings = day ? (byDay.get(day) ?? []) : [];
+          const dayImported = day ? (importedByDay.get(day) ?? []) : [];
           return (
             <div
               key={i}
@@ -109,6 +131,21 @@ export function MeetingsCalendar({
                     {dayMeetings.length > 3 ? (
                       <span className="text-muted-foreground text-[11px]">
                         +{dayMeetings.length - 3} more
+                      </span>
+                    ) : null}
+                    {dayImported.slice(0, 2).map((e) => (
+                      <div
+                        key={e.id}
+                        className="text-muted-foreground bg-muted truncate rounded px-1 py-0.5 text-[11px]"
+                        title={`${e.isPrivate ? "Busy" : e.title} · ${e.ownerName} (Google Calendar)`}
+                      >
+                        {e.allDay ? "" : `${formatDateTime(e.startAt, "HH:mm")} `}
+                        {e.isPrivate ? "Busy" : e.title}
+                      </div>
+                    ))}
+                    {dayImported.length > 2 ? (
+                      <span className="text-muted-foreground text-[11px]">
+                        +{dayImported.length - 2} more
                       </span>
                     ) : null}
                   </div>
