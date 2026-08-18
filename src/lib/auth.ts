@@ -95,7 +95,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async signIn({ user }) {
       if (!user?.id) return;
       await db.user
-        .update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
+        .update({ where: { id: user.id }, data: { lastLoginAt: new Date(), lastSeenAt: new Date() } })
         .catch(() => undefined);
     },
   },

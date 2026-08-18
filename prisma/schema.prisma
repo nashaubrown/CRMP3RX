@@ -50,6 +50,10 @@ model User {
   // something. Sessions are JWT, so there is no Session row to read this from.
   lastLoginAt   DateTime?
   lastActiveAt  DateTime?
+  // Stamped (throttled) whenever an authenticated request reads the session,
+  // so browsing counts as presence — lastLoginAt only moves at the login form,
+  // which under-reports anyone riding a long-lived session cookie.
+  lastSeenAt    DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 

@@ -85,8 +85,9 @@ export default async function ActivityPage({ searchParams }: { searchParams: Sea
         <CardHeader>
           <CardTitle className="text-base">Team adoption</CardTitle>
           <CardDescription>
-            Last sign-in, last change, and how much each person has done recently. Reading isn&apos;t
-            recorded — someone who only browses shows a sign-in but no actions.
+            Last seen updates as people use the CRM (even just reading, at 5-minute resolution);
+            last sign-in is the login form itself. A &le; time means they were in before
+            sign-in tracking began.
           </CardDescription>
         </CardHeader>
         <CardContent className="px-0">
@@ -95,6 +96,7 @@ export default async function ActivityPage({ searchParams }: { searchParams: Sea
               <TableHeader>
                 <TableRow>
                   <TableHead className="pl-6">Person</TableHead>
+                  <TableHead>Last seen</TableHead>
                   <TableHead>Last sign-in</TableHead>
                   <TableHead>Last change</TableHead>
                   <TableHead className="text-right">Actions · 7d</TableHead>
@@ -121,9 +123,23 @@ export default async function ActivityPage({ searchParams }: { searchParams: Sea
                       <p className="text-muted-foreground text-xs">{u.email}</p>
                     </TableCell>
                     <TableCell
-                      className={u.lastLoginAt ? "text-muted-foreground" : "text-muted-foreground/60"}
+                      className={u.lastSeenAt ? "text-muted-foreground" : "text-muted-foreground/60"}
                     >
-                      {relative(u.lastLoginAt)}
+                      {relative(u.lastSeenAt)}
+                    </TableCell>
+                    <TableCell
+                      className={u.lastLoginAt ? "text-muted-foreground" : "text-muted-foreground/60"}
+                      title={
+                        u.signInPredatesTracking
+                          ? "Signed in before sign-in tracking began — showing their last recorded activity instead"
+                          : undefined
+                      }
+                    >
+                      {u.lastLoginAt
+                        ? relative(u.lastLoginAt)
+                        : u.signInPredatesTracking
+                          ? `≤ ${relative(u.lastSeenAt)}`
+                          : "never"}
                     </TableCell>
                     <TableCell
                       className={u.lastActiveAt ? "text-muted-foreground" : "text-muted-foreground/60"}

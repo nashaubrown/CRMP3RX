@@ -98,3 +98,39 @@ describe("user activity summary", () => {
     expect(admin?.actionsLast7Days).toBe(0);
   });
 });
+
+describe("presence (last seen)", () => {
+  it("falls back to activity evidence when sign-in predates tracking", async () => {
+    // The rep has audit activity (stamped lastActiveAt) but no lastLoginAt —
+    // exactly the long-lived-session case. "never" would be a lie.
+    await db.user.update({ where: { id: repId }, data: { lastLoginAt: null, lastSeenAt: null } });
+    const summary = await getUserActivitySummary(asAdmin());
+    const rep = summary.find((u) => u.userId === repId)!;
+    expect(rep.lastLoginAt).toBeNull();
+    expect(rep.signInPredatesTracking).toBe(true);
+    expect(rep.lastSeenAt).not.toBeNull(); // floored to lastActiveAt
+  });
+
+  it("prefers the newest of seen/login/active for last seen", async () => {
+    const now = new Date();
+    const older = new Date(now.getTime() - 60 * 60 * 1000);
+    await db.user.update({
+      where: { id: repId },
+      data: { lastLoginAt: older, lastSeenAt: now },
+    });
+    const summary = await getUserActivitySummary(asAdmin());
+    const rep = summary.find((u) => u.userId === repId)!;
+    expect(rep.lastSeenAt?.getTime()).toBe(now.getTime());
+    expect(rep.signInPredatesTracking).toBe(false);
+  });
+
+  it("a user with no evidence at all still shows nothing", async () => {
+    const ghost = await db.user.create({
+      data: { name: `Ghost ${suffix}`, email: `g-${suffix}@t.mv`, role: "SALES_REP" },
+    });
+    const summary = await getUserActivitySummary(asAdmin());
+    const g = summary.find((u) => u.userId === ghost.id)!;
+    expect(g.lastSeenAt).toBeNull();
+    expect(g.signInPredatesTracking).toBe(false);
+  });
+});

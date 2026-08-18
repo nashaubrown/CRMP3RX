@@ -76,6 +76,8 @@ export type UserActivitySummary = {
   disabled: boolean;
   lastLoginAt: Date | null;
   lastActiveAt: Date | null;
+  lastSeenAt: Date | null;
+  signInPredatesTracking: boolean;
   actionsLast7Days: number;
   actionsLast30Days: number;
 };
@@ -103,6 +105,7 @@ export async function getUserActivitySummary(
         disabledAt: true,
         lastLoginAt: true,
         lastActiveAt: true,
+        lastSeenAt: true,
       },
     }),
     db.auditLog.groupBy({
@@ -120,15 +123,28 @@ export async function getUserActivitySummary(
   const weekBy = new Map(week.map((r) => [r.actorId, r._count._all]));
   const monthBy = new Map(month.map((r) => [r.actorId, r._count._all]));
 
-  return users.map((u) => ({
-    userId: u.id,
-    name: u.name,
-    email: u.email,
-    role: u.role,
-    disabled: Boolean(u.disabledAt),
-    lastLoginAt: u.lastLoginAt,
-    lastActiveAt: u.lastActiveAt,
-    actionsLast7Days: weekBy.get(u.id) ?? 0,
-    actionsLast30Days: monthBy.get(u.id) ?? 0,
-  }));
+  return users.map((u) => {
+    // Presence with an evidence floor: sign-in tracking started well after
+    // some 30-day sessions began, so a person can have changes on record but
+    // no recorded sign-in. Whoever demonstrably acted was demonstrably here —
+    // "never" would be a lie, so last-seen falls back to their last change.
+    const seen = [u.lastSeenAt, u.lastLoginAt, u.lastActiveAt]
+      .filter((d): d is Date => d != null)
+      .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
+    return {
+      userId: u.id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      disabled: Boolean(u.disabledAt),
+      lastLoginAt: u.lastLoginAt,
+      lastActiveAt: u.lastActiveAt,
+      lastSeenAt: seen,
+      // True when the sign-in cell would claim "never" against evidence —
+      // the UI shows the floor with a marker instead.
+      signInPredatesTracking: u.lastLoginAt == null && seen != null,
+      actionsLast7Days: weekBy.get(u.id) ?? 0,
+      actionsLast30Days: monthBy.get(u.id) ?? 0,
+    };
+  });
 }
