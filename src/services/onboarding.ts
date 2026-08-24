@@ -627,3 +627,242 @@ export async function cancelOnboarding(ctx: SessionUser, projectId: string) {
     merchantId: project.merchantId,
   });
 }
+
+// ---------- playbook editing (admin) ----------
+//
+// Editing a playbook never reaches back into projects already running: their
+// steps were copied at start, and rewriting someone's live checklist under
+// them would be worse than leaving it slightly stale.
+
+export type PlaybookFields = {
+  name?: string;
+  description?: string | null;
+  planLabel?: string | null;
+  isDefault?: boolean;
+  archived?: boolean;
+};
+
+function requireAdminCtx(ctx: SessionUser) {
+  if (!isAdmin(ctx)) throw new OnboardingError("Only admins can edit playbooks.");
+}
+
+export async function listPlaybooks(includeArchived = false) {
+  return db.onboardingPlaybook.findMany({
+    where: includeArchived ? {} : { archivedAt: null },
+    include: {
+      tasks: { orderBy: [{ position: "asc" }] },
+      _count: { select: { projects: true } },
+    },
+    orderBy: [{ isDefault: "desc" }, { name: "asc" }],
+  });
+}
+
+export async function createPlaybook(ctx: SessionUser, fields: PlaybookFields) {
+  requireAdminCtx(ctx);
+  const name = fields.name?.trim();
+  if (!name) throw new OnboardingError("Give the playbook a name.");
+  const clash = await db.onboardingPlaybook.findUnique({ where: { name }, select: { id: true } });
+  if (clash) throw new OnboardingError("A playbook with that name already exists.");
+
+  const playbook = await db.onboardingPlaybook.create({
+    data: {
+      name,
+      description: fields.description?.trim() || null,
+      planLabel: fields.planLabel?.trim() || null,
+    },
+  });
+  await audit({
+    actorId: ctx.id,
+    action: "onboarding.playbook_create",
+    entityType: "OnboardingPlaybook",
+    entityId: playbook.id,
+    diff: { name },
+  });
+  return playbook;
+}
+
+export async function updatePlaybook(
+  ctx: SessionUser,
+  playbookId: string,
+  fields: PlaybookFields
+) {
+  requireAdminCtx(ctx);
+  const existing = await db.onboardingPlaybook.findUnique({ where: { id: playbookId } });
+  if (!existing) throw new OnboardingError("Playbook not found.");
+
+  const name = fields.name?.trim();
+  if (name && name !== existing.name) {
+    const clash = await db.onboardingPlaybook.findUnique({ where: { name }, select: { id: true } });
+    if (clash) throw new OnboardingError("A playbook with that name already exists.");
+  }
+
+  // Exactly one default: the fallback for a merchant whose plan matches
+  // nothing. Promoting one demotes the rest in the same breath.
+  if (fields.isDefault) {
+    await db.onboardingPlaybook.updateMany({
+      where: { id: { not: playbookId } },
+      data: { isDefault: false },
+    });
+  }
+
+  const updated = await db.onboardingPlaybook.update({
+    where: { id: playbookId },
+    data: {
+      ...(name ? { name } : {}),
+      ...(fields.description !== undefined
+        ? { description: fields.description?.trim() || null }
+        : {}),
+      ...(fields.planLabel !== undefined ? { planLabel: fields.planLabel?.trim() || null } : {}),
+      ...(fields.isDefault !== undefined ? { isDefault: fields.isDefault } : {}),
+      ...(fields.archived !== undefined
+        ? { archivedAt: fields.archived ? new Date() : null }
+        : {}),
+    },
+  });
+
+  await audit({
+    actorId: ctx.id,
+    action: "onboarding.playbook_update",
+    entityType: "OnboardingPlaybook",
+    entityId: playbookId,
+    diff: fields,
+  });
+  return updated;
+}
+
+export type PlaybookTaskFields = {
+  stage: OnboardingStageKey;
+  title: string;
+  description?: string | null;
+  dueOffsetDays?: number;
+  ownerRole?: OnboardingOwnerRole;
+};
+
+export async function addPlaybookTask(
+  ctx: SessionUser,
+  playbookId: string,
+  fields: PlaybookTaskFields
+) {
+  requireAdminCtx(ctx);
+  const title = fields.title.trim();
+  if (!title) throw new OnboardingError("Give the step a name.");
+
+  const last = await db.onboardingPlaybookTask.findFirst({
+    where: { playbookId, stage: fields.stage },
+    orderBy: { position: "desc" },
+    select: { position: true },
+  });
+
+  const task = await db.onboardingPlaybookTask.create({
+    data: {
+      playbookId,
+      stage: fields.stage,
+      title,
+      description: fields.description?.trim() || null,
+      dueOffsetDays: Math.max(0, fields.dueOffsetDays ?? 0),
+      ownerRole: fields.ownerRole ?? "REP",
+      position: (last?.position ?? -1) + 1,
+    },
+  });
+  await audit({
+    actorId: ctx.id,
+    action: "onboarding.playbook_step_add",
+    entityType: "OnboardingPlaybook",
+    entityId: playbookId,
+    diff: { title, stage: fields.stage },
+  });
+  return task;
+}
+
+export async function updatePlaybookTask(
+  ctx: SessionUser,
+  taskId: string,
+  fields: Partial<PlaybookTaskFields>
+) {
+  requireAdminCtx(ctx);
+  const existing = await db.onboardingPlaybookTask.findUnique({ where: { id: taskId } });
+  if (!existing) throw new OnboardingError("Step not found.");
+  const title = fields.title?.trim();
+  if (fields.title !== undefined && !title) throw new OnboardingError("Give the step a name.");
+
+  const updated = await db.onboardingPlaybookTask.update({
+    where: { id: taskId },
+    data: {
+      ...(title ? { title } : {}),
+      ...(fields.description !== undefined
+        ? { description: fields.description?.trim() || null }
+        : {}),
+      ...(fields.dueOffsetDays !== undefined
+        ? { dueOffsetDays: Math.max(0, fields.dueOffsetDays) }
+        : {}),
+      ...(fields.ownerRole ? { ownerRole: fields.ownerRole } : {}),
+      ...(fields.stage ? { stage: fields.stage } : {}),
+    },
+  });
+  await audit({
+    actorId: ctx.id,
+    action: "onboarding.playbook_step_update",
+    entityType: "OnboardingPlaybook",
+    entityId: existing.playbookId,
+    diff: { title: updated.title },
+  });
+  return updated;
+}
+
+export async function removePlaybookTask(ctx: SessionUser, taskId: string) {
+  requireAdminCtx(ctx);
+  const existing = await db.onboardingPlaybookTask.findUnique({ where: { id: taskId } });
+  if (!existing) throw new OnboardingError("Step not found.");
+  await db.onboardingPlaybookTask.delete({ where: { id: taskId } });
+  await audit({
+    actorId: ctx.id,
+    action: "onboarding.playbook_step_remove",
+    entityType: "OnboardingPlaybook",
+    entityId: existing.playbookId,
+    diff: { title: existing.title },
+  });
+}
+
+// Copying a playbook is how a variant starts: "Enterprise (resorts)" is
+// Enterprise plus four steps, not a blank page.
+export async function duplicatePlaybook(ctx: SessionUser, playbookId: string, name: string) {
+  requireAdminCtx(ctx);
+  const source = await db.onboardingPlaybook.findUnique({
+    where: { id: playbookId },
+    include: { tasks: true },
+  });
+  if (!source) throw new OnboardingError("Playbook not found.");
+  const trimmed = name.trim();
+  if (!trimmed) throw new OnboardingError("Give the copy a name.");
+  const clash = await db.onboardingPlaybook.findUnique({
+    where: { name: trimmed },
+    select: { id: true },
+  });
+  if (clash) throw new OnboardingError("A playbook with that name already exists.");
+
+  const copy = await db.onboardingPlaybook.create({
+    data: {
+      name: trimmed,
+      description: source.description,
+      planLabel: null,
+      tasks: {
+        create: source.tasks.map((t) => ({
+          stage: t.stage,
+          title: t.title,
+          description: t.description,
+          position: t.position,
+          dueOffsetDays: t.dueOffsetDays,
+          ownerRole: t.ownerRole,
+        })),
+      },
+    },
+  });
+  await audit({
+    actorId: ctx.id,
+    action: "onboarding.playbook_duplicate",
+    entityType: "OnboardingPlaybook",
+    entityId: copy.id,
+    diff: { from: source.name, to: trimmed },
+  });
+  return copy;
+}

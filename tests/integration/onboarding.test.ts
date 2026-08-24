@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import type { SessionUser } from "@/lib/rbac";
 import { ONBOARDING_STAGES } from "@/lib/onboarding-stages";
 import {
+  addPlaybookTask,
   addProjectTask,
   advanceStage,
   cancelOnboarding,
@@ -15,8 +16,14 @@ import {
   removeProjectTask,
   setBlocked,
   setTaskDone,
+  createPlaybook,
+  duplicatePlaybook,
+  listPlaybooks,
+  removePlaybookTask,
   startOnboarding,
   startOnboardingForWonDeal,
+  updatePlaybook,
+  updatePlaybookTask,
 } from "@/services/onboarding";
 
 const suffix = `onb-${Math.random().toString(36).slice(2, 8)}`;
@@ -52,6 +59,7 @@ afterAll(async () => {
   await db.auditLog.deleteMany({ where: { merchantId: { in: ids } } });
   await db.deal.deleteMany({ where: { merchantId: { in: ids } } });
   await db.merchant.deleteMany({ where: { id: { in: ids } } });
+  await db.onboardingPlaybook.deleteMany({ where: { name: { contains: suffix } } });
   await db.user.deleteMany({ where: { email: { contains: suffix } } });
   await db.$disconnect();
 });
@@ -225,5 +233,86 @@ describe("onboarding projects", () => {
     // Cancelled work leaves the board without leaving the record.
     const cards = await listOnboarding();
     expect(cards.find((c) => c.id === project.id)).toBeUndefined();
+  });
+});
+
+describe("playbook editing", () => {
+  const pbName = `Resorts ${suffix}`;
+  let playbookId: string;
+
+  it("only admins may touch a playbook", async () => {
+    await expect(createPlaybook(rep, { name: pbName })).rejects.toThrow(OnboardingError);
+    const playbook = await createPlaybook(admin, { name: pbName, planLabel: "Resort" });
+    playbookId = playbook.id;
+    expect(playbook.planLabel).toBe("Resort");
+  });
+
+  it("refuses a duplicate name", async () => {
+    await expect(createPlaybook(admin, { name: pbName })).rejects.toThrow(OnboardingError);
+  });
+
+  it("steps are added, edited and removed per stage", async () => {
+    const step = await addPlaybookTask(admin, playbookId, {
+      stage: "TRAINING",
+      title: "Brief the front office team",
+      ownerRole: "MERCHANT",
+      dueOffsetDays: 3,
+    });
+    expect(step.position).toBe(0);
+
+    const edited = await updatePlaybookTask(admin, step.id, {
+      title: "  Brief the front office and F&B teams  ",
+      dueOffsetDays: 5,
+    });
+    expect(edited.title).toBe("Brief the front office and F&B teams");
+    expect(edited.dueOffsetDays).toBe(5);
+    // A negative offset would date a step before its stage begins.
+    expect((await updatePlaybookTask(admin, step.id, { dueOffsetDays: -4 })).dueOffsetDays).toBe(0);
+
+    await expect(removePlaybookTask(rep, step.id)).rejects.toThrow(OnboardingError);
+    await removePlaybookTask(admin, step.id);
+    expect(await db.onboardingPlaybookTask.findUnique({ where: { id: step.id } })).toBeNull();
+  });
+
+  it("promoting a fallback demotes the previous one", async () => {
+    await updatePlaybook(admin, playbookId, { isDefault: true });
+    const defaults = await db.onboardingPlaybook.findMany({ where: { isDefault: true } });
+    expect(defaults).toHaveLength(1);
+    expect(defaults[0].id).toBe(playbookId);
+    // Put Growth back so the rest of the suite's assumptions hold.
+    const growth = await db.onboardingPlaybook.findUniqueOrThrow({ where: { name: "Growth" } });
+    await updatePlaybook(admin, growth.id, { isDefault: true });
+  });
+
+  it("duplicating copies every step but claims no plan", async () => {
+    await addPlaybookTask(admin, playbookId, { stage: "GO_LIVE", title: "Ferry the standees" });
+    const copy = await duplicatePlaybook(admin, playbookId, `Resorts copy ${suffix}`);
+    const [source, made] = await Promise.all([
+      db.onboardingPlaybookTask.count({ where: { playbookId } }),
+      db.onboardingPlaybookTask.count({ where: { playbookId: copy.id } }),
+    ]);
+    expect(made).toBe(source);
+    expect(copy.planLabel).toBeNull();
+  });
+
+  it("editing a playbook leaves running projects alone", async () => {
+    const id = await makeMerchant("Bandos", "Resort", rep.id);
+    const project = await startOnboarding(rep, { merchantId: id });
+    expect(project.playbookId).toBe(playbookId);
+
+    const before = await db.onboardingTask.count({ where: { projectId: project.id } });
+    await addPlaybookTask(admin, playbookId, {
+      stage: "PAPERWORK",
+      title: "Collect the resort's ferry schedule",
+    });
+    const after = await db.onboardingTask.count({ where: { projectId: project.id } });
+    expect(after).toBe(before);
+  });
+
+  it("archived playbooks drop out of the pickable list", async () => {
+    await updatePlaybook(admin, playbookId, { archived: true });
+    const live = await listPlaybooks();
+    expect(live.find((p) => p.id === playbookId)).toBeUndefined();
+    expect((await listPlaybooks(true)).find((p) => p.id === playbookId)).toBeDefined();
   });
 });

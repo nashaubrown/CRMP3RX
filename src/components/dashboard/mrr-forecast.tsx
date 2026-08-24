@@ -168,9 +168,10 @@ export function MrrForecast({
         <path d={line} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         {pts.map(([x, y], i) => (
           <circle key={i} cx={x} cy={y} r="2" fill="currentColor" fillOpacity={i === 0 || i === 12 ? 1 : 0}>
-            <title>
-              {MONTH_LABELS[i] || `Month ${i}`}: {money(series[i], currency)}/mo
-            </title>
+            {/* One string child, deliberately: React 19 treats <title> with
+                split children as hoistable document metadata, renders it empty
+                on the server, and the page then fails hydration. */}
+            <title>{`${MONTH_LABELS[i] || `Month ${i}`}: ${money(series[i], currency)}/mo`}</title>
           </circle>
         ))}
         <circle cx={lastX} cy={lastY} r="3" fill="currentColor" />
