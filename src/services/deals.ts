@@ -6,6 +6,7 @@ import type { SessionUser } from "@/lib/authz";
 import { canEditAnyRecord, isAdmin } from "@/lib/authz";
 import type { DealInput } from "@/lib/validators/deal";
 import { audit, shallowDiff } from "@/services/audit";
+import { startOnboardingForWonDeal } from "@/services/onboarding";
 
 // Deals follow merchant visibility (org-visible). Editing — including stage
 // moves and won/lost — requires: deal owner, admin, or an EDIT share on the
@@ -267,6 +268,13 @@ export async function moveDealStage(
 
   // Keep the merchant's status in step with its won deals.
   await syncMerchantStatusOnStageChange(ctx, existing.merchantId, existing.stage, stage, dealId);
+
+  // Winning is where onboarding starts. Nobody remembers to open the board and
+  // press a button, so the project appears on its own — and quietly does
+  // nothing if this merchant already has one.
+  if (stage === "WON" && existing.stage !== "WON") {
+    await startOnboardingForWonDeal(ctx, dealId);
+  }
 
   return updated;
 }

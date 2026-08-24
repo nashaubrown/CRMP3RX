@@ -8,10 +8,14 @@ import {
   PencilIcon,
   PhoneIcon,
   PlusIcon,
+  RouteIcon,
   UsersIcon,
 } from "lucide-react";
 
 import { deleteMerchantAction } from "@/app/(app)/merchants/actions";
+import { StageRail } from "@/components/onboarding/onboarding-bits";
+import { STAGE_LABELS } from "@/lib/onboarding-stages";
+import { getOnboardingForMerchant } from "@/services/onboarding";
 import { ShareDialog } from "@/app/(app)/merchants/share-dialog";
 import { ActivityTimeline } from "@/components/activity/activity-timeline";
 import { DeleteButton } from "@/components/delete-button";
@@ -71,6 +75,10 @@ export default async function MerchantDetailPage({
       listCuratedRewards(user, id),
       merchant.access.canEdit ? listRewardTemplates() : Promise.resolve([]),
     ]);
+
+  // The launch, if this merchant has one. A rep looking at a merchant should
+  // not have to remember which board it lives on.
+  const onboarding = await getOnboardingForMerchant(id);
 
   const now = new Date();
   const tasks = taskItems.map((t) => toUiTask(t, now));
@@ -172,6 +180,29 @@ export default async function MerchantDetailPage({
             .map((s) => `${s.user.name} (${s.permission.toLowerCase()})`)
             .join(", ")}
         </p>
+      ) : null}
+
+      {onboarding ? (
+        <Link
+          href={`/onboarding/${onboarding.id}`}
+          className="bg-card surface-card hover:border-primary/40 flex flex-wrap items-center gap-3 rounded-xl border p-3 transition-colors"
+        >
+          <RouteIcon className="text-primary size-4" />
+          <span className="text-sm font-medium">
+            Onboarding · {STAGE_LABELS[onboarding.currentStage]}
+          </span>
+          <span className="text-muted-foreground text-xs">
+            {onboarding.tasks.filter((t) => t.doneAt).length} of {onboarding.tasks.length} steps
+            {onboarding.blockedReason ? " · blocked" : ""}
+          </span>
+          <StageRail
+            current={onboarding.currentStage}
+            completed={onboarding.stages
+              .filter((st) => st.status === "DONE" || st.status === "SKIPPED")
+              .map((st) => st.stage)}
+            className="min-w-32 flex-1"
+          />
+        </Link>
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-3">

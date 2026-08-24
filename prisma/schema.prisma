@@ -88,6 +88,10 @@ model User {
   roadmapSuggestions   RoadmapItem[]         @relation("RoadmapSuggestedBy")
   roadmapVotes         RoadmapVote[]
   roadmapComments      RoadmapComment[]      @relation("RoadmapCommentAuthor")
+  onboardingProjects   OnboardingProject[]   @relation("OnboardingOwner")
+  onboardingBlocks     OnboardingProject[]   @relation("OnboardingBlocker")
+  onboardingTasks      OnboardingTask[]      @relation("OnboardingTaskAssignee")
+  onboardingTasksDone  OnboardingTask[]      @relation("OnboardingTaskCompleter")
   calendarEvents       CalendarEvent[]
 }
 
@@ -277,6 +281,7 @@ model Merchant {
   contacts     Contact[]
   contactLinks ContactMerchant[]
   outlets      Outlet[]
+  onboarding   OnboardingProject?
   curatedRewards CuratedReward[]
   devTickets   DevTicket[]
   roadmapDemands RoadmapDemand[]
@@ -831,7 +836,8 @@ model Deal {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tasks Task[]
+  tasks      Task[]
+  onboarding OnboardingProject?
 
   @@index([ownerId])
   @@index([stage])
@@ -1299,8 +1305,9 @@ model DevTicket {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  comments    DevTicketComment[]
-  attachments DevTicketAttachment[]
+  comments        DevTicketComment[]
+  attachments     DevTicketAttachment[]
+  onboardingTasks OnboardingTask[]
 
   @@index([status, position])
   @@index([assigneeId])
@@ -1540,4 +1547,175 @@ model HelpSetting {
   netlifyBuildHookUrl String?
   siteUrl             String?
   updatedAt           DateTime @updatedAt
+}
+
+// ---------- Merchant onboarding ----------
+//
+// The stretch between "deal won" and "merchant live", tracked as a project per
+// merchant. A playbook supplies the starting checklist (per plan), but every
+// task can be edited for one merchant without touching the playbook — real
+// onboardings never match the template exactly.
+
+enum OnboardingStageKey {
+  PAPERWORK
+  ACCOUNT
+  INTEGRATION
+  REWARDS
+  TRAINING
+  GO_LIVE
+  POST_LAUNCH
+}
+
+enum OnboardingProjectStatus {
+  ACTIVE
+  DONE
+  CANCELLED
+}
+
+enum OnboardingStageStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+  SKIPPED
+}
+
+// Who usually does a step. Informational — it drives the default assignee and
+// makes "waiting on the merchant" legible on the board.
+enum OnboardingOwnerRole {
+  REP
+  DEVELOPER
+  MERCHANT
+}
+
+enum OnboardingTaskSource {
+  PLAYBOOK
+  CUSTOM
+}
+
+model OnboardingPlaybook {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+  // Matched against Merchant.subscriptionPlan when a project starts; the
+  // playbook flagged isDefault catches everything else.
+  planLabel   String?
+  isDefault   Boolean @default(false)
+  archivedAt  DateTime?
+
+  tasks    OnboardingPlaybookTask[]
+  projects OnboardingProject[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model OnboardingPlaybookTask {
+  id         String             @id @default(cuid())
+  playbookId String
+  playbook   OnboardingPlaybook @relation(fields: [playbookId], references: [id], onDelete: Cascade)
+
+  stage       OnboardingStageKey
+  title       String
+  description String?
+  position    Int                 @default(0)
+  // Days after the stage is entered that this step is due.
+  dueOffsetDays Int               @default(0)
+  ownerRole   OnboardingOwnerRole @default(REP)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([playbookId, stage])
+}
+
+model OnboardingProject {
+  id String @id @default(cuid())
+
+  // One project per merchant: a second onboarding for the same merchant is a
+  // re-run of the same story, not a new one.
+  merchantId String   @unique
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  // The deal that triggered it, when there was one.
+  dealId     String?  @unique
+  deal       Deal?    @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  playbookId String?
+  playbook   OnboardingPlaybook? @relation(fields: [playbookId], references: [id], onDelete: SetNull)
+
+  ownerId String
+  owner   User   @relation("OnboardingOwner", fields: [ownerId], references: [id])
+
+  status         OnboardingProjectStatus @default(ACTIVE)
+  currentStage   OnboardingStageKey      @default(PAPERWORK)
+  stageEnteredAt DateTime                @default(now())
+
+  targetLiveDate DateTime?
+  liveAt         DateTime?
+  startedAt      DateTime  @default(now())
+  completedAt    DateTime?
+
+  // Blocked is a first-class state: without a reason and a timestamp, "why do
+  // go-lives take a month" has no answer.
+  blockedReason String?
+  blockedAt     DateTime?
+  blockedById   String?
+  blockedBy     User?     @relation("OnboardingBlocker", fields: [blockedById], references: [id], onDelete: SetNull)
+
+  stages OnboardingStage[]
+  tasks  OnboardingTask[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, currentStage])
+  @@index([ownerId])
+  @@index([targetLiveDate])
+}
+
+model OnboardingStage {
+  id        String            @id @default(cuid())
+  projectId String
+  project   OnboardingProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  stage       OnboardingStageKey
+  status      OnboardingStageStatus @default(PENDING)
+  enteredAt   DateTime?
+  completedAt DateTime?
+  // Set when a stage is skipped — an outlet with no POS needs no Integration,
+  // but the reason has to survive.
+  skipReason  String?
+
+  @@unique([projectId, stage])
+  @@index([projectId])
+}
+
+model OnboardingTask {
+  id        String            @id @default(cuid())
+  projectId String
+  project   OnboardingProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  stage       OnboardingStageKey
+  title       String
+  description String?
+  position    Int                  @default(0)
+  source      OnboardingTaskSource @default(PLAYBOOK)
+  ownerRole   OnboardingOwnerRole  @default(REP)
+
+  assigneeId String?
+  assignee   User?   @relation("OnboardingTaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+
+  dueAt    DateTime?
+  doneAt   DateTime?
+  doneById String?
+  doneBy   User?     @relation("OnboardingTaskCompleter", fields: [doneById], references: [id], onDelete: SetNull)
+
+  // A step that is really a product problem points at the Dev board.
+  devTicketId String?
+  devTicket   DevTicket? @relation(fields: [devTicketId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId, stage])
+  @@index([assigneeId])
+  @@index([dueAt])
 }
