@@ -42,7 +42,7 @@ export default async function EditMerchantPage({
           { label: "Edit" },
         ]}
       />
-      <h1 className="text-2xl font-semibold tracking-tight">Edit {merchant.name}</h1>
+      <h1 className="text-xl font-semibold tracking-tight">Edit {merchant.name}</h1>
       <MerchantForm
         action={updateMerchantAction.bind(null, merchant.id)}
         defaultValues={{

@@ -41,7 +41,7 @@ export default async function AssistantPage({
     <div className="flex h-[calc(100svh-8.5rem)] flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Ask Perx</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Ask Perx</h1>
           <p className="text-muted-foreground text-sm">
             Read-only AI assistant over your CRM data — every tool call is audit-logged
           </p>

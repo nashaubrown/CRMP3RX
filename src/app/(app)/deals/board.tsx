@@ -35,13 +35,16 @@ import { Textarea } from "@/components/ui/textarea";
 import type { BoardDeal, StageSummary } from "@/services/deals";
 import { cn } from "@/lib/utils";
 
+// A dot per stage rather than a saturated stripe across the top of every
+// column: the colour is a label, and six full-strength stripes made the board
+// louder than the deals on it.
 const STAGES: { stage: DealStage; label: string; accent: string }[] = [
-  { stage: "NEW", label: "New", accent: "border-t-blue-500" },
-  { stage: "QUALIFIED", label: "Qualified", accent: "border-t-cyan-500" },
-  { stage: "PROPOSAL", label: "Proposal", accent: "border-t-violet-500" },
-  { stage: "NEGOTIATION", label: "Negotiation", accent: "border-t-amber-500" },
-  { stage: "WON", label: "Won", accent: "border-t-emerald-500" },
-  { stage: "LOST", label: "Lost", accent: "border-t-red-500" },
+  { stage: "NEW", label: "New", accent: "bg-blue-500" },
+  { stage: "QUALIFIED", label: "Qualified", accent: "bg-cyan-500" },
+  { stage: "PROPOSAL", label: "Proposal", accent: "bg-violet-500" },
+  { stage: "NEGOTIATION", label: "Negotiation", accent: "bg-amber-500" },
+  { stage: "WON", label: "Won", accent: "bg-emerald-500" },
+  { stage: "LOST", label: "Lost", accent: "bg-red-500" },
 ];
 
 function money(n: number, currency: string) {
@@ -113,14 +116,16 @@ function StageColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        "bg-muted/40 flex min-w-48 flex-1 basis-0 flex-col gap-2 rounded-lg border border-t-4 p-2",
-        accent,
+        "bg-card/50 flex min-w-48 flex-1 basis-0 flex-col gap-2 rounded-xl border p-2.5",
         isOver && "ring-ring ring-2"
       )}
     >
-      <div className="flex items-center justify-between px-1">
-        <span className="text-sm font-semibold">{label}</span>
-        <Badge variant="secondary">{deals.length}</Badge>
+      <div className="flex items-center gap-2 px-1">
+        <span className={cn("size-2 shrink-0 rounded-full", accent)} aria-hidden />
+        <span className="text-[13px] font-semibold">{label}</span>
+        <Badge variant="secondary" className="ml-auto">
+          {deals.length}
+        </Badge>
       </div>
       {summary && (summary.totalMvr > 0 || summary.totalUsd > 0) ? (
         <p className="text-muted-foreground px-1 text-xs tabular-nums">

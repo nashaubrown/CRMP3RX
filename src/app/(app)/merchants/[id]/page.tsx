@@ -102,7 +102,7 @@ export default async function MerchantDetailPage({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">{merchant.name}</h1>
+            <h1 className="text-xl font-semibold tracking-tight">{merchant.name}</h1>
             <MerchantStatusBadge status={merchant.status} />
             {merchant.beta ? (
               <Badge className="border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-300">

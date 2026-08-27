@@ -22,7 +22,7 @@ export default async function NewMerchantPage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <Breadcrumbs items={[{ label: "Merchants", href: "/merchants" }, { label: "New" }]} />
-      <h1 className="text-2xl font-semibold tracking-tight">New merchant</h1>
+      <h1 className="text-xl font-semibold tracking-tight">New merchant</h1>
       <MerchantForm
         action={createMerchantAction}
         owners={owners}

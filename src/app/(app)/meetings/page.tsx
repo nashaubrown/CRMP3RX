@@ -100,7 +100,7 @@ export default async function MeetingsPage({
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Meetings</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Meetings</h1>
           <p className="text-muted-foreground text-sm">
             The team&apos;s meetings with merchants — scheduled from a merchant or contact page
           </p>

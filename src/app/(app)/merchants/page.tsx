@@ -26,6 +26,7 @@ import {
 import { formatDate } from "@/lib/datetime";
 import { requireUser } from "@/lib/rbac";
 import { merchantListParamsSchema } from "@/lib/validators/merchant";
+import { PageHeader } from "@/components/layout/page-header";
 import { listMerchants, listMerchantsForMap, listPosSystems } from "@/services/merchants";
 import { listAffiliateOptions } from "@/services/affiliates";
 import { listTeamMembers } from "@/services/users";
@@ -80,14 +81,15 @@ export default async function MerchantsPage({
   return (
     <div className="flex flex-col gap-4">
       <FlashToast message="Merchant created" />
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Merchants</h1>
-          <p className="text-muted-foreground text-sm">
-            All merchant accounts — filter to your own or ones shared with you
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <PageHeader
+        title="Merchants"
+        meta={[
+          `${total.toLocaleString()} ${total === 1 ? "account" : "accounts"}`,
+          "org-visible",
+          "filter to your own or ones shared with you",
+        ]}
+        actions={
+          <>
           <ExportButton
             entity="merchants"
             filters={{
@@ -109,8 +111,9 @@ export default async function MerchantsPage({
               <PlusIcon /> New merchant
             </Link>
           </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput placeholder="Search name, category, email…" />

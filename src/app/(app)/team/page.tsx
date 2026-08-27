@@ -43,7 +43,7 @@ export default async function TeamPage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Team</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Team</h1>
         <p className="text-muted-foreground text-sm">
           Add teammates, set their role, reset passwords, and offboard people who leave.
         </p>

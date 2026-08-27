@@ -22,7 +22,7 @@ export default async function NewTicketPage() {
     <div className="flex flex-col gap-4">
       <Breadcrumbs items={[{ label: "Dev", href: "/dev" }, { label: "New ticket" }]} />
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">New ticket</h1>
+        <h1 className="text-xl font-semibold tracking-tight">New ticket</h1>
         <p className="text-muted-foreground text-sm">
           A good ticket answers three things: what happened, where, and how to see it yourself.
         </p>

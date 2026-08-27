@@ -42,7 +42,7 @@ export default async function EditDealPage({ params }: { params: Promise<{ id: s
           { label: "Edit" },
         ]}
       />
-      <h1 className="text-2xl font-semibold tracking-tight">Edit {deal.title}</h1>
+      <h1 className="text-xl font-semibold tracking-tight">Edit {deal.title}</h1>
       <DealForm
         action={updateDealAction.bind(null, deal.id)}
         defaultValues={{

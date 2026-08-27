@@ -40,7 +40,7 @@ export default async function RoadmapItemPage({ params }: { params: Promise<{ id
         />
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">{item.title}</h1>
+            <h1 className="text-xl font-semibold tracking-tight">{item.title}</h1>
             <StageBadge stage={item.stage as RoadmapStage} />
             <ProductBadge product={item.product} />
           </div>

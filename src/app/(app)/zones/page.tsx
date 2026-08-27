@@ -22,7 +22,7 @@ export default async function ZonesPage() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Zones</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Zones</h1>
         <p className="text-muted-foreground text-sm">
           Draw sales territories and campaign zones, and see the merchants inside each.
         </p>

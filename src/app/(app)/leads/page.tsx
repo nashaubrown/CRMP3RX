@@ -56,7 +56,7 @@ export default async function LeadsPage({
       <FlashToast message="Lead created" />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Leads</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Leads</h1>
           <p className="text-muted-foreground text-sm">
             Rule-scored prospects — claim unassigned ones from the public form
           </p>

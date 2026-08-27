@@ -51,7 +51,7 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
       />
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-muted-foreground font-mono text-sm">{ticketKey(ticket.number)}</span>
-        <h1 className="text-2xl font-semibold tracking-tight">{ticket.title}</h1>
+        <h1 className="text-xl font-semibold tracking-tight">{ticket.title}</h1>
         <TypeBadge type={ticket.type} />
         <StatusBadge status={ticket.status} />
       </div>

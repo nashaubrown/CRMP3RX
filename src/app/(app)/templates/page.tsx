@@ -28,7 +28,7 @@ export default async function TemplatesPage() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Templates</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Templates</h1>
           <p className="text-muted-foreground text-sm">
             Reusable email and SMS messages with merge vars
           </p>

@@ -4,94 +4,117 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* 12px cards, 8px controls: the reference's geometry — softer than a sharp
+     box, nowhere near a pill. */
+  --radius: 0.75rem;
+  --background: oklch(0.995 0.002 150);
+  --foreground: oklch(0.16 0.008 150);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.16 0.008 150);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
+  --popover-foreground: oklch(0.16 0.008 150);
   /* Perx brand green (#16a34a fill, AA with white) + bright green ring (#22c55e) */
   --primary: oklch(0.627 0.17 149.2);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
+  --secondary: oklch(0.97 0.003 150);
   --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
+  --muted: oklch(0.968 0.003 150);
+  --muted-foreground: oklch(0.505 0.012 150);
+  --accent: oklch(0.968 0.003 150);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
+  /* Hairlines, not rules: structure comes from the border, so it has to be
+     quiet enough to sit behind dense tables without striping them. */
+  --border: oklch(0.915 0.004 150);
+  --input: oklch(0.915 0.004 150);
   --ring: oklch(0.723 0.192 149.6);
   --chart-1: oklch(0.627 0.17 149.2); /* Perx green */
   --chart-2: oklch(0.75 0.11 264); /* Perx chart blue (#93b4f5) */
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar: oklch(0.985 0.003 150);
+  --sidebar-foreground: oklch(0.16 0.008 150);
   --sidebar-primary: oklch(0.627 0.17 149.2);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   /* Active/hover nav gets a soft Perx-green wash */
   --sidebar-accent: oklch(0.95 0.03 150);
-  --sidebar-accent-foreground: oklch(0.52 0.14 150);
-  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-accent-foreground: oklch(0.45 0.13 150);
+  --sidebar-border: oklch(0.915 0.004 150);
   --sidebar-ring: oklch(0.723 0.192 149.6);
 
-  /* Surface treatment shared with the Perx Help Center (help.perx.mv) so the
-     two properties read as one product. Two-layer shadows: a hairline for
-     resting cards, a deeper one for hover/raised states. */
-  --shadow-card: 0 1px 2px rgba(3, 7, 18, 0.04), 0 8px 24px -12px rgba(3, 7, 18, 0.08);
-  --shadow-pop: 0 12px 40px -8px rgba(3, 7, 18, 0.18);
-  /* Soft mint gradient behind the app shell. */
-  --wash: radial-gradient(1200px 600px at 70% -10%, #dff2e6 0%, #eaf6ef 45%, #f4faf6 100%);
-  /* Flat green pair for icon tiles and soft accents (kept as hex to match the
-     help center exactly; the oklch tokens above stay the source of truth for
-     component colour). */
+  /* Elevation is a whisper. Cards separate by border and background, the way
+     the reference does; the shadow only keeps them off the page. */
+  --shadow-card: 0 1px 2px rgba(3, 7, 18, 0.04);
+  --shadow-pop: 0 8px 28px -10px rgba(3, 7, 18, 0.14);
+  /* A hint of mint behind the shell — enough to be Perx, quiet enough that a
+     table reads as the loudest thing on screen. */
+  --wash: radial-gradient(1100px 560px at 72% -12%, #eef7f1 0%, #f5faf7 45%, #fafcfb 100%);
   --green-soft: #dcfce7;
   --green-deep: #15803d;
+  /* Status tints, used by badges and rows in both themes. */
+  --tint-green: color-mix(in oklab, var(--primary) 12%, transparent);
+  --tint-green-ink: oklch(0.45 0.13 150);
+  --tint-amber: color-mix(in oklab, oklch(0.75 0.15 75) 16%, transparent);
+  --tint-amber-ink: oklch(0.52 0.12 75);
+  --tint-red: color-mix(in oklab, var(--destructive) 12%, transparent);
+  --tint-red-ink: oklch(0.51 0.2 27);
+  --tint-blue: color-mix(in oklab, oklch(0.6 0.16 255) 12%, transparent);
+  --tint-blue-ink: oklch(0.5 0.16 255);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
+  /* Near-black, very slightly green so it sits under the accent rather than
+     fighting it. Panels are a step up from the page, never a step down. */
+  --background: oklch(0.155 0.005 155);
+  --foreground: oklch(0.945 0.004 150);
+  --card: oklch(0.205 0.005 155);
+  --card-foreground: oklch(0.945 0.004 150);
+  --popover: oklch(0.215 0.005 155);
+  --popover-foreground: oklch(0.945 0.004 150);
   /* Bright Perx green on dark, with near-black text on the green fill */
   --primary: oklch(0.723 0.192 149.6);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.17 0.02 155);
+  --secondary: oklch(0.255 0.005 155);
+  --secondary-foreground: oklch(0.945 0.004 150);
+  --muted: oklch(0.245 0.005 155);
+  --muted-foreground: oklch(0.7 0.008 150);
+  --accent: oklch(0.26 0.006 155);
+  --accent-foreground: oklch(0.945 0.004 150);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 12%);
   --ring: oklch(0.723 0.192 149.6);
   --chart-1: oklch(0.723 0.192 149.6); /* Perx green */
   --chart-2: oklch(0.75 0.11 264); /* Perx chart blue */
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
+  /* The sidebar is the darkest surface, so the content panel reads as lit. */
+  --sidebar: oklch(0.175 0.005 155);
+  --sidebar-foreground: oklch(0.945 0.004 150);
   --sidebar-primary: oklch(0.723 0.192 149.6);
-  --sidebar-primary-foreground: oklch(0.205 0 0);
-  --sidebar-accent: oklch(0.32 0.055 150);
-  --sidebar-accent-foreground: oklch(0.92 0.05 150);
-  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-primary-foreground: oklch(0.17 0.02 155);
+  --sidebar-accent: oklch(0.27 0.035 155);
+  --sidebar-accent-foreground: oklch(0.9 0.09 150);
+  --sidebar-border: oklch(1 0 0 / 8%);
   --sidebar-ring: oklch(0.723 0.192 149.6);
 
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
-  --shadow-pop: 0 12px 40px -8px rgba(0, 0, 0, 0.6);
-  --wash: radial-gradient(1200px 600px at 70% -10%, #0f2418 0%, #0c1712 45%, #0a0f1a 100%);
-  --green-soft: #0c2e1c;
-  --green-deep: #4ade80;
+  /* No drop shadows in the dark theme: on a near-black page they read as
+     smudges. Separation comes from the border and the surface step. */
+  --shadow-card: 0 0 0 0 rgba(0, 0, 0, 0);
+  --shadow-pop: 0 16px 48px -16px rgba(0, 0, 0, 0.75);
+  --wash: linear-gradient(180deg, #0b0d0c 0%, #0a0c0b 100%);
+  --green-soft: oklch(0.28 0.06 155);
+  --green-deep: oklch(0.8 0.16 150);
+  --tint-green: color-mix(in oklab, var(--primary) 16%, transparent);
+  --tint-green-ink: oklch(0.82 0.16 150);
+  --tint-amber: color-mix(in oklab, oklch(0.8 0.15 75) 16%, transparent);
+  --tint-amber-ink: oklch(0.84 0.13 80);
+  --tint-red: color-mix(in oklab, var(--destructive) 16%, transparent);
+  --tint-red-ink: oklch(0.78 0.14 22);
+  --tint-blue: color-mix(in oklab, oklch(0.7 0.14 255) 16%, transparent);
+  --tint-blue-ink: oklch(0.8 0.11 255);
 }
 
 @theme inline {
@@ -211,6 +234,75 @@
     border-radius: 12px;
     background: var(--green-soft);
     color: var(--green-deep);
+  }
+
+  /* ---- Density language ---------------------------------------------------
+     The reference's discipline, expressed once: small-caps section labels,
+     tabular numerals wherever numbers stack, monospace timestamps, and table
+     headers that read as labels rather than as another row of data. Applied in
+     both themes — only the palette differs between them. */
+
+  /* "PIPELINE", "WORK", "DERIVE": a heading that stays out of the way. */
+  .section-label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+
+  /* Any column of figures: digits must line up down the page. */
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  /* Timestamps and ids — monospace so 06:02:14 scans as a clock, not prose. */
+  .stamp {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
+  }
+
+  /* Status pills. One shape, four meanings, both themes. */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border-radius: 999px;
+    padding: 0.1rem 0.5rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+  }
+  .pill-green {
+    background: var(--tint-green);
+    color: var(--tint-green-ink);
+  }
+  .pill-amber {
+    background: var(--tint-amber);
+    color: var(--tint-amber-ink);
+  }
+  .pill-red {
+    background: var(--tint-red);
+    color: var(--tint-red-ink);
+  }
+  .pill-blue {
+    background: var(--tint-blue);
+    color: var(--tint-blue-ink);
+  }
+  .pill-neutral {
+    background: var(--muted);
+    color: var(--muted-foreground);
+  }
+
+  /* The line under a page title: "Append-only · retained seven years · 1,284
+     entries today". Facts about the page, not a sentence about it. */
+  .page-meta {
+    font-size: 0.8125rem;
+    color: var(--muted-foreground);
   }
 
   .icon-tile-sm {

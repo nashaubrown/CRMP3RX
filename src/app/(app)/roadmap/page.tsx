@@ -43,7 +43,7 @@ export default async function RoadmapPage({
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Roadmap</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Roadmap</h1>
           <p className="text-muted-foreground text-sm">
             Feature ideas for the Merchant Portal, Perx App and CRM — vote, attach the merchants
             who asked, and follow the build.

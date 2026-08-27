@@ -47,7 +47,7 @@ export default async function EditContactPage({
           { label: "Edit" },
         ]}
       />
-      <h1 className="text-2xl font-semibold tracking-tight">
+      <h1 className="text-xl font-semibold tracking-tight">
         Edit {contact.firstName} {contact.lastName}
       </h1>
       <ContactForm

@@ -11,6 +11,7 @@ import {
   type StartOption,
 } from "@/components/onboarding/start-onboarding";
 import { db } from "@/lib/db";
+import { PageHeader } from "@/components/layout/page-header";
 import { requireUser } from "@/lib/rbac";
 import { cn } from "@/lib/utils";
 import { ensureDefaultPlaybooks, listOnboarding, onboardingMetrics } from "@/services/onboarding";
@@ -59,26 +60,21 @@ export default async function OnboardingPage({
     taskCount: p._count.tasks,
   }));
 
-  const summary = [
+  const facts = [
     `${metrics.inFlight} in flight`,
     metrics.blocked > 0 ? `${metrics.blocked} blocked` : null,
     metrics.goingLiveSoon > 0 ? `${metrics.goingLiveSoon} going live within 7 days` : null,
     metrics.medianDaysToLive !== null ? `median ${metrics.medianDaysToLive} days to live` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  ].filter(Boolean) as string[];
+  const summary = facts.join(" · ");
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Onboarding</h1>
-          <p className="text-muted-foreground text-sm">
-            {summary || "Nothing in flight — win a deal and a project starts itself."}
-          </p>
-        </div>
-        <StartOnboardingDialog merchants={merchantOptions} playbooks={playbookOptions} />
-      </div>
+      <PageHeader
+        title="Onboarding"
+        meta={summary ? facts : ["Nothing in flight — win a deal and a project starts itself."]}
+        actions={<StartOnboardingDialog merchants={merchantOptions} playbooks={playbookOptions} />}
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="bg-card flex overflow-hidden rounded-lg border text-sm">

@@ -56,7 +56,7 @@ export default async function DealsPage({
       <FlashToast message="Deal created" />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Deals</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Deals</h1>
           <p className="text-muted-foreground text-sm">
             Drag deals across stages — dropping on Lost asks for a reason
           </p>

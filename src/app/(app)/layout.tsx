@@ -34,7 +34,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {/* Centered, max-width content so it doesn't stretch edge-to-edge on
             wide screens; pb clears the fixed bottom nav, which only exists
             below lg. */}
-        <main className="mx-auto w-full max-w-[1600px] flex-1 p-4 pb-24 md:p-8 md:pb-24 lg:pb-10">
+        <main className="mx-auto w-full max-w-[1600px] flex-1 p-4 pb-24 md:px-6 md:py-5 md:pb-24 lg:pb-8">
           {children}
         </main>
       </div>

@@ -26,7 +26,7 @@ export default async function HelpSettingsPage() {
           </Link>
         </Button>
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Help Center settings</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Help Center settings</h1>
           <p className="text-muted-foreground text-sm">
             Categories shown on the public site, and how publishing triggers a rebuild
           </p>

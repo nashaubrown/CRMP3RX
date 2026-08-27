@@ -34,7 +34,7 @@ export default async function PlaybooksPage() {
     <div className="flex flex-col gap-4">
       <Breadcrumbs items={[{ label: "Onboarding", href: "/onboarding" }, { label: "Playbooks" }]} />
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Playbooks</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Playbooks</h1>
         <p className="text-muted-foreground text-sm">
           The checklist a new onboarding starts from, matched to the merchant&apos;s plan. Due
           dates are days after that stage begins, not days from the start of the project.

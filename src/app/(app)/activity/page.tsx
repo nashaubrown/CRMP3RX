@@ -75,7 +75,7 @@ export default async function ActivityPage({ searchParams }: { searchParams: Sea
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Activity</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Activity</h1>
         <p className="text-muted-foreground text-sm">
           Who is using the CRM, and what they changed.
         </p>

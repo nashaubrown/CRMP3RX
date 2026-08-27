@@ -12,6 +12,7 @@ import {
 import { MrrForecast } from "@/components/dashboard/mrr-forecast";
 import { OwnerBreakdownTable } from "@/components/dashboard/owner-breakdown-table";
 import { StatTrendCard, type StatTrend } from "@/components/dashboard/stat-trend-card";
+import { PageHeader } from "@/components/layout/page-header";
 import { formatDateTime, formatTime } from "@/lib/datetime";
 import { db } from "@/lib/db";
 import { isAdmin, ownerScope, requireUser } from "@/lib/rbac";
@@ -98,14 +99,13 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Welcome back, {user.name?.split(" ")[0]}
-        </h1>
-        <p className="text-muted-foreground text-sm">
-          {admin ? "Team-wide view" : "Your book of business"} · {formatDateTime(now, "EEEE, d MMMM")}
-        </p>
-      </div>
+      <PageHeader
+        title={`Welcome back, ${user.name?.split(" ")[0] ?? ""}`}
+        meta={[
+          admin ? "Team-wide view" : "Your book of business",
+          formatDateTime(now, "EEEE, d MMMM"),
+        ]}
+      />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {stats.map((stat) => (

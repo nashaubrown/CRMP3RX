@@ -53,7 +53,7 @@ export default async function ContactsPage({
       <FlashToast message="Contact created" />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Contacts</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Contacts</h1>
           <p className="text-muted-foreground text-sm">
             People at merchant accounts — filter to your own or shared merchants
           </p>

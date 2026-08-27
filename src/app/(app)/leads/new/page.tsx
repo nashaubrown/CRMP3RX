@@ -18,7 +18,7 @@ export default async function NewLeadPage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <Breadcrumbs items={[{ label: "Leads", href: "/leads" }, { label: "New" }]} />
-      <h1 className="text-2xl font-semibold tracking-tight">New lead</h1>
+      <h1 className="text-xl font-semibold tracking-tight">New lead</h1>
       <LeadForm
         action={createLeadAction}
         merchants={merchants}

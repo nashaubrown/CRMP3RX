@@ -27,7 +27,7 @@ export default async function NewDealPage({
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <Breadcrumbs items={[{ label: "Deals", href: "/deals" }, { label: "New" }]} />
-      <h1 className="text-2xl font-semibold tracking-tight">New deal</h1>
+      <h1 className="text-xl font-semibold tracking-tight">New deal</h1>
       <DealForm
         action={createDealAction}
         defaultValues={{ merchantId }}

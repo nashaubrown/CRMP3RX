@@ -73,7 +73,7 @@ export default async function HelpCenterPage({ searchParams }: { searchParams: S
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Help Center</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Help Center</h1>
           <p className="text-muted-foreground text-sm">
             Write and review the articles published on the public help site
           </p>

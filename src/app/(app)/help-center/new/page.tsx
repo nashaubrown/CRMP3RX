@@ -14,7 +14,7 @@ export default async function NewHelpArticlePage() {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">New help article</h1>
+        <h1 className="text-xl font-semibold tracking-tight">New help article</h1>
         <p className="text-muted-foreground text-sm">
           Give it a title and a home — you&apos;ll write the content next.
         </p>

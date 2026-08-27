@@ -20,7 +20,7 @@ export default async function NewContactPage({
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <Breadcrumbs items={[{ label: "Contacts", href: "/contacts" }, { label: "New" }]} />
-      <h1 className="text-2xl font-semibold tracking-tight">New contact</h1>
+      <h1 className="text-xl font-semibold tracking-tight">New contact</h1>
       <ContactForm
         action={createContactAction}
         defaultValues={{ merchantIds: merchantId ? [merchantId] : [] }}

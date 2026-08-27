@@ -31,7 +31,7 @@ export default async function CanvasPage({
       <div className="flex items-center gap-2">
         <WandSparklesIcon className="text-primary size-5" />
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Generative canvas</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Generative canvas</h1>
           <p className="text-muted-foreground text-sm">
             Describe what you want to see — the AI composes a live view from your CRM data
           </p>

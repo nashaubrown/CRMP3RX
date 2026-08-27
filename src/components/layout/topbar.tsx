@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { LogOutIcon } from "lucide-react";
 
 import { AssistantSheet } from "@/components/assistant/assistant-sheet";
 import { BrandBadge, BrandLogo } from "@/components/layout/brand-logo";
 import { CommandPalette } from "@/components/layout/command-palette";
+import { navItemsFor } from "@/components/layout/nav-items";
 import { UiModeToggle } from "@/components/generative/ui-mode-toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -29,13 +31,19 @@ type TopbarProps = {
   onSignOut: () => Promise<void>;
 };
 
-// Floating pill header. Navigation itself lives in the left sidebar on desktop
-// and the bottom tab bar on phones, so this bar carries only the things that
-// belong to no page in particular: ⌘K search, the display toggles, and — below
-// lg, where the sidebar is hidden — the brand and the account menu.
+// A flat bar with a hairline under it, not a floating pill: the page below is
+// the object, and the chrome should not compete with it. Navigation lives in
+// the left sidebar on desktop and the bottom tab bar on phones, so this carries
+// only what belongs to no page in particular — where you are, ⌘K search, the
+// display toggles, and (below lg, where the sidebar is hidden) brand and
+// account.
 
 export function Topbar({ user, generativeUi, onSignOut }: TopbarProps) {
   const isAdmin = user.role === "ADMIN";
+  const pathname = usePathname();
+  const section = navItemsFor(isAdmin).find(
+    (i) => pathname === i.href || pathname.startsWith(`${i.href}/`)
+  );
 
   const initials = (user.name ?? user.email ?? "?")
     .split(" ")
@@ -45,8 +53,8 @@ export function Topbar({ user, generativeUi, onSignOut }: TopbarProps) {
     .toUpperCase();
 
   return (
-    <header className="sticky top-0 z-40 px-3 pt-3">
-      <div className="bg-card/95 supports-[backdrop-filter]:bg-card/80 surface-card mx-auto flex w-full max-w-[1600px] items-center gap-2 rounded-full border px-3 py-2 backdrop-blur">
+    <header className="bg-background/85 supports-[backdrop-filter]:bg-background/70 sticky top-0 z-40 border-b backdrop-blur">
+      <div className="mx-auto flex h-13 w-full max-w-[1600px] items-center gap-2 px-4 md:px-6">
         <Link
           href="/dashboard"
           className="flex shrink-0 items-center gap-2.5 lg:hidden"
@@ -55,6 +63,22 @@ export function Topbar({ user, generativeUi, onSignOut }: TopbarProps) {
           <BrandLogo imgClassName="h-5 w-auto" fallbackClassName="size-7 rounded-md text-sm" />
           <BrandBadge>CRM</BrandBadge>
         </Link>
+
+        {/* Where you are, in the reference's workspace / page form. Detail
+            pages still render their own deeper trail below this. */}
+        <nav aria-label="Location" className="hidden min-w-0 items-center gap-1.5 text-[13px] lg:flex">
+          <Link href="/dashboard" className="text-muted-foreground hover:text-foreground">
+            Perx CRM
+          </Link>
+          {section ? (
+            <>
+              <span className="text-muted-foreground/50" aria-hidden>
+                /
+              </span>
+              <span className="truncate font-medium">{section.title}</span>
+            </>
+          ) : null}
+        </nav>
 
         <div className="flex-1" />
 

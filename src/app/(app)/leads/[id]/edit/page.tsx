@@ -30,7 +30,7 @@ export default async function EditLeadPage({ params }: { params: Promise<{ id: s
           { label: "Edit", href: `/leads/${lead.id}` },
         ]}
       />
-      <h1 className="text-2xl font-semibold tracking-tight">Edit lead</h1>
+      <h1 className="text-xl font-semibold tracking-tight">Edit lead</h1>
       <LeadForm
         action={updateLeadAction.bind(null, lead.id)}
         defaultValues={{

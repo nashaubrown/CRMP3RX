@@ -81,7 +81,7 @@ export default async function AffiliatesPage({
       <Breadcrumbs items={[{ label: "Affiliates" }]} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Affiliates</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Affiliates</h1>
           <p className="text-muted-foreground text-sm">
             Referral partners and the commission owed for the merchants they bring in
           </p>
