@@ -67,7 +67,7 @@ export default async function RoadmapPage({
 
       {byStage.map(({ stage, items: group }) => (
         <section key={stage} className="flex flex-col gap-2">
-          <h2 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+          <h2 className="section-label">
             {STAGE_LABELS[stage as RoadmapStage]}
             <span className="ml-2 font-mono">{group.length}</span>
           </h2>

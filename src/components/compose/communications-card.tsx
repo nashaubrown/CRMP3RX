@@ -43,7 +43,7 @@ export function CommunicationsCard({ items }: { items: CommItem[] }) {
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{item.summary}</p>
                 <p className="text-muted-foreground text-xs">
-                  to {item.to} · {item.senderName} · {formatDateTime(item.createdAt)}
+                  to {item.to} · {item.senderName} <span className="stamp">· {formatDateTime(item.createdAt)}</span>
                 </p>
               </div>
               <Badge variant={STATUS_VARIANT[item.status] ?? "outline"} className="capitalize">

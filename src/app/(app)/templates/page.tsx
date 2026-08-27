@@ -72,7 +72,7 @@ export default async function TemplatesPage() {
                       {template.subject ?? template.body.slice(0, 80)}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {formatDate(template.updatedAt)}
+                      <span className="stamp">{formatDate(template.updatedAt)}</span>
                     </TableCell>
                     <TableCell>
                       <Button variant="ghost" size="sm" asChild>

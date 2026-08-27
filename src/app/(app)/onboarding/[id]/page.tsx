@@ -242,9 +242,7 @@ export default async function OnboardingProjectPage({
                       <span className="font-semibold">{h.actor?.name ?? "System"}</span>{" "}
                       {describe(h.action, h.diff)}
                     </p>
-                    <p className="text-muted-foreground text-[11px]">
-                      {formatDateTime(h.createdAt)}
-                    </p>
+                    <p className="stamp text-[11px]">{formatDateTime(h.createdAt)}</p>
                   </div>
                 </div>
               ))

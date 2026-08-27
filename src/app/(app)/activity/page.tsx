@@ -208,7 +208,7 @@ export default async function ActivityPage({ searchParams }: { searchParams: Sea
                 <TableBody>
                   {log.items.map((row) => (
                     <TableRow key={row.id}>
-                      <TableCell className="text-muted-foreground pl-4 whitespace-nowrap">
+                      <TableCell className="stamp pl-4 whitespace-nowrap">
                         {formatDateTime(row.createdAt, "d MMM yyyy, HH:mm")}
                       </TableCell>
                       <TableCell>{row.actor?.name ?? "—"}</TableCell>

@@ -110,7 +110,7 @@ export function ActivityTimeline({
                       </p>
                     ) : null}
                     <p className="text-muted-foreground mt-1 text-xs">
-                      {activity.owner.name} · {formatDateTime(activity.createdAt)}
+                      {activity.owner.name} <span className="stamp">· {formatDateTime(activity.createdAt)}</span>
                       {activity.dueAt ? <> · due {formatDateTime(activity.dueAt)}</> : null}
                     </p>
                   </div>

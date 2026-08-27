@@ -9,7 +9,10 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
     <div data-slot="table-container" className="relative w-full overflow-x-auto">
       <table
         data-slot="table"
-        className={cn("w-full caption-bottom text-[13px]", className)}
+        // Tabular figures on every table, everywhere: a column of amounts or
+        // counts has to line up down the page, and no caller should have to
+        // remember that.
+        className={cn("w-full caption-bottom text-[13px] [font-variant-numeric:tabular-nums]", className)}
         {...props}
       />
     </div>
