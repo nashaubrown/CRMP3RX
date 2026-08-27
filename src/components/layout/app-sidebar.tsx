@@ -124,7 +124,7 @@ export function AppSidebar({
     <aside
       data-rail={rail ? "" : undefined}
       className={cn(
-        "bg-sidebar text-sidebar-foreground sticky top-0 hidden h-svh shrink-0 flex-col border-r lg:flex",
+        "bg-sidebar text-sidebar-foreground glass-panel sticky top-0 hidden h-svh shrink-0 flex-col border-r lg:flex",
         rail ? "w-[68px]" : "w-60"
       )}
     >

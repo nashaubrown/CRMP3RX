@@ -22,7 +22,7 @@ export function OnboardingBoard({ projects }: { projects: ProjectCard[] }) {
         return (
           <section
             key={stage}
-            className="bg-card/50 flex min-h-40 flex-col gap-2 rounded-xl border p-2.5"
+            className="bg-card/60 glass-panel flex min-h-40 flex-col gap-2 rounded-xl border p-2.5"
             aria-label={STAGE_LABELS[stage]}
           >
             <header className="flex items-center gap-2 px-0.5">

@@ -116,7 +116,7 @@ function StageColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        "bg-card/50 flex min-w-48 flex-1 basis-0 flex-col gap-2 rounded-xl border p-2.5",
+        "bg-card/60 glass-panel flex min-w-48 flex-1 basis-0 flex-col gap-2 rounded-xl border p-2.5",
         isOver && "ring-ring ring-2"
       )}
     >

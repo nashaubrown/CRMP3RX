@@ -53,7 +53,7 @@ export function Topbar({ user, generativeUi, onSignOut }: TopbarProps) {
     .toUpperCase();
 
   return (
-    <header className="bg-background/85 supports-[backdrop-filter]:bg-background/70 sticky top-0 z-40 border-b backdrop-blur">
+    <header className="bg-background/70 supports-[backdrop-filter]:bg-background/45 glass-panel sticky top-0 z-40 border-b">
       <div className="mx-auto flex h-13 w-full max-w-[1600px] items-center gap-2 px-4 md:px-6">
         <Link
           href="/dashboard"
